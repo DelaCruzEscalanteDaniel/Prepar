@@ -109,6 +109,9 @@ function correo(valor, { requerido = true, campo = 'tu correo electrónico' } = 
   return c;
 }
 
+const SIMBOLOS_PASSWORD = '! @ # $ % & * ( ) - _ + = . , : ; ? ¿ ¡ /';
+const RE_PASSWORD = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü!@#$%&*()\-_+=.,:;?¿¡/]+$/;
+
 function password(valor, campo = 'la contraseña') {
   if (typeof valor !== 'string' || valor.length === 0) throw peticionInvalida(`Escribe ${campo}`);
   const n = largo(valor);
@@ -116,6 +119,10 @@ function password(valor, campo = 'la contraseña') {
     throw peticionInvalida(`${mayus(campo)} debe tener de ${LIMITES.passwordMin} a ${LIMITES.passwordMax} caracteres`);
   }
   if (/[\u0000-\u001F\u007F]/.test(valor)) throw peticionInvalida(`${mayus(campo)} contiene caracteres no permitidos`);
+  if (/\s/u.test(valor)) throw peticionInvalida(`${mayus(campo)} no puede tener espacios`);
+  if (!RE_PASSWORD.test(valor)) throw peticionInvalida(`${mayus(campo)} solo puede tener letras, números y estos símbolos: ${SIMBOLOS_PASSWORD}`);
+  if (!/\p{Lu}/u.test(valor)) throw peticionInvalida(`${mayus(campo)} debe tener al menos una letra mayúscula`);
+  if (!/[0-9]/.test(valor)) throw peticionInvalida(`${mayus(campo)} debe tener al menos un número`);
   if (Buffer.byteLength(valor, 'utf8') > 72) throw peticionInvalida(`${mayus(campo)} es demasiado larga: usa menos acentos o símbolos especiales`);
   return valor;
 }

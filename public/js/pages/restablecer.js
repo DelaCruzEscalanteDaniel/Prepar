@@ -12,11 +12,15 @@
       return;
     }
     history.replaceState(null, '', location.pathname);
+    var campoPass = form.querySelector('[name=password]');
+    var reglas = P.$('#reglas-restablecer');
+    P.pintarReglasPassword(reglas, '');
+    campoPass.addEventListener('input', function () { P.pintarReglasPassword(reglas, campoPass.value); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var d = P.datosForm(form);
-      var n = Array.from(d.password).length;
-      if (n < 8 || n > 64) { P.poner(msg, P.html`<div class="mensaje error">La contraseña debe tener de 8 a 64 caracteres</div>`); return; }
+      var errP = P.errorPassword(d.password);
+      if (errP) { P.poner(msg, P.html`<div class="mensaje error" role="alert">${errP}</div>`); return; }
       if (d.password !== d.confirmar) { P.poner(msg, P.html`<div class="mensaje error">Las contraseñas no coinciden</div>`); return; }
       P.accion(form.querySelector('button[type=submit]'), function () {
         return P.post('/api/auth/restablecer', { token: token, password: d.password }, { sinRedirigir: true })

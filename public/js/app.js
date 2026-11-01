@@ -125,6 +125,10 @@
     [/^(.+) no es una dirección válida$/, function (m, c) { return mayusEn(c(m[1])) + ' is not a valid address'; }],
     [/^(.+) no es válid[oa]$/, function (m, c) { return mayusEn(c(m[1])) + ' is not valid'; }],
     [/^(.+) no existe$/, function (m, c) { return mayusEn(c(m[1])) + ' does not exist'; }],
+    [/^(.+) solo puede tener letras, números y estos símbolos: (.+)$/, function (m, c) { return mayusEn(c(m[1])) + ' can only contain letters, numbers and these symbols: ' + m[2]; }],
+    [/^(.+) no puede tener espacios$/, function (m, c) { return mayusEn(c(m[1])) + ' cannot contain spaces'; }],
+    [/^(.+) debe tener al menos una letra mayúscula$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least one uppercase letter'; }],
+    [/^(.+) debe tener al menos un número$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least one number'; }],
     [/^(.+) es demasiado larga: usa menos acentos o símbolos especiales$/, function (m, c) { return mayusEn(c(m[1])) + ' is too long: use fewer accents or special symbols'; }],
     [/^(.+) contiene caracteres no permitidos$/, function (m, c) { return mayusEn(c(m[1])) + ' contains characters that are not allowed'; }],
     [/^(.+) tiene demasiados elementos$/, function (m, c) { return mayusEn(c(m[1])) + ' has too many items'; }],
@@ -354,6 +358,38 @@
     });
   };
 
+  var SIMBOLOS_PASS = '! @ # $ % & * ( ) - _ + = . , : ; ? ¿ ¡ /';
+  var RE_PASS_SIMBOLOS = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü!@#$%&*()\-_+=.,:;?¿¡/]*$/;
+  P.reglasPassword = function (valor) {
+    var v = String(valor || '');
+    var n = Array.from(v).length;
+    return [
+      { ok: n >= 8 && n <= 64, texto: 'De 8 a 64 caracteres' },
+      { ok: /[A-ZÁÉÍÓÚÜÑ]/.test(v), texto: 'Una letra mayúscula' },
+      { ok: /[0-9]/.test(v), texto: 'Un número' },
+      { ok: !!v && !/\s/.test(v), texto: 'Sin espacios' },
+      { ok: !!v && RE_PASS_SIMBOLOS.test(v.replace(/\s/g, '')), texto: 'Solo símbolos básicos' },
+    ];
+  };
+  P.errorPassword = function (valor, campo) {
+    var v = String(valor || '');
+    var n = Array.from(v).length;
+    var c = campo || 'La contraseña';
+    if (n < 8 || n > 64) return P.t('{c} debe tener de 8 a 64 caracteres', { c: P.t(c) });
+    if (/\s/.test(v)) return P.t('{c} no puede tener espacios', { c: P.t(c) });
+    if (!RE_PASS_SIMBOLOS.test(v)) return P.t('{c} solo puede tener letras, números y estos símbolos: {s}', { c: P.t(c), s: SIMBOLOS_PASS });
+    if (!/[A-ZÁÉÍÓÚÜÑ]/.test(v)) return P.t('{c} debe tener al menos una letra mayúscula', { c: P.t(c) });
+    if (!/[0-9]/.test(v)) return P.t('{c} debe tener al menos un número', { c: P.t(c) });
+    return null;
+  };
+  P.pintarReglasPassword = function (cont, valor) {
+    if (!cont) return;
+    if (!valor) { P.poner(cont, P.html`<span class="tenue">${P.t('Con al menos una mayúscula y un número, sin espacios. Símbolos permitidos: {s}', { s: SIMBOLOS_PASS })}</span>`); return; }
+    P.poner(cont, P.html`<span class="reglas-pass">${P.reglasPassword(valor).map(function (r) {
+      return P.html`<span class="${r.ok ? 'ok-texto' : 'error-texto'}">${r.ok ? '✓' : '✗'} ${P.t(r.texto)}</span>`;
+    })}</span>`);
+  };
+
   P.datosForm = function (form) {
     var o = {};
     P.$$('input, select, textarea', form).forEach(function (el) {
@@ -366,7 +402,7 @@
       } else if (el.type === 'radio') {
         if (el.checked) o[el.name] = el.value;
       } else if (el.type !== 'file') {
-        o[el.name] = el.value.trim();
+        o[el.name] = el.type === 'password' ? el.value : el.value.trim();
       }
     });
     return o;
@@ -1557,9 +1593,9 @@
     }
     var seccionPass = P.html`<section class="tarjeta seccion-perfil" id="sec-pass">
         <div class="completo"><h2 class="h2-maq" style="margin:0 0 4px;font-size:20px">${temporal ? P.t('Crea tu contraseña') : P.t('Cambiar contraseña')}</h2>
-          <span class="tenue" style="font-size:14px">${temporal ? P.t('Tu contraseña es temporal. Cámbiala para poder usar el sistema. Debe tener de 8 a 64 caracteres.') : P.t('Opcional. Déjalo vacío si no quieres cambiarla. Debe tener de 8 a 64 caracteres.')}</span></div>
+          <span class="tenue" style="font-size:14px">${temporal ? P.t('Tu contraseña es temporal. Cámbiala para poder usar el sistema. Debe tener de 8 a 64 caracteres, con al menos una mayúscula y un número, sin espacios.') : P.t('Opcional. Déjalo vacío si no quieres cambiarla. Debe tener de 8 a 64 caracteres, con al menos una mayúscula y un número, sin espacios.')}</span></div>
         <label>${temporal ? P.t('Contraseña temporal') : P.t('Contraseña actual')}<span class="campo-pass"><input type="password" name="actual" maxlength="72" autocomplete="current-password" placeholder="••••••••"><button type="button">Ver</button></span></label>
-        <label>Nueva contraseña<span class="campo-pass"><input type="password" name="nueva" maxlength="64" autocomplete="new-password" placeholder="8 a 64 caracteres"><button type="button">Ver</button></span></label>
+        <label>Nueva contraseña<span class="campo-pass"><input type="password" name="nueva" maxlength="64" autocomplete="new-password" placeholder="8 a 64 caracteres"><button type="button">Ver</button></span><span class="ayuda" id="reglas-perfil" aria-live="polite"></span></label>
         <label>Confirmar nueva<span class="campo-pass"><input type="password" name="confirmar" maxlength="64" autocomplete="new-password" placeholder="Repite la contraseña"><button type="button">Ver</button></span></label>
         <div class="completo" id="msg-pass"></div>
       </section>`;
@@ -1607,6 +1643,11 @@
       </section>` : ''}`);
     P.ojitos(cont);
     if (!temporal) pintarFoto();
+    var campoNueva = cont.querySelector('[name=nueva]');
+    if (campoNueva) {
+      var reglasPerfil = P.$('#reglas-perfil');
+      campoNueva.addEventListener('input', function () { P.pintarReglasPassword(reglasPerfil, campoNueva.value); });
+    }
     var btnEliminar = P.$('#eliminar-cuenta');
     if (btnEliminar) btnEliminar.addEventListener('click', function () {
       P.modal({
@@ -1701,9 +1742,8 @@
       P.poner(msg, '');
       var quierePass = temporal || d.actual || d.nueva || d.confirmar;
       if (quierePass) {
-        var n = Array.from(d.nueva || '').length;
-        var errP = !d.actual ? 'Escribe tu contraseña actual' : (n < 8 || n > 64 ? 'La nueva contraseña debe tener de 8 a 64 caracteres'
-          : (d.nueva !== d.confirmar ? 'Las contraseñas nuevas no coinciden' : (d.nueva === d.actual ? 'La nueva contraseña debe ser diferente de la actual' : null)));
+        var errP = !d.actual ? 'Escribe tu contraseña actual' : (P.errorPassword(d.nueva, 'La nueva contraseña')
+          || (d.nueva !== d.confirmar ? 'Las contraseñas nuevas no coinciden' : (d.nueva === d.actual ? 'La nueva contraseña debe ser diferente de la actual' : null)));
         if (errP) { P.poner(msgPass, P.html`<div class="mensaje error" role="alert">${P.t(errP)}</div>`); return; }
       }
       var pasos = [];

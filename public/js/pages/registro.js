@@ -49,9 +49,8 @@
     var revisarPass = function () {
       var n = Array.from(pass.value).length;
       var nivel = P.$('#nivel-pass');
-      if (!n) { nivel.textContent = ''; nivel.className = 'ayuda'; }
-      else if (n < 8) { nivel.textContent = P.t('Faltan {n} caracteres (mínimo 8)', { n: 8 - n }); nivel.className = 'ayuda error-texto'; }
-      else { nivel.textContent = '✓ ' + P.t('Largo correcto'); nivel.className = 'ayuda ok-texto'; }
+      nivel.className = 'ayuda';
+      P.pintarReglasPassword(nivel, n ? pass.value : '');
       var igual = P.$('#igual-pass');
       if (!conf.value) { igual.textContent = ''; igual.className = 'ayuda'; conf.removeAttribute('aria-invalid'); return true; }
       var ok = conf.value === pass.value;
@@ -86,7 +85,7 @@
       var error = null;
       if (!d.nombre || Array.from(d.nombre).length < 3) error = 'Escribe tu nombre completo';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.correo)) error = 'El correo electrónico no es válido';
-      else if (!conGoogle && (Array.from(d.password || '').length < 8 || Array.from(d.password || '').length > 64)) error = 'La contraseña debe tener de 8 a 64 caracteres';
+      else if (!conGoogle && P.errorPassword(d.password)) error = P.errorPassword(d.password);
       else if (!conGoogle && !d.confirmar) error = 'Escribe tu contraseña otra vez en «Confirmar contraseña»';
       else if (!conGoogle && d.confirmar !== d.password) error = 'Las contraseñas no coinciden: escribe la misma contraseña en los dos campos';
       else if (!d.fecha_nacimiento) error = 'Indica tu fecha de nacimiento';

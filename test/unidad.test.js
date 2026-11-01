@@ -75,6 +75,16 @@ test('validar correo, contraseña, nombre, teléfono, URL y coordenadas', () => 
   lanza400(() => v.password('x'.repeat(65)));
   lanza400(() => v.password('con\u0000nulo1'));
   lanza400(() => v.password(12345678));
+  lanza400(() => v.password('Secreta 123'));
+  lanza400(() => v.password('Secreta123 '));
+  lanza400(() => v.password('Secreta\u00a0123'));
+  lanza400(() => v.password('secreta123'));
+  lanza400(() => v.password('SecretaSinNum'));
+  assert.equal(v.password('Ñandú-2026'), 'Ñandú-2026');
+  assert.equal(v.password('Ab1!@#$%&*()-_+=.,:;?¿¡/'), 'Ab1!@#$%&*()-_+=.,:;?¿¡/');
+  for (const raro of ['Clave2026😀', 'Clave"2026', "Clave'2026", 'Clave<2026>', 'Clave\\2026', 'Clave{2026}', 'Clave~2026', 'Clave^2026', 'Clave`2026', 'Clave|2026', 'Clave€2026', 'Clave\u200b2026']) {
+    lanza400(() => v.password(raro));
+  }
   assert.equal(v.nombrePersona("María O'Neil-López"), "María O'Neil-López");
   lanza400(() => v.nombrePersona('Ana123'));
   lanza400(() => v.nombrePersona('<b>Ana</b>'));

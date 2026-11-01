@@ -149,19 +149,24 @@ test('aviso de privacidad 2.0 con derechos ARCO y versión aceptada al registrar
 
 test('contraseñas: hasta 64 caracteres, sin contraseñas comunes ni el propio correo (OWASP ASVS)', async () => {
   const intentar = (correo, password) => A.cliente().post('/api/auth/registro', datos(correo, { password }), { sinVerificar: true });
-  for (const p of ['12345678', 'Password1', 'contraseña', 'qwerty123', 'aaaaaaaa']) {
+  for (const p of ['Password1', 'Contraseña1', 'Qwerty123', 'Abc12345', 'Mexico2026']) {
     const r = await intentar(`comun${p.length}${p.charCodeAt(0)}@correo.mx`, p);
     falla(r, 400, p);
     assert.match(r.datos.error, /más usadas/);
   }
-  const conCorreo = await intentar('rodrigo.leon@correo.mx', 'rodrigo.leon2026');
+  const conCorreo = await intentar('rodrigo.leon@correo.mx', 'Rodrigo.leon2026');
   falla(conCorreo, 400);
   assert.match(conCorreo.datos.error, /correo/);
   falla(await intentar('largo65@correo.mx', 'Ab1-'.repeat(16) + 'x'), 400, '65 caracteres');
   falla(await intentar('largo64@correo.mx', 'Ab1-cD2!eF3?gH4_'.repeat(4)), 201, '64 caracteres se aceptan');
   const larga = A.cliente();
   ok(await larga.post('/api/auth/login', { correo: 'largo64@correo.mx', password: 'Ab1-cD2!eF3?gH4_'.repeat(4) }), 'y con ella se inicia sesión');
-  falla(await larga.post('/api/auth/cambiar-password', { actual: 'Ab1-cD2!eF3?gH4_'.repeat(4), nueva: 'password123', confirmar: 'password123' }), 400, 'tampoco al cambiarla');
+  falla(await larga.post('/api/auth/cambiar-password', { actual: 'Ab1-cD2!eF3?gH4_'.repeat(4), nueva: 'Password123', confirmar: 'Password123' }), 400, 'tampoco al cambiarla');
+  for (const [p, msj] of [['Con Espacio1', /espacios/], ['sinmayuscula1', /mayúscula/], ['SinNumeroAqui', /número/], ['Clave<2026>', /símbolos/], ['Clave2026😀', /símbolos/]]) {
+    const r = await intentar(`regla${p.length}${p.charCodeAt(1)}@correo.mx`, p);
+    falla(r, 400, p);
+    assert.match(r.datos.error, msj, p);
+  }
 });
 
 test('el servidor lee la URL con el analizador simple (sin objetos anidados ni prototipos)', async () => {

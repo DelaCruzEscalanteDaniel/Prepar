@@ -373,10 +373,11 @@ router.get('/admin/ciclos/:id/reporte.pdf', asincrono(async (req, res) => {
 
 function passwordTemporal() {
   const abc = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
-  const bytes = crypto.randomBytes(12);
-  let s = '';
-  for (const b of bytes) s += abc[b % abc.length];
-  return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8, 12)}`;
+  for (;;) {
+    let s = '';
+    for (let i = 0; i < 12; i += 1) s += abc[crypto.randomInt(0, abc.length)];
+    if (/[A-Z]/.test(s) && /[a-z]/.test(s) && /[0-9]/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 8)}-${s.slice(8, 12)}`;
+  }
 }
 
 function funcionesValidas(lista) {
