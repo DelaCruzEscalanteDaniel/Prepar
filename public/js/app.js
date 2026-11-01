@@ -1087,6 +1087,14 @@
     d.setAttribute('aria-label', P.t('Notificaciones'));
     P.poner(d, P.html`<div class="cargando-bloque">Cargando…</div>`);
     boton.parentNode.appendChild(d);
+    var caja = d.getBoundingClientRect();
+    if (window.innerWidth <= 720 || caja.left < 8 || caja.right > window.innerWidth - 8) {
+      var r = boton.getBoundingClientRect();
+      d.classList.add('flotante');
+      doc.body.appendChild(d);
+      d.style.top = Math.round(r.bottom + 8) + 'px';
+      d.style.maxHeight = Math.max(220, window.innerHeight - r.bottom - 24) + 'px';
+    }
     P.get('/api/notificaciones').then(function (r) {
       var lista = r.notificaciones;
       P.poner(d, P.html`<div class="fila entre" style="padding:6px 8px"><strong>Notificaciones</strong>
@@ -1176,6 +1184,11 @@
       if (!montado) montarMarco(rol, pagina, estado, usuario);
       else if (JSON.stringify({ estado: estado, usuario: usuario }) !== huellaPrevia) refrescarMarco(rol, pagina, estado, usuario);
       franjaVerificacion(usuario);
+      var navActiva = P.$('.navegacion a.activo');
+      if (navActiva && navActiva.parentNode.scrollWidth > navActiva.parentNode.clientWidth) {
+        var filaNav = navActiva.parentNode;
+        filaNav.scrollLeft = Math.max(0, navActiva.offsetLeft - (filaNav.clientWidth - navActiva.offsetWidth) / 2);
+      }
       if (!doc.querySelector('script[src="/js/mascota.js"]')) {
         var sm = doc.createElement('script');
         sm.src = '/js/mascota.js';

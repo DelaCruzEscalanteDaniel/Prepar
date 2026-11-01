@@ -17,11 +17,17 @@
   <header class="lp-cabecera">
     <div class="lp-cab-fila">
       <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar" class="lp-logo"><span class="lp-marca">Prepar</span></a>
-      <div class="acciones" id="lp-acciones">
-        <button type="button" class="herr" data-accion="tema"></button>
-        <button type="button" class="herr" data-accion="idioma"></button>
-        <a class="btn2 lp-btn2" href="/login.html">Iniciar sesión</a>
-        <a class="btn lp-btn" href="/registro.html">Crear cuenta</a>
+      <div class="acciones lp-acciones-cab">
+        <a class="btn lp-btn lp-solo-movil" id="lp-principal-movil" href="/registro.html">Crear cuenta</a>
+        <button type="button" class="herr boton-menu-c" data-accion="menu-c" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-c"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M3 6h18M3 18h18"></path></svg></button>
+        <div class="acciones-menu" id="menu-c">
+          <div class="acciones" id="lp-acciones">
+            <button type="button" class="herr" data-accion="tema"></button>
+            <button type="button" class="herr" data-accion="idioma"></button>
+            <a class="btn2 lp-btn2" href="/login.html">Iniciar sesión</a>
+            <a class="btn lp-btn" href="/registro.html">Crear cuenta</a>
+          </div>
+        </div>
       </div>
     </div>
   </header>

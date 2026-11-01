@@ -40,6 +40,8 @@
       P.poner(P.$('#lp-acciones'), P.html`<button type="button" class="herr" data-accion="tema"></button>
         <button type="button" class="herr" data-accion="idioma"></button>
         <a class="btn lp-btn" href="${panel}">Ir a mi panel</a>`);
+      var pm = P.$('#lp-principal-movil');
+      if (pm) { pm.href = panel; pm.textContent = P.t('Ir a mi panel'); }
       P.poner(P.$('#lp-cta'), P.html`<a class="btn lp-btn" href="${panel}">Continuar mi simulación</a><a class="btn2 lp-btn2" href="#fases">Ver cómo funciona</a>`);
       var c2 = P.$('#lp-cta2');
       c2.href = panel;
