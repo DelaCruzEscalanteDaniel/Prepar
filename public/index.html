@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Prepar · Simulador del Presupuesto Participativo</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="invitado" data-pagina="portada" class="lp">
+<div class="lp-marco">
+  <header class="lp-cabecera">
+    <div class="lp-cab-fila">
+      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar" class="lp-logo"><span class="lp-marca">Prepar</span></a>
+      <div class="acciones" id="lp-acciones">
+        <button type="button" class="herr" data-accion="tema"></button>
+        <button type="button" class="herr" data-accion="idioma"></button>
+        <a class="btn2 lp-btn2" href="/login.html">Iniciar sesión</a>
+        <a class="btn lp-btn" href="/registro.html">Crear cuenta</a>
+      </div>
+    </div>
+  </header>
+  <nav class="lp-nav" aria-label="Secciones">
+    <a href="#objetivo">Nuestro objetivo</a><a href="#funciones">¿Qué puedes hacer?</a><a href="#fases">¿Cómo funciona?</a><a href="#nosotros">Quiénes somos</a><a href="#contacto">Contacto</a>
+  </nav>
+
+  <main id="principal" tabindex="-1">
+    <section class="lp-hero">
+      <div class="lp-hero-txt">
+        <span class="lp-sello">SIMULADOR DEL PRESUPUESTO PARTICIPATIVO · CDMX</span>
+        <h1>El poder de decidir el futuro de tu comunidad</h1>
+        <p>Vive el proceso completo antes de participar de verdad: propón un proyecto para tu colonia, míralo dictaminar, vota por tu favorito y vigila que se cumpla.</p>
+        <div class="lp-botones" id="lp-cta">
+          <a class="btn lp-btn" href="/registro.html">Comenzar la simulación</a>
+          <a class="btn2 lp-btn2" href="#fases">Ver cómo funciona</a>
+        </div>
+      </div>
+      <div class="lp-cifras">
+        <div class="lp-vidrio lp-cifra"><div class="lp-num">4 %</div><div>del presupuesto de cada alcaldía lo decide la ciudadanía</div></div>
+        <div class="lp-vidrio lp-cifra"><div class="lp-num">1,764</div><div>unidades territoriales en la Ciudad de México</div></div>
+        <div class="lp-vidrio lp-cifra"><div class="lp-num">8 fases</div><div>de la convocatoria a la rendición de cuentas</div></div>
+        <div class="lp-vidrio lp-cifra"><div class="lp-num amarillo">6.4 %</div><div>participó en la consulta real de 2026. Queremos cambiar eso.</div></div>
+      </div>
+    </section>
+
+    <section id="objetivo" class="lp-seccion angosta">
+      <div class="lp-vidrio lp-objetivo">
+        <span class="lp-antetitulo">NUESTRO OBJETIVO</span>
+        <h2>Aprender participando</h2>
+        <p>Prepar es una herramienta digital, transparente y accesible que simula cada etapa del Presupuesto Participativo. Así cualquier persona entiende cómo proponer, decidir y vigilar los recursos de su colonia antes de hacerlo en el proceso real.</p>
+      </div>
+    </section>
+
+    <section id="funciones" class="lp-seccion">
+      <h2 class="lp-titulo">¿Qué puedes hacer en Prepar?</h2>
+      <p class="lp-subtitulo">Todo lo que harías en el proceso real, en un entorno seguro para practicar.</p>
+      <div class="lp-tarjetas" id="lp-funciones"></div>
+    </section>
+
+    <section id="fases" class="lp-banda">
+      <div class="lp-seccion">
+        <h2 class="lp-titulo">¿Cómo funciona?</h2>
+        <p class="lp-subtitulo">Un ciclo de simulación con las mismas fases que marca la Ley de Participación Ciudadana.</p>
+        <ol class="lp-fases" id="lp-fases"></ol>
+      </div>
+    </section>
+
+    <section class="lp-seccion">
+      <div class="lp-llamado">
+        <div><h2>¿Listo para participar?</h2><p>Crea tu cuenta en un minuto, elige tu colonia y empieza en la fase que está activa.</p></div>
+        <a class="btn lp-btn" href="/registro.html" id="lp-cta2">Crear mi cuenta</a>
+      </div>
+    </section>
+  </main>
+
+  <footer id="nosotros" class="lp-pie">
+    <div class="lp-pie-rejilla">
+      <div class="columna" style="gap:12px">
+        <div class="fila" style="gap:10px"><img src="/img/logo.png" alt="" class="lp-logo chico"><span class="lp-marca chica">Prepar</span></div>
+        <h3>¿Quiénes somos?</h3>
+        <p>Una iniciativa de jóvenes estudiantes interesados en la tecnología cívica, que busca acercar el Presupuesto Participativo a todas las personas de la Ciudad de México.</p>
+      </div>
+      <div id="contacto">
+        <h3>Contáctanos</h3>
+        <a href="mailto:info@prepar.org">info@prepar.org</a>
+        <a href="https://wa.me/525512345678" rel="noopener noreferrer" target="_blank">WhatsApp: +52 55 1234 5678</a>
+      </div>
+      <div>
+        <h3>Síguenos</h3>
+        <a href="https://www.facebook.com" rel="noopener noreferrer" target="_blank">Facebook</a><a href="https://www.instagram.com" rel="noopener noreferrer" target="_blank">Instagram</a><a href="https://www.tiktok.com" rel="noopener noreferrer" target="_blank">TikTok</a><a href="https://x.com" rel="noopener noreferrer" target="_blank">X (Twitter)</a>
+      </div>
+      <div>
+        <h3>Accesos</h3>
+        <a href="/login.html">Iniciar sesión</a><a href="/registro.html">Crear cuenta</a><a href="#fases">Cómo funciona</a><a href="/privacidad.html">Aviso de privacidad</a>
+      </div>
+    </div>
+    <div class="lp-pie-final">© 2026 Prepar · Simulador del Presupuesto Participativo · Proyecto escolar del Equipo 04</div>
+  </footer>
+</div>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/index.js" defer></script>
+</body>
+</html>

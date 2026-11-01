@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Foto denuncia · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="ciudadano" data-pagina="seguimiento">
+<main id="principal" class="contenido" tabindex="-1">
+<div>
+  <h1 class="titulo-pagina" style="font-size:32px">Seguimiento y foto denuncia</h1>
+  <p class="texto-2" style="margin:0">Documenta el avance de los proyectos ganadores o reporta irregularidades. Un funcionario de la alcaldía revisa cada reporte.</p>
+</div>
+<div class="fila arriba" style="gap:24px">
+  <div class="columna" style="flex:1 1 340px;min-width:0;gap:16px">
+    <form class="caja-resalta columna" id="form-rep" style="gap:12px" novalidate>
+      <h2 class="h2-maq" style="margin:0">Subir foto</h2>
+      <div id="rep-espera" class="mensaje info" hidden><span><strong>Aquí subirás fotos de las obras ganadoras.</strong> Todavía no hay obras: aparecen cuando se publican los resultados de la consulta (fase 6) y se pueden vigilar en la fase 7 · Ejecución y seguimiento.</span></div>
+      <label>Proyecto<select name="proyecto_id" id="rep-proyecto" required></select></label>
+      <fieldset class="sin-marco"><legend>Tipo de reporte</legend>
+        <div class="fila" style="gap:16px"><label class="casilla"><input type="radio" name="tipo" value="avance" checked> Avance</label>
+        <label class="casilla"><input type="radio" name="tipo" value="irregularidad"> Irregularidad</label></div></fieldset>
+      <div class="columna" style="gap:6px">
+        <span style="font-weight:600">Fotografías <span class="opcional">(JPG o PNG, hasta 5 MB cada una)</span></span>
+        <label class="zona-fotos" id="zona-fotos"><input type="file" accept="image/jpeg,image/png,.jpg,.jpeg,.png" multiple id="fotos-rep" class="solo-lector">
+          <span class="zona-icono" aria-hidden="true">📷</span><strong id="texto-zona">Toca aquí para elegir fotos</strong>
+          <span class="ayuda" id="cuenta-fotos">0 de 5 fotos · mínimo 1, máximo 5</span></label>
+        <div class="previas" id="previas-rep"></div>
+        <div id="rechazos-rep" aria-live="polite"></div>
+      </div>
+      <label>Descripción <span class="opcional">(hasta 500 caracteres)</span><textarea name="descripcion" rows="3" maxlength="500" required placeholder="¿Qué se ve en la foto?"></textarea></label>
+      <div id="msg-rep"></div>
+      <button type="submit" class="btn" id="publicar-rep">Publicar reporte</button>
+    </form>
+    <section class="tarjeta columna" style="gap:10px">
+      <h2 class="h2-maq" style="margin:0;font-size:20px">Califica y rankea los proyectos</h2>
+      <span class="tenue" style="font-size:14px" id="nota-ranking">Toca las estrellas para calificar cada proyecto publicado. El ranking se actualiza con tu calificación.</span>
+      <ol class="ranking" id="ranking"></ol>
+    </section>
+  </div>
+  <section class="columna" style="flex:999 1 560px;min-width:0;gap:14px">
+    <form class="fila" id="filtros-rep" style="align-items:flex-end;gap:10px" novalidate>
+      <label style="flex:2 1 200px">Proyecto<select name="proyecto" id="f-proyecto"></select></label>
+      <label style="flex:1 1 140px">Tipo<select name="tipo"><option value="">Todos</option><option value="avance">Avance</option><option value="irregularidad">Irregularidad</option></select></label>
+      <label style="flex:1 1 140px">Estatus<select name="estatus"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="atendido">Atendido</option></select></label>
+      <button type="button" class="btn2" id="limpiar-rep">Limpiar filtros</button>
+      <details class="mas-filtros" style="flex:1 1 100%"><summary>Más filtros (alcaldía y fecha)</summary>
+        <div class="fila" style="align-items:flex-end">
+          <label style="flex:1 1 160px">Alcaldía<select name="alcaldia" id="f-alcaldia"></select></label>
+          <label style="flex:1 1 150px">Desde<input type="date" name="desde"></label>
+          <label style="flex:1 1 150px">Hasta<input type="date" name="hasta"></label>
+        </div></details>
+    </form>
+    <span class="tenue pequeno" id="total-rep"></span>
+    <div id="reportes" class="columna" style="gap:14px" aria-live="polite"></div>
+    <div class="fila" style="justify-content:center"><button class="btn2" id="mas-rep" hidden>Ver más reportes</button></div>
+  </section>
+</div>
+</main>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/ciudadano-seguimiento.js" defer></script>
+</body>
+</html>

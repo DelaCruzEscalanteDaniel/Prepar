@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Inicio · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="ciudadano" data-pagina="inicio">
+<main id="principal" class="contenido" tabindex="-1">
+<div id="bienvenida"></div>
+<h1 id="saludo" class="titulo-grande">Hola</h1>
+<div class="fila arriba" style="gap:20px">
+  <section class="siguiente-paso" id="siguiente" aria-live="polite"><div class="cargando-bloque">Cargando…</div></section>
+  <section class="tarjeta recorrido" aria-labelledby="t-recorrido"><h2 id="t-recorrido" class="h2-maq">Tu recorrido</h2><div id="recorrido" class="columna" style="gap:10px"></div></section>
+</div>
+<section id="linea" class="tarjeta columna" style="gap:18px">
+  <div><h2 class="h2-maq" style="margin:0">Línea de tiempo del ciclo</h2><p class="tenue" style="margin:4px 0 0;font-size:14px">Toca una fase para ver qué pasa en ella.</p></div>
+  <div class="linea-fases" id="linea-fases"></div>
+  <div class="detalle-fase" id="detalle-fase"></div>
+</section>
+<div class="fila arriba" style="gap:24px">
+  <section class="tarjeta columna presupuesto" id="presupuesto" style="flex:1 1 420px;gap:14px"></section>
+  <div class="columna" style="flex:1 1 360px;gap:16px;min-width:0">
+    <section class="tarjeta columna" style="gap:8px" id="avisos"></section>
+    <section class="tarjeta columna" style="gap:10px" id="mis-proyectos"></section>
+  </div>
+</div>
+</main>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/ciudadano-inicio.js" defer></script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Dictaminación · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="funcionario" data-pagina="dictaminacion">
+<main id="principal" tabindex="-1">
+<div class="fila entre" style="align-items:flex-end;gap:12px">
+  <div><span id="chip-fase"></span><h1 class="titulo-pagina" style="margin:10px 0 4px;font-size:32px">Dictaminación de proyectos</h1>
+    <p class="texto-2" style="margin:0"><strong class="acento-texto">1.</strong> Elige un proyecto · <strong class="acento-texto">2.</strong> Marca los criterios que cumple · <strong class="acento-texto">3.</strong> Emite el dictamen</p></div>
+  <label style="min-width:220px">Unidad territorial<select id="f-unidad"><option value="">Todas</option></select></label>
+</div>
+<div id="estado-dict"></div>
+<div class="fila arriba" style="gap:18px">
+  <section class="columna" style="flex:1 1 280px;min-width:0;gap:10px" id="lista-dict" aria-label="Proyectos por dictaminar"></section>
+  <section class="tarjeta columna panel-dict" id="panel-dictamen" aria-live="polite"><p class="tenue" style="margin:0">Elige un proyecto de la lista.</p></section>
+</div>
+</main>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/funcionario-dictaminacion.js" defer></script>
+</body>
+</html>

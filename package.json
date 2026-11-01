@@ -1,0 +1,24 @@
+{
+  "name": "prepar",
+  "version": "1.0.0",
+  "description": "Prepar · Simulador del Presupuesto Participativo de la CDMX (Equipo 04)",
+  "main": "server/index.js",
+  "private": true,
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "bd:instalar": "node scripts/instalar-bd.js",
+    "crear-admin": "node scripts/crear-admin.js",
+    "demo": "node scripts/demo.js",
+    "test": "node --test --test-concurrency=1 test/unidad.test.js test/flujo.test.js test/robustez.test.js test/integraciones.test.js test/modo.test.js",
+    "cobertura": "node --test --test-concurrency=1 --experimental-test-coverage --test-coverage-include=server/** test/unidad.test.js test/flujo.test.js test/robustez.test.js test/integraciones.test.js test/modo.test.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "express": "^4.21.2",
+    "mysql2": "^3.11.5"
+  }
+}

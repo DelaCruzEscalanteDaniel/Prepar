@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Inicio y ciclo · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="administrador" data-pagina="inicio">
+<main id="principal" tabindex="-1">
+<div class="fila entre" style="gap:12px;align-items:flex-end">
+  <div><span class="tenue" style="font-size:13px" id="sub-ciclo">Cargando…</span><h1 class="titulo-pagina" style="margin:4px 0 0;font-size:32px">Control del ciclo</h1></div>
+  <div class="fila selector-ciclo"><label class="selector-ciclo-etq" for="sel-ciclo">Ciclo</label><select id="sel-ciclo"></select><button type="button" class="btn2" id="nuevo-ciclo">Nuevo ciclo</button></div>
+</div>
+<section id="modo" class="tarjeta columna modo-simulador" aria-labelledby="t-modo"><div class="cargando-bloque">Cargando…</div></section>
+<div id="control" class="columna" style="gap:20px"><div class="cargando-bloque">Cargando…</div></div>
+<section class="kpis-admin" id="resumen" aria-label="Resumen"></section>
+<div id="detalle" class="columna" style="gap:20px"></div>
+</main>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/admin-inicio.js" defer></script>
+</body>
+</html>
