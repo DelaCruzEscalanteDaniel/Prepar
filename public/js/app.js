@@ -358,8 +358,8 @@
     });
   };
 
-  var SIMBOLOS_PASS = '! @ # $ % & * ( ) - _ + = . , : ; ? ¿ ¡ /';
-  var RE_PASS_SIMBOLOS = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü!@#$%&*()\-_+=.,:;?¿¡/]*$/;
+  var SIMBOLOS_PASS = '@ # $ % &';
+  var RE_PASS_SIMBOLOS = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü@#$%&]*$/;
   P.reglasPassword = function (valor) {
     var v = String(valor || '');
     var n = Array.from(v).length;
@@ -368,7 +368,7 @@
       { ok: /[A-ZÁÉÍÓÚÜÑ]/.test(v), texto: 'Una letra mayúscula' },
       { ok: /[0-9]/.test(v), texto: 'Un número' },
       { ok: !!v && !/\s/.test(v), texto: 'Sin espacios' },
-      { ok: !!v && RE_PASS_SIMBOLOS.test(v.replace(/\s/g, '')), texto: 'Solo símbolos básicos' },
+      { ok: !!v && RE_PASS_SIMBOLOS.test(v.replace(/\s/g, '')), texto: 'Solo los símbolos @ # $ % &' },
     ];
   };
   P.errorPassword = function (valor, campo) {

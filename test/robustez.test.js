@@ -60,7 +60,7 @@ test.before(async () => {
     funciones: ['directorio', 'moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'] });
   const func = A.cliente();
   await func.post('/api/auth/login', { correo: 'f@prepar.mx', password: f.datos.passwordTemporal });
-  await func.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'Prueba-Segura-26' });
+  await func.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'PruebaSegura#26' });
   const c = await admin.post('/api/admin/ciclos', { nombre: 'Ciclo robustez', anio_simulado: 2026, presupuesto_total: 1000000, alcaldias: [2] });
   await admin.post(`/api/admin/ciclos/${c.datos.id}/fase`, { fase: 'diagnostico_registro' });
   const ciu = A.cliente();

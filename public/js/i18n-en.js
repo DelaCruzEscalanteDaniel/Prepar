@@ -1687,6 +1687,7 @@ window.PREPAR_EN = {
 "Solicitud no permitida": "Request not allowed",
 "Solo el Administrador puede realizar esta acción": "Only the Administrator can do this",
 "Solo el autor del reporte puede adjuntar fotografías": "Only the report's author can attach photos",
+"Solo los símbolos @ # $ % &": "Only the symbols @ # $ % &",
 "Solo mi alcaldía": "Only my borough",
 "Solo puede cerrarse un ciclo activo que llegó a su última fase": "Only an active cycle that reached its last phase can be closed",
 "Solo puede haber un ciclo activo. El que dejes queda pausado con todos sus datos y puedes volver a él cuando quieras.": "Only one cycle can be active. The one you leave is paused with all its data and you can come back to it anytime.",

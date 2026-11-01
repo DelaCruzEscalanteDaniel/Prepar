@@ -109,8 +109,8 @@ function correo(valor, { requerido = true, campo = 'tu correo electrónico' } = 
   return c;
 }
 
-const SIMBOLOS_PASSWORD = '! @ # $ % & * ( ) - _ + = . , : ; ? ¿ ¡ /';
-const RE_PASSWORD = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü!@#$%&*()\-_+=.,:;?¿¡/]+$/;
+const SIMBOLOS_PASSWORD = '@ # $ % &';
+const RE_PASSWORD = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü@#$%&]+$/;
 
 function password(valor, campo = 'la contraseña') {
   if (typeof valor !== 'string' || valor.length === 0) throw peticionInvalida(`Escribe ${campo}`);
@@ -140,8 +140,8 @@ function contrasenaSegura(valor, { correo, nombre } = {}) {
   if (COMUNES.has(t) || COMUNES.has(plano) || /^(.)\1+$/.test(t) || /^(0123456789|1234567890|9876543210|abcdefgh|qwertyuiop)/.test(plano)) {
     throw peticionInvalida('Esa contraseña es de las más usadas y fácil de adivinar. Elige otra');
   }
-  const usuario = String(correo || '').toLowerCase().split('@')[0];
-  if (usuario.length >= 4 && plano.includes(usuario.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) {
+  const usuario = String(correo || '').toLowerCase().split('@')[0].normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, '');
+  if (usuario.length >= 4 && plano.replace(/[^a-z0-9]/g, '').includes(usuario)) {
     throw peticionInvalida('La contraseña no debe contener tu correo');
   }
   const primero = String(nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/)[0] || '';
