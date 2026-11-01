@@ -26,7 +26,28 @@ function tarea(texto, e) {
     + ` y que tu red permita conectarse a ese puerto.${extra}`]);
 }
 
+const ventanas = new Map();
+function enmascarar(c) {
+  const [u, d] = String(c || '').split('@');
+  return d ? `${u.slice(0, 2)}***@${d}` : undefined;
+}
+function seguridad(evento, req, datos = {}) {
+  const ip = (req && req.ip) || '-';
+  const k = `${evento}|${ip}`;
+  const ahora = Date.now();
+  const v = ventanas.get(k);
+  if (v && ahora - v.desde < 60000) { v.n += 1; if (v.n > 10) return; } else {
+    if (ventanas.size > 5000) ventanas.clear();
+    ventanas.set(k, { desde: ahora, n: 1 });
+  }
+  const linea = { evento, ip, metodo: req && req.method, ruta: req && String(req.originalUrl || '').split('?')[0].slice(0, 120) };
+  if (req && req.usuario) linea.usuario = req.usuario.id;
+  for (const [c, val] of Object.entries(datos)) if (val !== undefined) linea[c] = c === 'correo' ? enmascarar(val) : val;
+  escribir('seguridad', [JSON.stringify(linea)]);
+}
+
 module.exports = {
+  seguridad,
   tarea,
   info: (...a) => escribir('info', a),
   aviso: (...a) => escribir('aviso', a),

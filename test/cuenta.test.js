@@ -146,3 +146,80 @@ test('aviso de privacidad 2.0 con derechos ARCO y versión aceptada al registrar
   const u = await fila("SELECT c.aviso_privacidad_version AS v FROM ciudadanos c JOIN usuarios u ON u.id = c.usuario_id WHERE u.correo = 'sin.confirmar@correo.mx'");
   assert.equal(u.v, '2.0');
 });
+
+test('contraseñas: hasta 64 caracteres, sin contraseñas comunes ni el propio correo (OWASP ASVS)', async () => {
+  const intentar = (correo, password) => A.cliente().post('/api/auth/registro', datos(correo, { password }), { sinVerificar: true });
+  for (const p of ['12345678', 'Password1', 'contraseña', 'qwerty123', 'aaaaaaaa']) {
+    const r = await intentar(`comun${p.length}${p.charCodeAt(0)}@correo.mx`, p);
+    falla(r, 400, p);
+    assert.match(r.datos.error, /más usadas/);
+  }
+  const conCorreo = await intentar('rodrigo.leon@correo.mx', 'rodrigo.leon2026');
+  falla(conCorreo, 400);
+  assert.match(conCorreo.datos.error, /correo/);
+  falla(await intentar('largo65@correo.mx', 'Ab1-'.repeat(16) + 'x'), 400, '65 caracteres');
+  falla(await intentar('largo64@correo.mx', 'Ab1-cD2!eF3?gH4_'.repeat(4)), 201, '64 caracteres se aceptan');
+  const larga = A.cliente();
+  ok(await larga.post('/api/auth/login', { correo: 'largo64@correo.mx', password: 'Ab1-cD2!eF3?gH4_'.repeat(4) }), 'y con ella se inicia sesión');
+  falla(await larga.post('/api/auth/cambiar-password', { actual: 'Ab1-cD2!eF3?gH4_'.repeat(4), nueva: 'password123', confirmar: 'password123' }), 400, 'tampoco al cambiarla');
+});
+
+test('el servidor lee la URL con el analizador simple (sin objetos anidados ni prototipos)', async () => {
+  const { crearApp } = require('../server/app');
+  assert.equal(crearApp().get('query parser'), 'simple');
+  const r = await A.cliente().get('/api/directorio?__proto__[x]=1&constructor[prototype][y]=2&alcaldia[a]=1');
+  assert.ok(r.estado < 500, `→ ${r.estado}`);
+  assert.equal({}.x, undefined);
+  assert.equal({}.y, undefined);
+});
+
+test('los eventos de seguridad quedan registrados sin contraseñas y con el correo enmascarado (A09)', async () => {
+  const config = require('../server/config');
+  const antes = config.registrarEnConsola;
+  const salida = [];
+  const original = console.log;
+  config.registrarEnConsola = true;
+  console.log = (...a) => salida.push(a.join(' '));
+  try {
+    await A.cliente().post('/api/auth/login', { correo: 'alguien.raro@correo.mx', password: 'NoEsLaClave99' });
+    await fetch(`${A.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+    await fetch(`${A.base}/api/auth/login`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Prepar': '1', Origin: 'https://atacante.example' }, body: '{}' });
+    const c = A.cliente();
+    ok(await c.post('/api/auth/registro', datos('evento.rol@correo.mx'), {}));
+    await c.get('/api/admin/resumen');
+  } finally {
+    console.log = original;
+    config.registrarEnConsola = antes;
+  }
+  const eventos = salida.filter((x) => x.includes('SEGURIDAD')).map((x) => JSON.parse(x.slice(x.indexOf('{'))));
+  const tipos = eventos.map((e) => e.evento);
+  for (const t of ['login_fallido', 'csrf_rechazado', 'acceso_denegado']) assert.ok(tipos.includes(t), `${t} en ${tipos}`);
+  const fallido = eventos.find((e) => e.evento === 'login_fallido');
+  assert.equal(fallido.correo, 'al***@correo.mx');
+  assert.ok(fallido.ip);
+  assert.ok(!salida.join('\n').includes('NoEsLaClave99'), 'nunca se registra la contraseña');
+  assert.ok(eventos.filter((e) => e.evento === 'csrf_rechazado').some((e) => e.motivo === 'otro_origen'));
+});
+
+test('el inicio de sesión nunca revela si el correo existe, si la cuenta está bloqueada ni qué dato está mal', async () => {
+  falla(await A.cliente().post('/api/auth/registro', datos('existe.login@correo.mx'), {}), 201);
+  const intento = async (correo, password) => {
+    const r = await A.cliente().post('/api/auth/login', { correo, password });
+    return `${r.estado} ${r.datos.error}`;
+  };
+  const esperado = '401 Correo o contraseña incorrectos';
+  assert.equal(await intento('no.existe.nunca@correo.mx', 'Cualquiera2026'), esperado, 'correo inexistente');
+  assert.equal(await intento('existe.login@correo.mx', 'Equivocada2026'), esperado, 'contraseña incorrecta');
+  assert.equal(await intento('existe.login@correo.mx', 'x'.repeat(70)), esperado, 'contraseña demasiado larga');
+  assert.equal(await intento('no.existe.nunca@correo.mx', 'x'.repeat(70)), esperado);
+  assert.equal(await intento('existe.login@correo.mx', 'corta'), esperado, 'contraseña demasiado corta');
+  for (let i = 0; i < 6; i += 1) await intento('existe.login@correo.mx', 'Equivocada2026');
+  const fila = await A.db.conSistema((con) => con.uno("SELECT bloqueado_hasta IS NOT NULL AND bloqueado_hasta > NOW() AS b, bloqueado_hasta AS h FROM usuarios WHERE correo = 'existe.login@correo.mx'"));
+  assert.equal(Number(fila.b), 1, 'la cuenta sí quedó bloqueada por dentro');
+  assert.equal(await intento('existe.login@correo.mx', 'Prepar2026'), esperado, 'bloqueada, aun con la contraseña correcta, responde igual');
+  const despues = await A.db.conSistema((con) => con.uno("SELECT bloqueado_hasta AS h FROM usuarios WHERE correo = 'existe.login@correo.mx'"));
+  assert.equal(String(despues.h), String(fila.h), 'los intentos durante el bloqueo no lo alargan');
+  const rec1 = await A.cliente().post('/api/auth/recuperar', { correo: 'existe.login@correo.mx' });
+  const rec2 = await A.cliente().post('/api/auth/recuperar', { correo: 'no.existe.nunca@correo.mx' });
+  assert.equal(`${rec1.estado} ${rec1.datos.mensaje}`, `${rec2.estado} ${rec2.datos.mensaje}`, 'recuperar responde igual exista o no');
+});

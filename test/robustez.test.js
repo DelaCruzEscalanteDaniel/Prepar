@@ -60,7 +60,7 @@ test.before(async () => {
     funciones: ['directorio', 'moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'] });
   const func = A.cliente();
   await func.post('/api/auth/login', { correo: 'f@prepar.mx', password: f.datos.passwordTemporal });
-  await func.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'Funcionaria2026' });
+  await func.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'Prueba-Segura-26' });
   const c = await admin.post('/api/admin/ciclos', { nombre: 'Ciclo robustez', anio_simulado: 2026, presupuesto_total: 1000000, alcaldias: [2] });
   await admin.post(`/api/admin/ciclos/${c.datos.id}/fase`, { fase: 'diagnostico_registro' });
   const ciu = A.cliente();
@@ -161,7 +161,7 @@ test('las variables de sesión no se filtran entre peticiones del pool', async (
     const ruta = { ciudadano: '/api/ciudadano/panel', funcionario: '/api/func/panel', administrador: '/api/admin/resumen' }[quien];
     return visitantes[quien].get(ruta);
   }));
-  assert.ok(res.every((r) => r.estado === 200));
+  assert.ok(res.every((r) => r.estado === 200), res.map((r) => r.estado).join(','));
   const vals = await Promise.all(Array.from({ length: 12 }, () => A.db.conSistema((con) => con.uno('SELECT @usuario_id AS u, @interno AS i'))));
   for (const v of vals) {
     assert.equal(v.u, null);

@@ -50,12 +50,13 @@ const COOKIE_GOOGLE = 'prepar_google';
 const COOKIE_GOOGLE_REG = 'prepar_google_reg';
 const opcionesCookie = (minutos, ruta) => ({ httpOnly: true, sameSite: 'lax', secure: config.cookieSegura, maxAge: minutos * 60 * 1000, path: ruta });
 
-function exigirCaptcha(b) {
+function exigirCaptcha(b, req) {
   if (!config.captcha.activo) return;
   if (!b.captcha_id || typeof b.captcha !== 'string' || !b.captcha.trim()) {
     throw new ErrorApp(400, 'Escribe el código que aparece en la imagen', { codigo: 'captcha' });
   }
   if (!captcha.verificar(b.captcha_id, b.captcha)) {
+    log.seguridad('captcha_fallido', req);
     throw new ErrorApp(400, 'El código de la imagen no coincide. Escribe el código nuevo', { codigo: 'captcha' });
   }
 }
@@ -113,9 +114,10 @@ router.post('/auth/login', limiteLoginIp, limiteLoginCorreo, asincrono(async (re
   const correo = v.correo(b.correo);
   const pass = typeof b.password === 'string' ? b.password : '';
   if (!pass) throw peticionInvalida('Escribe tu contraseña');
-  if (config.captcha.activo && captcha.requiere(req, correo)) exigirCaptcha(b);
+  if (config.captcha.activo && captcha.requiere(req, correo)) exigirCaptcha(b, req);
   const credencialesMal = () => {
     captcha.anotarFallo(req, correo);
+    log.seguridad('login_fallido', req, { correo });
     const pedir = config.captcha.activo && captcha.requiere(req, correo);
     return new ErrorApp(401, 'Correo o contraseña incorrectos', pedir ? { codigo: 'captcha' } : undefined);
   };
@@ -123,21 +125,23 @@ router.post('/auth/login', limiteLoginIp, limiteLoginCorreo, asincrono(async (re
     'SELECT id, password_hash, estado, (bloqueado_hasta IS NOT NULL AND bloqueado_hasta > NOW()) AS bloqueado FROM usuarios WHERE correo = ?',
     [correo]));
   const largoOk = v.largo(pass) >= v.LIMITES.passwordMin && v.largo(pass) <= v.LIMITES.passwordMax;
-  if (!u) {
-    await hash.comparar(pass, HASH_FALSO);
+  const coincide = await hash.comparar(pass, u && largoOk ? u.password_hash : HASH_FALSO);
+  const ok = !!u && largoOk && coincide;
+  if (u && u.bloqueado) {
+    log.seguridad('login_cuenta_bloqueada', req, { correo });
     throw credencialesMal();
   }
-  if (u.bloqueado) throw new ErrorApp(429, 'Demasiados intentos fallidos. Intenta de nuevo en unos minutos');
-  const ok = largoOk && await hash.comparar(pass, u.password_hash);
   const resultado = await db.conSistema(async (con) => {
     if (!ok) {
       await con.call('sp_login_fallido', [correo]);
       throw credencialesMal();
     }
+    if (u.estado !== 'activa') log.seguridad('login_cuenta_no_activa', req, { correo, estado: u.estado });
     if (u.estado === 'suspendida') throw new ErrorApp(403, 'Tu cuenta está suspendida. Comunícate con el Administrador');
     if (u.estado !== 'activa') throw new ErrorApp(403, 'Tu cuenta está desactivada');
     return abrirSesion(req, res, con, u.id);
   });
+  log.seguridad('login_ok', req, { usuario: u.id });
   captcha.limpiarFallos(req, correo);
   res.json(resultado);
 }));
@@ -162,7 +166,7 @@ router.get('/auth/google/callback', limiteGoogle, asincrono(async (req, res) => 
   try {
     identidad = await google.canjearCodigo(codigo, guardado.nonce);
   } catch (e) {
-    log.aviso(`Inicio con Google rechazado: ${e.message}`);
+    log.seguridad('google_rechazado', req, { motivo: e.message });
     return res.redirect(302, '/login.html?google=error');
   }
   const u = await db.conSistema((con) => con.uno('SELECT id, estado FROM usuarios WHERE correo = ?', [identidad.correo]));
@@ -211,6 +215,7 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
     pass = crypto.randomBytes(18).toString('base64url');
   } else {
     pass = v.password(b.password);
+    v.contrasenaSegura(pass, { correo: b.correo, nombre: b.nombre });
     if (typeof b.confirmar !== 'string' || !b.confirmar) throw peticionInvalida('Escribe tu contraseña otra vez en «Confirmar contraseña»');
     if (b.confirmar !== pass) throw peticionInvalida('Las contraseñas no coinciden: escribe la misma contraseña en los dos campos');
   }
@@ -223,7 +228,7 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
   const limite = new Date(Date.UTC(hoy.getUTCFullYear() - 18, hoy.getUTCMonth(), hoy.getUTCDate()));
   if (new Date(`${nacimiento}T00:00:00Z`) > limite) throw peticionInvalida('Solo pueden registrarse personas mayores de 18 años');
   if (Number(nacimiento.slice(0, 4)) < hoy.getUTCFullYear() - 120) throw peticionInvalida('La fecha de nacimiento no es válida');
-  if (!conGoogle) exigirCaptcha(b);
+  if (!conGoogle) exigirCaptcha(b, req);
   const hashPass = await hash.hash(pass);
   const resultado = await db.conSistema(async (con) => {
     const ut = await con.uno('SELECT id FROM unidades_territoriales WHERE id = ? AND activa', [unidad]);
@@ -247,7 +252,7 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
 router.post('/auth/recuperar', limiteRecuperar, limiteRecuperarCorreo, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
   const correo = v.correo(b.correo);
-  exigirCaptcha(b);
+  exigirCaptcha(b, req);
   const token = crypto.randomBytes(32).toString('base64url');
   await db.conSistema(async (con) => {
     await con.call('sp_solicitar_recuperacion', [correo, sesion.hashToken(token)]);
@@ -268,6 +273,10 @@ router.post('/auth/restablecer', limiteRecuperar, asincrono(async (req, res) => 
   const token = typeof b.token === 'string' && /^[A-Za-z0-9_-]{20,100}$/.test(b.token) ? b.token : null;
   if (!token) throw peticionInvalida('El enlace no es válido o ya expiró');
   const pass = v.password(b.password, 'la nueva contraseña');
+  const dueno = await db.conSistema((con) => con.uno(`SELECT u.correo, u.nombre_completo AS nombre FROM tokens_recuperacion t JOIN usuarios u ON u.id = t.usuario_id
+    WHERE t.token_hash = ? AND t.usado_en IS NULL AND t.expira_en > NOW()`, [sesion.hashToken(token)]));
+  if (!dueno) throw new ErrorApp(409, 'El enlace no es válido o ya expiró');
+  v.contrasenaSegura(pass, dueno);
   const nuevo = await hash.hash(pass);
   await db.conSistema(async (con) => {
     const t = await con.uno('SELECT usuario_id FROM tokens_recuperacion WHERE token_hash = ? AND usado_en IS NULL AND expira_en > NOW()', [sesion.hashToken(token)]);
@@ -278,6 +287,7 @@ router.post('/auth/restablecer', limiteRecuperar, asincrono(async (req, res) => 
     }
   });
   sesion.olvidar();
+  log.seguridad('password_restablecida', req, { correo: dueno.correo });
   res.json({ ok: true, mensaje: 'Tu contraseña se actualizó. Ya puedes iniciar sesión.' });
 }));
 
@@ -300,6 +310,7 @@ router.post('/auth/cambiar-password', sesion.requiere(), asincrono(async (req, r
   const actual = typeof b.actual === 'string' ? b.actual : '';
   if (!actual) throw peticionInvalida('Escribe tu contraseña actual');
   const nueva = v.password(b.nueva, 'la nueva contraseña');
+  v.contrasenaSegura(nueva, { correo: req.usuario.correo, nombre: req.usuario.nombre });
   if (b.confirmar !== undefined && b.confirmar !== nueva) throw peticionInvalida('Las contraseñas nuevas no coinciden');
   if (nueva === actual) throw peticionInvalida('La nueva contraseña debe ser diferente de la actual');
   const u = await db.conUsuario(req.usuario.id, (con) => con.uno('SELECT password_hash FROM usuarios WHERE id = ?', [req.usuario.id]));
@@ -311,6 +322,7 @@ router.post('/auth/cambiar-password', sesion.requiere(), asincrono(async (req, r
       [req.usuario.id, req.tokenHash]);
   });
   sesion.olvidar({ usuarioId: req.usuario.id });
+  log.seguridad('password_cambiada', req);
   res.json({ ok: true, mensaje: 'Tu contraseña se actualizó', destino: destinoPorRol(req.usuario.rol, false) });
 }));
 
@@ -399,6 +411,7 @@ router.post('/perfil/eliminar', sesion.requiere(), limiteEliminar, asincrono(asy
     await con.q('DELETE FROM correos_salida WHERE usuario_id = ?', [u.id]);
     await con.q("INSERT INTO bitacora (usuario_id, rol, accion, entidad, entidad_id) VALUES (?, 'ciudadano', 'cuenta_eliminar', 'usuarios', ?)", [u.id, u.id]);
   }));
+  log.seguridad('cuenta_eliminada', req);
   sesion.olvidar({ usuarioId: u.id });
   sesion.borrarCookie(res);
   res.json({ ok: true, mensaje: 'Tu cuenta se eliminó. Tus datos personales se borraron y tus votos siguen siendo anónimos.' });

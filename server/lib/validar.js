@@ -2,7 +2,7 @@
 const { peticionInvalida } = require('./errores');
 
 const LIMITES = {
-  nombre: 50, correo: 50, passwordMin: 8, passwordMax: 24,
+  nombre: 50, correo: 50, passwordMin: 8, passwordMax: 64,
   titulo: 100, descripcion: 500, comentario: 250, motivo: 250,
   idea: 500, palabraClave: 50, calle: 100, numero: 10, referencias: 100,
   justificacion: 500, nota: 250, cargo: 50, direccion: 150, sitioWeb: 100,
@@ -116,6 +116,31 @@ function password(valor, campo = 'la contraseña') {
     throw peticionInvalida(`${mayus(campo)} debe tener de ${LIMITES.passwordMin} a ${LIMITES.passwordMax} caracteres`);
   }
   if (/[\u0000-\u001F\u007F]/.test(valor)) throw peticionInvalida(`${mayus(campo)} contiene caracteres no permitidos`);
+  if (Buffer.byteLength(valor, 'utf8') > 72) throw peticionInvalida(`${mayus(campo)} es demasiado larga: usa menos acentos o símbolos especiales`);
+  return valor;
+}
+
+const COMUNES = new Set(`12345678 123456789 1234567890 0123456789 87654321 11111111 00000000 12341234 12121212 11223344 123123123 abc12345 abcd1234
+password password1 password123 passw0rd p@ssw0rd p@ssword qwerty123 qwertyui qwerty12 1q2w3e4r 1qaz2wsx asdfghjk asdf1234 zxcvbnm1 iloveyou
+contraseña contrasena contrasena1 contrasena123 contraseña1 contraseña123 micontraseña micontrasena teamo123 teamomucho 12345678a a12345678
+mexico123 mexico2024 mexico2025 mexico2026 america1 chivas123 pumas123 cruzazul tequila1 superman batman123 pokemon1 futbol123 bienvenido
+admin123 admin1234 administrador usuario1 usuario123 prepar123 cdmx2026 holahola hola1234 hola12345 secreto1 welcome1 letmein1
+sunshine princess football baseball dragon12 monkey12 master12 shadow12 michael1 jennifer computer internet trustno1 starwars`.split(/\s+/));
+
+function contrasenaSegura(valor, { correo, nombre } = {}) {
+  const t = String(valor).toLowerCase();
+  const plano = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (COMUNES.has(t) || COMUNES.has(plano) || /^(.)\1+$/.test(t) || /^(0123456789|1234567890|9876543210|abcdefgh|qwertyuiop)/.test(plano)) {
+    throw peticionInvalida('Esa contraseña es de las más usadas y fácil de adivinar. Elige otra');
+  }
+  const usuario = String(correo || '').toLowerCase().split('@')[0];
+  if (usuario.length >= 4 && plano.includes(usuario.normalize('NFD').replace(/[\u0300-\u036f]/g, ''))) {
+    throw peticionInvalida('La contraseña no debe contener tu correo');
+  }
+  const primero = String(nombre || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/\s+/)[0] || '';
+  if (primero.length >= 4 && plano.startsWith(primero) && /^[0-9!@#$%&*._-]*$/.test(plano.slice(primero.length))) {
+    throw peticionInvalida('La contraseña no debe ser solo tu nombre con números');
+  }
   return valor;
 }
 
@@ -187,6 +212,6 @@ function busqueda(valor) {
 }
 
 module.exports = {
-  LIMITES, texto, entero, id, decimal, fecha, opcion, booleano, correo, password, nombrePersona,
+  LIMITES, texto, entero, id, decimal, fecha, opcion, booleano, correo, password, contrasenaSegura, nombrePersona,
   telefono, url, listaIds, coordenadas, cuerpo, pagina, busqueda, limpiarTexto, largo,
 };

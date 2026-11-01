@@ -16,7 +16,7 @@
       e.preventDefault();
       var d = P.datosForm(form);
       var n = Array.from(d.password).length;
-      if (n < 8 || n > 24) { P.poner(msg, P.html`<div class="mensaje error">La contraseña debe tener de 8 a 24 caracteres</div>`); return; }
+      if (n < 8 || n > 64) { P.poner(msg, P.html`<div class="mensaje error">La contraseña debe tener de 8 a 64 caracteres</div>`); return; }
       if (d.password !== d.confirmar) { P.poner(msg, P.html`<div class="mensaje error">Las contraseñas no coinciden</div>`); return; }
       P.accion(form.querySelector('button[type=submit]'), function () {
         return P.post('/api/auth/restablecer', { token: token, password: d.password }, { sinRedirigir: true })

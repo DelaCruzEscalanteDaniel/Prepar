@@ -12,6 +12,7 @@ const { traducir, esErrorConexion } = require('./lib/errores');
 function crearApp() {
   const app = express();
   app.disable('x-powered-by');
+  app.set('query parser', 'simple');
   app.set('trust proxy', config.confiarProxy);
   app.set('etag', 'strong');
   app.set('query parser', 'simple');

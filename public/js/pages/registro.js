@@ -86,7 +86,7 @@
       var error = null;
       if (!d.nombre || Array.from(d.nombre).length < 3) error = 'Escribe tu nombre completo';
       else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.correo)) error = 'El correo electrónico no es válido';
-      else if (!conGoogle && (Array.from(d.password || '').length < 8 || Array.from(d.password || '').length > 24)) error = 'La contraseña debe tener de 8 a 24 caracteres';
+      else if (!conGoogle && (Array.from(d.password || '').length < 8 || Array.from(d.password || '').length > 64)) error = 'La contraseña debe tener de 8 a 64 caracteres';
       else if (!conGoogle && !d.confirmar) error = 'Escribe tu contraseña otra vez en «Confirmar contraseña»';
       else if (!conGoogle && d.confirmar !== d.password) error = 'Las contraseñas no coinciden: escribe la misma contraseña en los dos campos';
       else if (!d.fecha_nacimiento) error = 'Indica tu fecha de nacimiento';

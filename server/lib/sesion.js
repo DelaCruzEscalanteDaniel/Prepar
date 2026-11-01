@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const config = require('../config');
 const db = require('../db');
 const { ErrorApp } = require('./errores');
+const log = require('./log');
 
 const COOKIE = 'prepar_sesion';
 const RE_TOKEN = /^[A-Za-z0-9_-]{43}$/;
@@ -132,6 +133,7 @@ function requiere(...roles) {
         : 'Inicia sesión para continuar'));
     }
     if (roles.length && !roles.includes(req.usuario.rol)) {
+      log.seguridad('acceso_denegado', req, { rol: req.usuario.rol });
       return next(new ErrorApp(403, 'Esta sección no corresponde a tu tipo de cuenta'));
     }
     if (req.usuario.debeAceptarTerminos && !PERMITIDAS_TERMINOS.test(req.originalUrl)) {

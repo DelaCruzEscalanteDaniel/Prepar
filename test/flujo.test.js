@@ -121,7 +121,9 @@ test('inicio de sesión, bloqueo por intentos y cierre de sesión', async () => 
   falla(await c.get('/api/auth/yo'), 401, 'tras cerrar sesión');
   const b = A.cliente();
   for (let i = 0; i < 6; i += 1) await b.post('/api/auth/login', { correo: 'vecino6@correo.mx', password: 'Equivocada1' });
-  falla(await b.post('/api/auth/login', { correo: 'vecino6@correo.mx', password: 'Prepar2026' }), 429, 'cuenta bloqueada');
+  const bloqueada = await b.post('/api/auth/login', { correo: 'vecino6@correo.mx', password: 'Prepar2026' });
+  falla(bloqueada, 401, 'una cuenta bloqueada responde igual que una contraseña incorrecta, aunque la contraseña sea la correcta');
+  assert.equal(bloqueada.datos.error, 'Correo o contraseña incorrectos');
   await A.db.conSistema((con) => con.q("UPDATE usuarios SET bloqueado_hasta = NULL, intentos_fallidos = 0 WHERE correo = 'vecino6@correo.mx'"));
   ok(await b.post('/api/auth/login', { correo: 'vecino6@correo.mx', password: 'Prepar2026' }));
 });

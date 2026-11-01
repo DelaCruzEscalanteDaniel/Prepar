@@ -1,5 +1,6 @@
 'use strict';
 const { ErrorApp } = require('./errores');
+const log = require('./log');
 
 function encabezados(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -51,6 +52,7 @@ function limitador({ ventanaMs, maximo, clave = (req) => req.ip, mensaje, contar
     const c = cubetas.get(k);
     if (c && c.reinicio > ahora && c.cuenta >= tope) {
       res.setHeader('Retry-After', Math.ceil((c.reinicio - ahora) / 1000));
+      log.seguridad('limite_superado', req);
       return next(new ErrorApp(429, mensaje || 'Demasiadas solicitudes. Espera un momento e intenta de nuevo'));
     }
     if (contarSi) res.on('finish', () => { if (contarSi(res.statusCode)) sumar(k); });
@@ -63,13 +65,14 @@ function limitador({ ventanaMs, maximo, clave = (req) => req.ip, mensaje, contar
 
 function antiCsrf(req, res, next) {
   if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
-  if (req.get('X-Prepar') !== '1') return next(new ErrorApp(403, 'Solicitud no permitida'));
+  const rechazar = (motivo) => { log.seguridad('csrf_rechazado', req, { motivo, origen: String(req.get('Origin') || '').slice(0, 100) || undefined }); return next(new ErrorApp(403, 'Solicitud no permitida')); };
+  if (req.get('X-Prepar') !== '1') return rechazar('sin_encabezado');
   const origen = req.get('Origin');
   if (origen) {
     let host;
-    try { host = new URL(origen).host; } catch { return next(new ErrorApp(403, 'Solicitud no permitida')); }
+    try { host = new URL(origen).host; } catch { return rechazar('origen_invalido'); }
     const esperado = req.get('X-Forwarded-Host') || req.get('Host');
-    if (host !== esperado) return next(new ErrorApp(403, 'Solicitud no permitida'));
+    if (host !== esperado) return rechazar('otro_origen');
   }
   return next();
 }

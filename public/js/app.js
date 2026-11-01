@@ -125,6 +125,7 @@
     [/^(.+) no es una dirección válida$/, function (m, c) { return mayusEn(c(m[1])) + ' is not a valid address'; }],
     [/^(.+) no es válid[oa]$/, function (m, c) { return mayusEn(c(m[1])) + ' is not valid'; }],
     [/^(.+) no existe$/, function (m, c) { return mayusEn(c(m[1])) + ' does not exist'; }],
+    [/^(.+) es demasiado larga: usa menos acentos o símbolos especiales$/, function (m, c) { return mayusEn(c(m[1])) + ' is too long: use fewer accents or special symbols'; }],
     [/^(.+) contiene caracteres no permitidos$/, function (m, c) { return mayusEn(c(m[1])) + ' contains characters that are not allowed'; }],
     [/^(.+) tiene demasiados elementos$/, function (m, c) { return mayusEn(c(m[1])) + ' has too many items'; }],
     [/^No tienes asignada la función "(.+)"$/, function (m) { return 'You have not been assigned the "' + P.t(m[1]) + '" function'; }],
@@ -1556,10 +1557,10 @@
     }
     var seccionPass = P.html`<section class="tarjeta seccion-perfil" id="sec-pass">
         <div class="completo"><h2 class="h2-maq" style="margin:0 0 4px;font-size:20px">${temporal ? P.t('Crea tu contraseña') : P.t('Cambiar contraseña')}</h2>
-          <span class="tenue" style="font-size:14px">${temporal ? P.t('Tu contraseña es temporal. Cámbiala para poder usar el sistema. Debe tener de 8 a 24 caracteres.') : P.t('Opcional. Déjalo vacío si no quieres cambiarla. Debe tener de 8 a 24 caracteres.')}</span></div>
+          <span class="tenue" style="font-size:14px">${temporal ? P.t('Tu contraseña es temporal. Cámbiala para poder usar el sistema. Debe tener de 8 a 64 caracteres.') : P.t('Opcional. Déjalo vacío si no quieres cambiarla. Debe tener de 8 a 64 caracteres.')}</span></div>
         <label>${temporal ? P.t('Contraseña temporal') : P.t('Contraseña actual')}<span class="campo-pass"><input type="password" name="actual" maxlength="72" autocomplete="current-password" placeholder="••••••••"><button type="button">Ver</button></span></label>
-        <label>Nueva contraseña<span class="campo-pass"><input type="password" name="nueva" maxlength="24" autocomplete="new-password" placeholder="8 a 24 caracteres"><button type="button">Ver</button></span></label>
-        <label>Confirmar nueva<span class="campo-pass"><input type="password" name="confirmar" maxlength="24" autocomplete="new-password" placeholder="Repite la contraseña"><button type="button">Ver</button></span></label>
+        <label>Nueva contraseña<span class="campo-pass"><input type="password" name="nueva" maxlength="64" autocomplete="new-password" placeholder="8 a 64 caracteres"><button type="button">Ver</button></span></label>
+        <label>Confirmar nueva<span class="campo-pass"><input type="password" name="confirmar" maxlength="64" autocomplete="new-password" placeholder="Repite la contraseña"><button type="button">Ver</button></span></label>
         <div class="completo" id="msg-pass"></div>
       </section>`;
     P.poner(cont, P.html`
@@ -1701,7 +1702,7 @@
       var quierePass = temporal || d.actual || d.nueva || d.confirmar;
       if (quierePass) {
         var n = Array.from(d.nueva || '').length;
-        var errP = !d.actual ? 'Escribe tu contraseña actual' : (n < 8 || n > 24 ? 'La nueva contraseña debe tener de 8 a 24 caracteres'
+        var errP = !d.actual ? 'Escribe tu contraseña actual' : (n < 8 || n > 64 ? 'La nueva contraseña debe tener de 8 a 64 caracteres'
           : (d.nueva !== d.confirmar ? 'Las contraseñas nuevas no coinciden' : (d.nueva === d.actual ? 'La nueva contraseña debe ser diferente de la actual' : null)));
         if (errP) { P.poner(msgPass, P.html`<div class="mensaje error" role="alert">${P.t(errP)}</div>`); return; }
       }

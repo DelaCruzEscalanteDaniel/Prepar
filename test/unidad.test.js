@@ -72,7 +72,7 @@ test('validar correo, contraseña, nombre, teléfono, URL y coordenadas', () => 
   assert.equal(v.correo('', { requerido: false }), null);
   assert.equal(v.password('Secreta123'), 'Secreta123');
   lanza400(() => v.password('corta'));
-  lanza400(() => v.password('x'.repeat(25)));
+  lanza400(() => v.password('x'.repeat(65)));
   lanza400(() => v.password('con\u0000nulo1'));
   lanza400(() => v.password(12345678));
   assert.equal(v.nombrePersona("María O'Neil-López"), "María O'Neil-López");
