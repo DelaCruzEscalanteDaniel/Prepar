@@ -80,6 +80,7 @@ async function principal() {
     await db.conSistema((c) => c.call('sp_registrar_ciudadano', [nombre, correo, hCiu, nac, gen, ut[clave].id, true]));
     ciu[correo.split('@')[0]] = await idDe(correo);
   }
+  await db.conSistema((c) => c.q("UPDATE usuarios SET correo_verificado_en = NOW() WHERE rol = 'ciudadano' AND correo_verificado_en IS NULL"));
 
   const anio = new Date().getFullYear();
   const ciclo = (await como(admin, (c) => c.call('sp_crear_ciclo', [`Ciclo de demostración ${anio}`, anio, 12000000, `${azc},${coy}`, null, 'aleatorio'])))[0].ciclo_id;

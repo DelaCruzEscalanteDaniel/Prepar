@@ -701,11 +701,11 @@ async function sincronizarPendientes() {
         const r = await sincronizarFuente(f, 'programada', null);
         log.info(`Sincronización ${f.clave}:`, r && r.estado, r && r.motivo ? `(${r.motivo})` : '');
       } catch (e) {
-        log.aviso(`Sincronización ${f.clave} no realizada:`, e.sqlMessage || e.message);
+        log.tarea(`Sincronización ${f.clave} no realizada:`, e);
       }
     }
   } catch (e) {
-    log.aviso('No se pudieron revisar las fuentes externas:', e.message);
+    log.tarea('No se pudieron revisar las fuentes externas:', e);
   } finally {
     ocupado = false;
   }

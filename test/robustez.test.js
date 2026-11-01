@@ -192,3 +192,104 @@ test('el limitador bloquea al superar el máximo y lo indica con 429', async () 
   lim2.reiniciar();
 });
 
+test('si MySQL corta las conexiones abiertas, el sistema se reconecta solo y no responde 503', async () => {
+  const pool = A.db.obtenerPool();
+  await Promise.all(Array.from({ length: 6 }, () => A.db.conSistema((con) => con.q('SELECT SLEEP(0.05)'))));
+  const ids = await A.db.conSistema((con) => con.q('SELECT ID AS id FROM information_schema.PROCESSLIST WHERE DB = DATABASE() AND ID <> CONNECTION_ID()'));
+  assert.ok(ids.length > 0);
+  const mysql = require('mysql2/promise');
+  const cfg = pool.pool.config.connectionConfig;
+  const admin = await mysql.createConnection({ host: cfg.host, port: cfg.port, user: cfg.user, password: cfg.password, socketPath: cfg.socketPath });
+  try {
+    for (const { id } of ids) await admin.query('KILL CONNECTION ?', [id]).catch(() => {});
+  } finally {
+    await admin.end();
+  }
+  const r = await Promise.all(Array.from({ length: 8 }, () => A.db.conSistema((con) => con.uno('SELECT 1 AS uno'))));
+  assert.ok(r.every((x) => Number(x.uno) === 1), 'todas las consultas responden tras el corte');
+  const c = A.cliente();
+  const pub = await c.get('/api/publico/estado');
+  assert.equal(pub.estado, 200);
+});
+
+test('una conexión que murió en silencio (ECONNRESET al usarla) se descarta y se reintenta con otra', async () => {
+  const pool = A.db.obtenerPool();
+  const original = pool.getConnection.bind(pool);
+  let destruidas = 0;
+  let pendientes = 2;
+  pool.getConnection = async () => {
+    if (pendientes > 0) {
+      pendientes -= 1;
+      const e = Object.assign(new Error('read ECONNRESET'), { code: 'ECONNRESET', fatal: true, syscall: 'read' });
+      return { query: () => Promise.reject(e), destroy: () => { destruidas += 1; }, release: () => {} };
+    }
+    return original();
+  };
+  try {
+    const r = await A.db.conSistema((con) => con.uno('SELECT 2 AS dos'));
+    assert.equal(Number(r.dos), 2);
+    assert.equal(destruidas, 2, 'las conexiones muertas se destruyen, no vuelven al pool');
+    pendientes = 5;
+    await assert.rejects(A.db.conSistema((con) => con.uno('SELECT 1')), /ECONNRESET/, 'si sigue fallando, se rinde y avisa');
+  } finally {
+    pool.getConnection = original;
+  }
+  const ok = await A.db.conSistema((con) => con.uno('SELECT 3 AS tres'));
+  assert.equal(Number(ok.tres), 3);
+});
+
+test('sin conexión con MySQL las tareas automáticas dan un solo aviso claro', async () => {
+  const log = require('../server/lib/log');
+  const config = require('../server/config');
+  const antes = config.registrarEnConsola;
+  const salida = [];
+  const original = console.log;
+  config.registrarEnConsola = true;
+  console.log = (...a) => salida.push(a.join(' '));
+  try {
+    const e = Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT', syscall: 'connect' });
+    for (let i = 0; i < 6; i += 1) log.tarea('No se pudo procesar la cola de correos:', e);
+    log.tarea('No se pudo procesar la cola de correos:', new Error('otra cosa'));
+  } finally {
+    console.log = original;
+    config.registrarEnConsola = antes;
+  }
+  const deBd = salida.filter((x) => /Sin conexión con MySQL \(ETIMEDOUT\)/.test(x));
+  assert.equal(deBd.length, 1, salida.join('\n'));
+  assert.match(deBd[0], /DB_HOST/);
+  assert.ok(salida.some((x) => /cola de correos: otra cosa/.test(x)), 'los demás errores se siguen mostrando');
+  const { esErrorConexion } = require('../server/lib/errores');
+  assert.equal(esErrorConexion({ code: 'ECONNRESET' }), true);
+  assert.equal(esErrorConexion({ code: 'ER_DUP_ENTRY', sqlState: '23000' }), false);
+});
+
+test('si MySQL no se alcanza, se responde 503 al instante en lugar de esperar en cada petición', async () => {
+  const pool = A.db.obtenerPool();
+  const original = pool.getConnection.bind(pool);
+  let intentos = 0;
+  pool.getConnection = async () => {
+    intentos += 1;
+    await new Promise((r) => setTimeout(r, 300));
+    throw Object.assign(new Error('connect ETIMEDOUT'), { code: 'ETIMEDOUT', syscall: 'connect' });
+  };
+  try {
+    const c = A.cliente();
+    require('../server/routes/publico').invalidarEstado();
+    const primera = await c.get('/api/publico/estado');
+    assert.equal(primera.estado, 503);
+    assert.match(primera.datos.error, /base de datos no está disponible/);
+    const t = Date.now();
+    const otras = await Promise.all(Array.from({ length: 10 }, () => c.get('/salud')));
+    assert.ok(otras.every((r) => r.estado === 503), otras.map((r) => r.estado).join(','));
+    assert.ok(Date.now() - t < 250, `las siguientes no esperan el tiempo de conexión (${Date.now() - t} ms)`);
+    assert.equal(intentos, 1, 'no se insiste mientras la base sigue caída');
+  } finally {
+    pool.getConnection = original;
+    A.db._reiniciarCaida();
+  }
+  require('../server/routes/publico').invalidarEstado();
+  const ok = await A.cliente().get('/api/publico/estado');
+  assert.equal(ok.estado, 200, 'se recupera cuando la base vuelve');
+  assert.equal((await A.cliente().get('/salud')).estado, 200);
+});
+

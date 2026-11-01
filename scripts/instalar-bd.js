@@ -76,8 +76,6 @@ async function instalar({ nombreBd = config.bd.database, silencioso = false } = 
   }
 }
 
-// Única cuenta con la que arranca el sistema: el Administrador del equipo.
-// Aquí solo está el hash bcrypt de su contraseña, nunca la contraseña en texto.
 const ADMIN_INICIAL = {
   nombre: 'Administrador Prepar',
   correo: 'equipoprepar@gmail.com',

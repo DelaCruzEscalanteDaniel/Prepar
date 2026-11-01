@@ -61,7 +61,6 @@ async function enviarUno(c) {
 }
 
 let ocupado = false;
-// Quita la contraseña temporal del texto guardado de un correo ya enviado.
 const SQL_OCULTAR_TEMPORAL = "UPDATE correos_salida SET cuerpo = REGEXP_REPLACE(REGEXP_REPLACE(cuerpo, "
   + "'temporal es: [^[:space:]]+', 'temporal es: [oculta]'), 'temporal: [^[:space:]]+', 'temporal: [oculta]')";
 
@@ -92,7 +91,7 @@ async function procesarCola() {
       }
     });
   } catch (e) {
-    log.aviso('No se pudo procesar la cola de correos:', e.message);
+    log.tarea('No se pudo procesar la cola de correos:', e);
   } finally {
     ocupado = false;
   }

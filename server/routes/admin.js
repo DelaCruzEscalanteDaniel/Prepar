@@ -18,6 +18,7 @@ const publico = require('./publico');
 const categorias = require('../lib/categorias');
 const modo = require('../lib/modo');
 const ciclosIniciales = require('../lib/ciclosIniciales');
+const { repartirOficial } = require('../lib/datosOficiales');
 
 const router = express.Router();
 router.use('/admin', requiere('administrador'));
@@ -109,8 +110,6 @@ router.post('/admin/ciclos', asincrono(async (req, res) => {
       const n = await con.uno(`SELECT COUNT(*) AS n FROM unidades_territoriales WHERE activa AND id IN (${unidades.map(() => '?').join(',')})`, unidades);
       if (n.n !== unidades.length) throw peticionInvalida('Alguna unidad territorial seleccionada no existe');
     }
-    // Con origen «api» los índices se copian después en una sola consulta: el procedimiento los busca colonia por colonia
-    // y con una base remota tardaba más que el límite de 15 s por consulta.
     const filas = await con.call('sp_crear_ciclo', [nombre, anio, presupuesto,
       alcaldias.length ? alcaldias.join(',') : null, unidades.length ? unidades.join(',') : null, origen === 'api' ? 'manual' : origen]);
     const cicloId = filas[0].ciclo_id;
@@ -136,6 +135,7 @@ router.put('/admin/ciclos/:id', asincrono(async (req, res) => {
   const pct = v.decimal(b.porcentaje_partes_iguales ?? 50, { campo: 'el porcentaje en partes iguales', min: 0, max: 100 });
   await db.conUsuario(req.usuario.id, async (con) => {
     const c = await cicloExistente(con, id);
+    if (c.tipo === 'oficial') throw conflicto('El ciclo oficial conserva el nombre y el monto publicados en la Gaceta Oficial');
     if (c.estado !== 'borrador' || c.pausado_en) {
       await con.q('UPDATE ciclos SET nombre = ? WHERE id = ?', [nombre, id]);
       return;
@@ -212,6 +212,10 @@ router.post('/admin/ciclos/:id/presupuesto', asincrono(async (req, res) => {
   const filas = await db.conUsuario(req.usuario.id, async (con) => {
     const c = await cicloExistente(con, id);
     if (c.pausado_en) throw conflicto('El ciclo está pausado: su presupuesto ya no se recalcula');
+    if (c.tipo === 'oficial') {
+      await repartirOficial(con, id);
+      return con.q('SELECT unidad_territorial_id, presupuesto_asignado FROM ciclo_unidades WHERE ciclo_id = ? ORDER BY 1', [id]);
+    }
     return con.call('sp_calcular_presupuesto', [id]);
   });
   res.json({ ok: true, unidades: filas, mensaje: 'La distribución del presupuesto se recalculó' });
@@ -222,7 +226,6 @@ router.post('/admin/ciclos/:id/fase', asincrono(async (req, res) => {
   const fase = v.opcion(v.cuerpo(req).fase, FASES, { campo: 'la fase' });
   const c = await db.conUsuario(req.usuario.id, (con) => cicloExistente(con, id));
   if (c.estado === 'borrador') {
-    // Activar un ciclo: si había otro activo, queda pausado.
     const r = await modo.activar(req.usuario.id, id);
     if (c.tipo !== 'oficial' && r.fase !== fase) await db.conUsuario(req.usuario.id, (con) => con.call('sp_cambiar_fase', [id, fase]));
     return res.json({ ok: true, mensaje: r.pausado ? `El ciclo se activó; «${r.pausado}» quedó pausado` : 'El ciclo se activó' });
@@ -407,7 +410,6 @@ router.post('/admin/funcionarios', asincrono(async (req, res) => {
     if (!a) throw peticionInvalida('La alcaldía no existe');
     const filas = await con.call('sp_registrar_funcionario', [nombre, correo, hashTemp, alcaldia, funciones.join(',')]);
     const nuevo = filas[0].usuario_id;
-    // La contraseña temporal solo entra a la cola si hay correo configurado; tras enviarse se borra del registro.
     if (envioCorreo.configurado()) await con.call('sp_encolar_correo', [nuevo, correo, 'Prepar · Tu cuenta de Funcionario',
       `Hola, ${nombre}.\n\nEl Administrador de Prepar creó tu cuenta de Funcionario.\nCorreo: ${correo}\nContraseña temporal: ${temporal}\n\n` +
       `Inicia sesión en ${config.urlPublica}/login.html; el sistema te pedirá cambiarla la primera vez.`, 'contrasena_temporal']);

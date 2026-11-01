@@ -73,7 +73,8 @@
       P.get('/api/publico/privacidad').then(function (a) {
         P.modal({
           titulo: P.t('Aviso de privacidad'),
-          contenido: P.html`<p class="tenue pequeno">${P.t('Versión')} ${a.version || ''}</p><p class="texto-2">${P.idioma() === 'en' ? (a.texto_en || a.texto_es) : a.texto_es}</p>`,
+          ancho: true,
+          contenido: P.html`<p class="tenue pequeno">${P.t('Versión')} ${a.version || ''}</p><div class="texto-2">${P.textoLegal(P.idioma() === 'en' ? (a.texto_en || a.texto_es) : a.texto_es)}</div>`,
           botones: [{ texto: 'Entendido', clase: 'btn' }],
         });
       }, function (e) { P.aviso(e.message, 'error'); });

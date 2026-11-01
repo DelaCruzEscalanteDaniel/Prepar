@@ -1,35 +1,20 @@
 'use strict';
-// Ciclos con los que arranca una base nueva (se crean una sola vez):
-//  1) El ciclo oficial vigente, con el calendario real publicado por el IECM, como referencia (queda en borrador).
-//  2) Un ciclo de práctica que empieza hoy y recorre todas las fases, para usar el simulador (queda activo).
-// Los índices de cada colonia salen de los datos abiertos sincronizados (origen "api").
 const db = require('../db');
 const log = require('./log');
 const { indicesDesdeApis } = require('./modo');
+const { PP_2026 } = require('./datosOficiales');
 
 const PARAMETRO = 'ciclos_iniciales_creados';
 const ESPERA_SIN_COLONIAS_MS = 30 * 60 * 1000;
 const inicio = Date.now();
 
-// Fuentes: boletines y convocatoria del IECM (iecm.mx/www/sites/copaco_pp_2026/).
 const OFICIAL = {
-  nombre: 'Presupuesto Participativo 2026-2027 (IECM)',
-  anio: 2026,
-  // Monto de referencia para el simulador: edítalo en «Ciclos» con la cifra publicada en la Gaceta Oficial.
-  presupuesto: 1500000000,
-  fases: {
-    convocatoria: ['2026-01-15', '2026-01-24'], // Convocatoria Única, mediados de enero
-    diagnostico_registro: ['2026-01-25', '2026-02-26'], // registro de proyectos 25 ene – 24 feb; subsanar hasta 26 feb
-    dictaminacion: ['2026-02-27', '2026-03-23'], // dictamen hasta 10 mar, resultados 12 mar, redictaminación hasta 23 mar
-    sorteo_difusion: ['2026-03-24', '2026-04-19'], // asignación aleatoria 25–27 mar; difusión 29 mar – 16 abr
-    consulta: ['2026-04-20', '2026-05-03'], // votación anticipada por internet 20–30 abr; jornada presencial 3 may
-    resultados: ['2026-05-04', '2026-06-30'], // proyectos ganadores publicados 19 may; instalación de COPACO en junio
-    ejecucion_seguimiento: ['2026-07-01', '2027-11-30'], // ejercicios fiscales 2026 y 2027
-    evaluacion: ['2027-12-01', '2027-12-31'],
-  },
+  nombre: PP_2026.nombre,
+  anio: PP_2026.anio,
+  presupuesto: PP_2026.monto,
+  fases: PP_2026.fases,
 };
 
-// Duración en días de cada fase del ciclo de práctica (la convocatoria empezó hace una semana).
 const PRACTICA = {
   nombre: 'Ciclo de práctica (simulación)',
   presupuesto: 120000000,
@@ -53,9 +38,7 @@ function calendarioPractica(hoy = new Date()) {
 }
 
 async function crearCiclo(adminId, { nombre, anio, presupuesto, fases, alcaldias, tipo = 'practica' }) {
-  // Todo o nada: si algo falla a la mitad, no queda un ciclo incompleto en la base.
   return db.conUsuario(adminId, (con) => con.transaccion(async () => {
-    // Se crea sin índices y luego se copian todos de las APIs en una sola consulta (mucho más rápido en una base remota).
     const r = await con.call('sp_crear_ciclo', [nombre, anio, presupuesto, alcaldias, null, 'manual']);
     const id = r[0].ciclo_id;
     await con.q('UPDATE ciclos SET tipo = ? WHERE id = ?', [tipo, id]);
@@ -69,8 +52,6 @@ async function crearCiclo(adminId, { nombre, anio, presupuesto, fases, alcaldias
   }));
 }
 
-// Borra los borradores a medias o repetidos de los ciclos que crea el sistema (quedaban cuando una creación
-// se cortaba por tiempo). Nunca toca ciclos activos, pausados, cerrados ni con proyectos o votos.
 async function limpiarDuplicados() {
   return db.conSistema(async (con) => {
     const filas = await con.q(
@@ -109,7 +90,6 @@ const marcado = async (clave) => !!(await db.conSistema((con) => con.uno('SELECT
 async function datosBase({ forzar }) {
   const admin = await db.conSistema((con) => con.uno("SELECT id FROM usuarios WHERE rol = 'administrador' AND estado = 'activa' ORDER BY id LIMIT 1"));
   if (!admin) return { motivo: 'No hay un Administrador activo' };
-  // Se espera a que las colonias del portal estén sincronizadas, para incluirlas todas (máximo 30 min).
   const col = await db.conSistema((con) => con.uno(
     "SELECT activa, ultima_sincronizacion_exitosa AS ok FROM fuentes_externas WHERE clave = 'datos_cdmx_unidades'"));
   if (!forzar && col && col.activa && !col.ok && Date.now() - inicio < ESPERA_SIN_COLONIAS_MS) return { motivo: 'Esperando a que se sincronicen las colonias' };
@@ -119,7 +99,6 @@ async function datosBase({ forzar }) {
   return { admin, alcaldias: alc.map((a) => a.id).join(',') };
 }
 
-// Crea el ciclo oficial del IECM si no existe. Con forzar: true no espera a la sincronización de colonias.
 async function crearOficial({ forzar = false } = {}) {
   await limpiarDuplicados();
   const existe = await db.conSistema((con) => con.uno("SELECT id FROM ciclos WHERE tipo = 'oficial' AND nombre = ? LIMIT 1", [OFICIAL.nombre]));
@@ -132,7 +111,6 @@ async function crearOficial({ forzar = false } = {}) {
   return { id };
 }
 
-// Ciclo de práctica inicial: solo si la base no tiene ningún ciclo de práctica; queda activo si no hay otro activo.
 async function crearPracticaInicial() {
   const hay = await db.conSistema((con) => con.uno("SELECT COUNT(*) AS n FROM ciclos WHERE tipo = 'practica' AND nombre <> ?", [OFICIAL.nombre]));
   if (hay.n > 0) { await marcar(PARAMETRO, 'Se crearon los ciclos iniciales'); return; }
@@ -157,7 +135,7 @@ async function asegurar() {
     if (!(await marcado(PARAMETRO_OFICIAL))) await crearOficial();
     if (!(await marcado(PARAMETRO))) await crearPracticaInicial();
   } catch (e) {
-    log.aviso('No se pudieron crear los ciclos iniciales:', e.sqlMessage || e.message);
+    log.tarea('No se pudieron crear los ciclos iniciales:', e);
   } finally {
     ocupado = false;
   }

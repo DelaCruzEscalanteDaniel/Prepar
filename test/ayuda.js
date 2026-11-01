@@ -4,6 +4,7 @@ process.env.LOG_SILENCIO = 'true';
 process.env.GEOCODIFICACION = 'false';
 process.env.TAREAS_PROGRAMADAS = 'false';
 process.env.CAPTCHA = 'true';
+process.env.VERIFICAR_CORREO = 'true';
 process.env.LIMITES_FACTOR = process.env.LIMITES_FACTOR || '100';
 
 const zlib = require('zlib');
@@ -42,6 +43,10 @@ function cliente() {
     if (!opciones.crudo && metodo === 'POST' && ruta === '/api/auth/login' && r.estado === 200 && r.datos && r.datos.debeAceptarTerminos) {
       await pedirCrudo('POST', '/api/auth/aceptar-terminos', { acepto: true });
     }
+    if (!opciones.crudo && !opciones.sinVerificar && metodo === 'POST' && ruta === '/api/auth/registro' && r.estado === 201 && r.datos && r.datos.verificarCorreo) {
+      const token = await tokenVerificacion(cuerpo.correo);
+      await pedirCrudo('POST', '/api/auth/verificar-correo', { token });
+    }
     return r;
   }
   async function pedirCrudo(metodo, ruta, cuerpo, opciones = {}) {
@@ -74,6 +79,13 @@ function cliente() {
     get cookie() { return cookie; },
     set cookie(c) { cookie = c; },
   };
+}
+
+async function tokenVerificacion(correo) {
+  const c = await db.conSistema((con) => con.uno(
+    "SELECT cuerpo FROM correos_salida WHERE destinatario = ? AND plantilla = 'verificacion' ORDER BY id DESC LIMIT 1", [String(correo).toLowerCase()]));
+  const m = c && /verificar\.html#token=([A-Za-z0-9_-]+)/.exec(c.cuerpo);
+  return m ? m[1] : null;
 }
 
 async function captchaResuelto() {
@@ -129,4 +141,4 @@ function jpegFalso(ancho = 640, alto = 480) {
 
 const olvidarSesiones = () => require('../server/lib/sesion').olvidar();
 module.exports = {
-  captchaResuelto, iniciar, detener, cliente, crearAdmin, png, jpegFalso, db, olvidarSesiones, get base() { return base; } };
+  captchaResuelto, tokenVerificacion, iniciar, detener, cliente, crearAdmin, png, jpegFalso, db, olvidarSesiones, get base() { return base; } };

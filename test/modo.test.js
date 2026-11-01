@@ -140,6 +140,46 @@ test('modo oficial: se carga con el calendario del IECM y su fase sigue la fecha
   assert.equal((await cicloEnBd(e.a)).fase, 'consulta');
 });
 
+test('ciclo oficial: monto del Decreto de Presupuesto repartido por alcaldía y calendario del IECM', async () => {
+  const { PP_2026 } = require('../server/lib/datosOficiales');
+  const porAlc = () => A.db.conSistema((con) => con.q(
+    `SELECT a.clave, SUM(cu.presupuesto_asignado) AS suma, COUNT(*) AS n, MIN(cu.presupuesto_asignado) AS minimo
+     FROM ciclo_unidades cu JOIN unidades_territoriales u ON u.id = cu.unidad_territorial_id JOIN alcaldias a ON a.id = u.alcaldia_id
+     WHERE cu.ciclo_id = ? GROUP BY a.clave`, [e.of]));
+  const revisar = async () => {
+    const filas = await porAlc();
+    assert.ok(filas.length > 0);
+    let esperado = 0;
+    for (const f of filas) {
+      assert.equal(Number(f.suma), PP_2026.porAlcaldia[f.clave], `suma exacta de ${f.clave}`);
+      assert.ok(Number(f.minimo) >= Math.floor(PP_2026.porAlcaldia[f.clave] * 0.5 / Number(f.n)), `50 % en partes iguales en ${f.clave}`);
+      esperado += PP_2026.porAlcaldia[f.clave];
+    }
+    const c = await A.db.conSistema((con) => con.uno('SELECT presupuesto_total, porcentaje_partes_iguales FROM ciclos WHERE id = ?', [e.of]));
+    assert.equal(Number(c.presupuesto_total), esperado, 'el total es la suma oficial de las alcaldías participantes');
+    assert.equal(Number(c.porcentaje_partes_iguales), 50);
+  };
+  await revisar();
+  const fases = await A.db.conSistema((con) => con.q(
+    "SELECT f.clave, DATE_FORMAT(cf.fecha_inicio, '%Y-%m-%d') AS ini, DATE_FORMAT(cf.fecha_fin, '%Y-%m-%d') AS fin FROM ciclo_fases cf JOIN fases f ON f.id = cf.fase_id WHERE cf.ciclo_id = ?", [e.of]));
+  for (const [k, [ini, fin]] of Object.entries(PP_2026.fases)) assert.ok(fases.some((f) => f.clave === k && f.ini === ini && f.fin === fin), k);
+  assert.equal(Object.values(PP_2026.porAlcaldia).reduce((x, y) => x + y, 0), PP_2026.monto, 'las 16 alcaldías suman el monto del artículo 17');
+
+  falla(await e.admin.put(`/api/admin/ciclos/${e.of}`, { nombre: 'Otro nombre', anio_simulado: 2026, presupuesto_total: 1 }), 409, 'nombre y monto oficiales no se editan');
+  const m = await e.admin.get('/api/admin/modo');
+  assert.equal(m.datos.montoOficial, PP_2026.monto);
+
+  await A.db.conSistema(async (con) => {
+    await con.q('UPDATE ciclos SET presupuesto_total = 1500000000 WHERE id = ?', [e.of]);
+    await con.q('UPDATE ciclo_unidades SET presupuesto_asignado = 1 WHERE ciclo_id = ?', [e.of]);
+    await con.q("UPDATE ciclo_fases cf JOIN fases f ON f.id = cf.fase_id SET cf.fecha_fin = '2026-02-26' WHERE cf.ciclo_id = ? AND f.clave = 'diagnostico_registro'", [e.of]);
+  });
+  const hechos = await require('../server/lib/migraciones').migrar();
+  assert.ok(hechos.some((h) => /ciclo oficial/.test(h)), 'la migración corrige un ciclo oficial creado con datos anteriores');
+  await revisar();
+  assert.deepEqual(await require('../server/lib/migraciones').migrar(), [], 'y no vuelve a aplicarse');
+});
+
 test('fase según la fecha y calendario de práctica', async () => {
   const modo = require('../server/lib/modo');
   const ini = require('../server/lib/ciclosIniciales');

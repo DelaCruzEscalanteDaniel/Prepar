@@ -87,7 +87,7 @@
     var u = ctx.usuario;
     P.$('#saludo').textContent = P.t('Hola, {n}', { n: u.nombre.split(' ')[0] });
     if (P.param('bienvenida') === '1') {
-      P.poner(P.$('#bienvenida'), P.html`<div class="mensaje ok" role="status">${P.t('¡Tu cuenta quedó lista! Ya puedes participar en el simulador.')}</div>`);
+      P.poner(P.$('#bienvenida'), u.debeVerificarCorreo ? '' : P.html`<div class="mensaje ok" role="status">${P.t('¡Tu cuenta quedó lista! Ya puedes participar en el simulador.')}</div>`);
     }
     var fases = (ctx.estado && ctx.estado.fases) || [];
     return P.get('/api/ciudadano/panel').then(function (d) {

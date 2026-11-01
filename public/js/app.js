@@ -134,6 +134,8 @@
     [/^No se pudo enviar el correo de prueba: (.+)$/, function (m) { return 'The test email could not be sent: ' + m[1]; }],
     [/^Se envió un correo de prueba a (.+)\. Revisa la bandeja de entrada \(y la de spam\)\.$/, function (m) { return 'A test email was sent to ' + m[1] + '. Check the inbox (and spam).'; }],
     [/^Se asignó un tipo a (\d+) de (\d+) proyecto\(s\) que estaban como «Otro»\.$/, function (m) { return 'A type was assigned to ' + m[1] + ' of ' + m[2] + ' project(s) marked as “Other”.'; }],
+    [/^Te enviamos un nuevo enlace a (.+)\. Revisa también la carpeta de spam\.$/, function (m) { return 'We sent a new link to ' + m[1] + '. Check your spam folder too.'; }],
+    [/^Te enviamos un enlace a (.+) para confirmar tu correo\. Ábrelo para poder participar\.$/, function (m) { return 'We sent a link to ' + m[1] + ' to confirm your email. Open it to take part.'; }],
     [/^El ciclo se activó; «(.+)» quedó pausado$/, function (m) { return 'The cycle was activated; “' + m[1] + '” was paused'; }],
     [/^Modo (oficial|práctica): «(.+?)» está activo y «(.+)» quedó pausado$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active and “' + m[3] + '” was paused'; }],
     [/^Modo (oficial|práctica): «(.+)» está activo$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active'; }],
@@ -403,6 +405,15 @@
     });
   };
 
+  P.textoLegal = function (texto) {
+    var partes = String(texto || '').split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean);
+    return P.html`<div class="aviso-legal">${partes.map(function (x, i) {
+      if (i === 0 && partes.length > 1 && x.length < 90 && !/\.$/.test(x)) return P.html`<h2 class="h" style="font-size:18px;margin:0 0 10px">${x}</h2>`;
+      var m = /^(\d+\.\s[^.]+\.)\s*([\s\S]*)$/.exec(x);
+      return m ? P.html`<p><strong>${m[1]}</strong> ${m[2]}</p>` : P.html`<p>${x}</p>`;
+    })}</div>`;
+  };
+
   P.modal = function (op) {
     var previo = doc.activeElement;
     var fondo = doc.createElement('div');
@@ -665,7 +676,7 @@
   function pie() {
     return P.html`<footer class="pie"><div class="fila">
       <span>© 2026 Prepar · Simulador del Presupuesto Participativo</span>
-      <span><a href="mailto:info@prepar.org">info@prepar.org</a> · <a href="/privacidad.html">Aviso de privacidad</a></span>
+      <span><a href="mailto:equipoprepar@gmail.com">equipoprepar@gmail.com</a> · <a href="/privacidad.html">Aviso de privacidad</a></span>
     </div></footer>`;
   }
 
@@ -923,8 +934,6 @@
     P.ojitos(main);
   }
 
-  // Actualiza el menú, el encabezado y el aviso con los datos recién llegados del servidor
-  // (cuando la página ya se había mostrado con los datos guardados de la visita anterior).
   function refrescarMarco(rol, pagina, estado, usuario) {
     var main = P.$('#principal');
     var aviso = P.$('[data-marco="aviso"]');
@@ -967,8 +976,6 @@
     nuevos.forEach(function (n) { P.i18n.aplicar(n); });
   }
 
-  // Lo último que respondió el servidor se guarda en la pestaña para dibujar el menú
-  // al instante en la siguiente página, mientras llegan los datos nuevos.
   var MARCO_GUARDADO = 'prepar_marco';
   function leerMarco() {
     try { return JSON.parse(sessionStorage.getItem(MARCO_GUARDADO) || 'null'); } catch (e) { return null; }
@@ -980,6 +987,22 @@
     } catch (e) { }
   }
   P.olvidarMarco = function () { guardarMarco(null, null); };
+
+  function franjaVerificacion(usuario) {
+    var vieja = P.$('#franja-verificar');
+    var falta = !!(usuario && usuario.rol === 'ciudadano' && usuario.debeVerificarCorreo);
+    if (!falta) { if (vieja) vieja.parentNode.removeChild(vieja); return; }
+    var main = P.$('#principal');
+    if (vieja || !main) return;
+    var d = doc.createElement('div');
+    P.poner(d, P.html`<div class="mensaje alerta franja-verificar" id="franja-verificar" role="status">
+      <span>${P.t('Confirma tu correo para participar: te enviamos un enlace a {c}. Mientras tanto puedes ver todo, pero no publicar, registrar proyectos ni votar.', { c: usuario.correo })}</span>
+      <button type="button" class="btn2 chico" id="reenviar-verificacion">${P.t('Reenviar enlace')}</button></div>`);
+    main.insertBefore(d.firstElementChild, main.firstChild);
+    P.$('#reenviar-verificacion').addEventListener('click', function (e) {
+      P.accion(e.currentTarget, function () { return P.post('/api/auth/reenviar-verificacion', {}); });
+    });
+  }
 
   function cerrarMenuC() {
     var mc = P.$('#menu-c');
@@ -1152,6 +1175,7 @@
       }
       if (!montado) montarMarco(rol, pagina, estado, usuario);
       else if (JSON.stringify({ estado: estado, usuario: usuario }) !== huellaPrevia) refrescarMarco(rol, pagina, estado, usuario);
+      franjaVerificacion(usuario);
       if (!doc.querySelector('script[src="/js/mascota.js"]')) {
         var sm = doc.createElement('script');
         sm.src = '/js/mascota.js';
@@ -1322,7 +1346,6 @@
   P.filasCategorias = function (lista) {
     var usadas = {};
     (lista || []).forEach(function (p) { usadas[P.categoriaDe(p)] = true; });
-    // Sin proyectos en el mapa se muestran todos los tipos (antes la simbología quedaba vacía).
     var filtrar = lista && lista.length > 0;
     var claves = Object.keys(P.CATEGORIAS).filter(function (k) { return !filtrar || usadas[k]; });
     return { titulo: 'Tipo de proyecto', filas: claves.map(function (k) { return { color: P.CATEGORIAS[k][1], glifo: P.CATEGORIAS[k][2], texto: P.CATEGORIAS[k][0] }; }) };
@@ -1562,9 +1585,50 @@
         ${seccionPass}
         <div class="fila"><button type="submit" class="btn" id="guardar-perfil">${temporal ? P.t('Guardar y continuar') : P.t('Guardar cambios')}</button>
           ${temporal ? '' : P.html`<a class="btn2" href="${inicio}">Cancelar</a>`}<span id="msg-perfil" aria-live="polite"></span></div>
-      </form>`);
+      </form>
+      ${esCiudadano && !temporal ? P.html`<section class="tarjeta columna zona-privacidad" style="gap:10px" aria-labelledby="t-privacidad">
+        <h2 class="h2-maq" id="t-privacidad" style="margin:0;font-size:20px">Tus datos y privacidad</h2>
+        <p class="tenue" style="margin:0;font-size:14px">Puedes ver y corregir tus datos en esta página. Si eliminas tu cuenta se borran tu nombre, correo, fecha de nacimiento, género y foto; tus votos ya son anónimos y se conservan para no alterar los resultados. Más detalles en el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a>.</p>
+        <div><button type="button" class="btn-peligro" id="eliminar-cuenta">Eliminar mi cuenta</button></div>
+      </section>` : ''}`);
     P.ojitos(cont);
     if (!temporal) pintarFoto();
+    var btnEliminar = P.$('#eliminar-cuenta');
+    if (btnEliminar) btnEliminar.addEventListener('click', function () {
+      P.modal({
+        titulo: P.t('Eliminar mi cuenta'),
+        contenido: P.html`<div class="columna" style="gap:12px">
+          <p class="texto-2" style="margin:0">${P.t('Esta acción no se puede deshacer. Se borrarán tus datos personales y cerrarás sesión en todos tus dispositivos.')}</p>
+          <p class="tenue pequeno" style="margin:0">${P.t('¿Entraste con Google y no tienes contraseña? Crea una con «¿Olvidaste tu contraseña?» en la página de inicio de sesión.')}</p>
+          <label>${P.t('Tu contraseña')}<span class="campo-pass"><input type="password" id="el-pass" maxlength="72" autocomplete="current-password"><button type="button">Ver</button></span></label>
+          <label>${P.t('Escribe ELIMINAR para confirmar')}<input type="text" id="el-confirmar" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
+          <div id="msg-eliminar" aria-live="polite"></div></div>`,
+        botones: [
+          { texto: 'Cancelar', clase: 'btn2' },
+          {
+            texto: 'Eliminar definitivamente', clase: 'btn-peligro',
+            accion: function (cerrar, fondo, btn) {
+              var pass = P.$('#el-pass', fondo).value;
+              var conf = P.$('#el-confirmar', fondo).value.trim().toUpperCase();
+              var msg = P.$('#msg-eliminar', fondo);
+              if (!pass) { P.poner(msg, P.html`<div class="mensaje error" role="alert">${P.t('Escribe tu contraseña para confirmar')}</div>`); return; }
+              if (conf !== 'ELIMINAR') { P.poner(msg, P.html`<div class="mensaje error" role="alert">${P.t('Escribe ELIMINAR para confirmar')}</div>`); return; }
+              P.accion(btn, function () {
+                return P.post('/api/perfil/eliminar', { password: pass, confirmar: conf }).then(function (r) {
+                  if (P.olvidarMarco) P.olvidarMarco();
+                  cerrar();
+                  P.aviso(r.mensaje, 'ok');
+                  setTimeout(function () { location.href = '/'; }, 2200);
+                  return null;
+                });
+              }, { destino: msg });
+            },
+          },
+        ],
+      });
+      var fondoM = P.$$('.modal-fondo').pop();
+      if (fondoM) { P.ojitos(fondoM); var ip = P.$('#el-pass', fondoM); if (ip) ip.focus(); }
+    });
     var form = P.$('#form-perfil');
     var nom = form.querySelector('[name=nombre]');
     var contar = function () {

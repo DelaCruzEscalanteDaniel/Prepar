@@ -224,6 +224,17 @@ CREATE TABLE tokens_recuperacion (
   CONSTRAINT fk_token_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
 
+CREATE TABLE tokens_verificacion (
+  id          BIGINT    NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  usuario_id  INT       NOT NULL,
+  token_hash  CHAR(64)  NOT NULL UNIQUE,
+  expira_en   DATETIME  NOT NULL,
+  usado_en    DATETIME  NULL,
+  creado_en   DATETIME  NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_tokver_usuario (usuario_id),
+  CONSTRAINT fk_tokver_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);
+
 CREATE TABLE archivos (
   id              BIGINT        NOT NULL AUTO_INCREMENT PRIMARY KEY,
   uuid            CHAR(36)      NOT NULL UNIQUE,
@@ -267,6 +278,10 @@ ALTER TABLE usuarios
 ALTER TABLE usuarios
   ADD COLUMN telefono VARCHAR(10) NULL AFTER foto_archivo_id,
   ADD CONSTRAINT ck_usuarios_telefono CHECK (telefono IS NULL OR telefono REGEXP '^[0-9]{10}$');
+
+ALTER TABLE usuarios
+  ADD COLUMN correo_verificado_en DATETIME NULL AFTER bloqueado_hasta,
+  ADD COLUMN eliminado_en DATETIME NULL AFTER correo_verificado_en;
 
 ALTER TABLE usuarios
   ADD COLUMN terminos_version VARCHAR(10) NULL AFTER telefono,
@@ -2438,6 +2453,47 @@ INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUE
   ('1.0', 'Tus datos de fecha de nacimiento, género y residencia se usan únicamente para estadísticas agregadas del simulador. Prepar es un simulador educativo sin validez oficial.',
    'Your date of birth, gender and residence are used only for aggregated statistics of the simulator. Prepar is an educational simulator with no official validity.',
    '2026-01-01');
+
+INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUES
+  ('2.0', 'Aviso de privacidad integral de Prepar
+
+1. Responsable. El equipo de Prepar, simulador educativo del Presupuesto Participativo de la Ciudad de México, es responsable del tratamiento de tus datos personales. Contacto: equipoprepar@gmail.com.
+
+2. Datos que tratamos. Nombre, correo electrónico, contraseña (se guarda solo cifrada con bcrypt, nadie puede leerla), fecha de nacimiento, género, colonia, barrio o pueblo donde vives, foto de perfil si decides subirla, y lo que publiques en el simulador: ideas, comentarios, proyectos, reportes y fotos. No tratamos datos personales sensibles. Tu voto es secreto: se guarda separado de tu cuenta y no puede vincularse contigo.
+
+3. Finalidades. Crear y proteger tu cuenta, confirmar que el correo es tuyo, permitirte participar en el foro, registrar proyectos y votar en la simulación, enviarte avisos del simulador y elaborar estadísticas agregadas y anónimas. Todas son necesarias para el servicio; no usamos tus datos para publicidad ni para otros fines.
+
+4. Transferencias y encargados. No vendemos ni transferimos tus datos. Para operar usamos servicios que los procesan solo por nuestra cuenta: el alojamiento del sitio, la base de datos, el proveedor de envío de correos y, si eliges entrar con Google, Google (de quien solo recibimos tu nombre y tu correo verificado). Las direcciones de los proyectos, no las de las personas, se ubican en el mapa con OpenStreetMap.
+
+5. Derechos ARCO. Puedes acceder a tus datos y rectificarlos en cualquier momento desde «Mi perfil». Para cancelarlos usa «Eliminar mi cuenta» en «Mi perfil»: se borran tu nombre, correo, fecha de nacimiento, género, foto y sesiones; tus votos ya son anónimos y se conservan para no alterar los resultados, y lo que publicaste queda a nombre de «Cuenta eliminada». Para oponerte a algún tratamiento o hacer cualquier otra solicitud ARCO, escribe a equipoprepar@gmail.com con tu nombre, el correo de tu cuenta y lo que solicitas; te responderemos en los plazos que establece la ley.
+
+6. Revocación del consentimiento. Puedes revocar tu consentimiento en cualquier momento eliminando tu cuenta, y dejar de recibir correos de avisos desde «Mi perfil».
+
+7. Seguridad. Contraseñas cifradas, conexión segura (HTTPS), sesiones que caducan por inactividad, verificación del correo y bitácora de las acciones administrativas.
+
+8. Cambios a este aviso. Cualquier cambio se publicará en esta página con su nueva versión y fecha.
+
+9. Marco legal. Ley Federal de Protección de Datos Personales en Posesión de los Particulares, publicada en el Diario Oficial de la Federación el 20 de marzo de 2025. La autoridad en la materia es la Secretaría de Anticorrupción y Buen Gobierno.',
+   'Prepar comprehensive privacy notice
+
+1. Data controller. The Prepar team, an educational simulator of Mexico City''s Participatory Budget, is responsible for processing your personal data. Contact: equipoprepar@gmail.com.
+
+2. Data we process. Name, email, password (stored only encrypted with bcrypt, nobody can read it), date of birth, gender, the neighborhood where you live, a profile photo if you choose to upload one, and what you publish in the simulator: ideas, comments, projects, reports and photos. We do not process sensitive personal data. Your vote is secret: it is stored separately from your account and cannot be linked to you.
+
+3. Purposes. Creating and protecting your account, confirming that the email is yours, letting you take part in the forum, register projects and vote in the simulation, sending you simulator notices and producing aggregated, anonymous statistics. All of them are necessary for the service; we do not use your data for advertising or any other purpose.
+
+4. Transfers and processors. We do not sell or transfer your data. To operate we use services that process it only on our behalf: site hosting, the database, the email delivery provider and, if you choose to sign in with Google, Google (from which we only receive your name and verified email). Project addresses, not personal addresses, are placed on the map with OpenStreetMap.
+
+5. ARCO rights. You can access and correct your data at any time from «My profile». To cancel it, use «Delete my account» in «My profile»: your name, email, date of birth, gender, photo and sessions are erased; your votes are already anonymous and are kept so results are not altered, and what you published remains under «Deleted account». To object to any processing or make any other ARCO request, write to equipoprepar@gmail.com with your name, your account email and your request; we will reply within the time limits set by law.
+
+6. Withdrawing consent. You can withdraw your consent at any time by deleting your account, and stop receiving notice emails from «My profile».
+
+7. Security. Encrypted passwords, secure connection (HTTPS), sessions that expire after inactivity, email verification and a log of administrative actions.
+
+8. Changes to this notice. Any change will be published on this page with its new version and date.
+
+9. Legal framework. Mexico''s Federal Law on the Protection of Personal Data Held by Private Parties, published in the Official Gazette of the Federation on March 20, 2025. The competent authority is the Ministry of Anti-Corruption and Good Government.',
+   '2026-11-01');
 
 INSERT INTO terminos_condiciones (version, texto_es, texto_en, vigente_desde) VALUES
   ('1.0', 'Términos y condiciones de uso de Prepar

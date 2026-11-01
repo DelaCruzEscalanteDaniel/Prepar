@@ -7,7 +7,7 @@ const db = require('./db');
 const { encabezados, limitador, antiCsrf, cookies } = require('./lib/seguridad');
 const { leerSesion } = require('./lib/sesion');
 const { protegerPaginas } = require('./lib/paginas');
-const { traducir } = require('./lib/errores');
+const { traducir, esErrorConexion } = require('./lib/errores');
 
 function crearApp() {
   const app = express();
@@ -63,7 +63,8 @@ function crearApp() {
 
   app.use((err, req, res, next) => {
     const t = traducir(err);
-    if (t.interno || t.estado >= 500) {
+    if (esErrorConexion(err)) log.tarea(`${req.method} ${req.originalUrl}:`, err);
+    else if (t.interno || t.estado >= 500) {
       log.error(`${req.method} ${req.originalUrl} →`, err && (err.stack || err.message || err));
     }
     if (res.headersSent) {

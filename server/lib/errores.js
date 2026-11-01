@@ -106,4 +106,10 @@ function traducir(err) {
   }
 }
 
-module.exports = { ErrorApp, peticionInvalida, noAutorizado, prohibido, noEncontrado, conflicto, traducir };
+const CONEXION = new Set(['ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'ETIMEDOUT', 'EHOSTUNREACH', 'ENETUNREACH', 'ECONNRESET', 'EPIPE',
+  'PROTOCOL_CONNECTION_LOST', 'PROTOCOL_SEQUENCE_TIMEOUT', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR', 'ER_CONNECTION_KILLED', 'ER_CON_COUNT_ERROR',
+  'ER_ACCESS_DENIED_ERROR', 'ER_BAD_DB_ERROR', 'ER_SERVER_SHUTDOWN', 'POOL_CLOSED']);
+const esErrorConexion = (e) => !!e && (CONEXION.has(e.code) || (!!e.syscall && /connect|read|write|getaddrinfo/.test(e.syscall) && !e.sqlState));
+const conexionCaida = (e) => !!e && ['ECONNRESET', 'EPIPE', 'PROTOCOL_CONNECTION_LOST', 'ER_CONNECTION_KILLED', 'PROTOCOL_ENQUEUE_AFTER_FATAL_ERROR'].includes(e.code);
+
+module.exports = { esErrorConexion, conexionCaida, ErrorApp, peticionInvalida, noAutorizado, prohibido, noEncontrado, conflicto, traducir };

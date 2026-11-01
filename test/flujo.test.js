@@ -663,6 +663,8 @@ test('inicio de sesión con Google: sin configurar, estado, identidad y registro
     const r = await c.post('/api/auth/registro', { ...base, correo: 'vecino.google@gmail.com' }, { crudo: true, headers: { Cookie: `prepar_google_reg=${pendiente}` } });
     ok(r, 'registro con Google sin contraseña ni captcha');
     assert.equal(r.datos.rol, 'ciudadano');
+    assert.ok(!r.datos.verificarCorreo, 'con Google el correo ya viene verificado');
+    assert.equal((await c.get('/api/auth/yo')).datos.debeVerificarCorreo, false);
   } finally {
     Object.assign(config.google, { clientId: '', clientSecret: '' });
   }

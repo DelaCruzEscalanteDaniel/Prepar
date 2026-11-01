@@ -23,6 +23,18 @@ function cargarEnv(archivo) {
 cargarEnv(path.join(RAIZ, '.env'));
 
 const env = process.env;
+
+function certificadoCa(valor) {
+  const v = String(valor || '').trim();
+  if (!v) return undefined;
+  if (v.includes('BEGIN CERTIFICATE')) return v.replace(/\\n/g, '\n');
+  try {
+    return fs.readFileSync(path.isAbsolute(v) ? v : path.join(__dirname, '..', v), 'utf8');
+  } catch (e) {
+    console.error(`No se pudo leer el certificado de DB_SSL_CA (${v}): ${e.message}`);
+    return undefined;
+  }
+}
 const entero = (v, def) => {
   const n = Number.parseInt(v, 10);
   return Number.isFinite(n) ? n : def;
@@ -43,7 +55,7 @@ module.exports = {
     database: env.DB_NAME || 'prepar',
     socketPath: env.DB_SOCKET || undefined,
     conexiones: entero(env.DB_CONEXIONES, 10),
-    ssl: env.DB_SSL === 'true' ? { rejectUnauthorized: env.DB_SSL_VERIFICAR !== 'false' } : undefined,
+    ssl: env.DB_SSL === 'true' ? { rejectUnauthorized: env.DB_SSL_VERIFICAR !== 'false', ca: certificadoCa(env.DB_SSL_CA) } : undefined,
   },
   cookieSegura: env.COOKIE_SEGURA ? env.COOKIE_SEGURA === 'true' : produccion,
   confiarProxy: entero(env.CONFIAR_PROXY, produccion ? 1 : 0),
@@ -53,6 +65,7 @@ module.exports = {
     secreto: env.SECRETO_FIRMAS || '',
   },
   captcha: { activo: env.CAPTCHA !== 'false' },
+  verificarCorreo: env.VERIFICAR_CORREO === 'false' ? false : (env.VERIFICAR_CORREO === 'true' ? true : 'auto'),
   correo: {
     proveedor: (env.CORREO_PROVEEDOR || '').trim().toLowerCase(),
     apiKey: env.CORREO_API_KEY || '',

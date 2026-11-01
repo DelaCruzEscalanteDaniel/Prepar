@@ -13,6 +13,7 @@ const envioCorreo = require('../lib/correo');
 const { tipoReal, dimensiones, acotar } = require('../lib/archivos');
 const captcha = require('../lib/captcha');
 const google = require('../lib/google');
+const verificacion = require('../lib/verificacion');
 
 const router = express.Router();
 const HASH_FALSO = '$2a$10$CwTycUXWue0Thq9StjUM0uJ8.8BJm2Cj5DiYbFQ4dl1dgcZqbIaSu';
@@ -39,6 +40,11 @@ const limiteRecuperarCorreo = limitador({
   mensaje: 'Ya enviamos varios enlaces a este correo. Revisa tu bandeja o intenta en una hora',
 });
 const limiteCaptcha = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 120, mensaje: 'Pediste demasiados códigos. Espera unos minutos' });
+const limiteVerificar = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 30, mensaje: 'Demasiados intentos. Espera unos minutos' });
+const limiteReenviar = limitador({ ventanaMs: 15 * 60 * 1000, maximo: 3, clave: (req) => `rv:${req.usuario ? req.usuario.id : req.ip}`,
+  mensaje: 'Ya te enviamos varios enlaces. Revisa tu bandeja de entrada y la de spam, o espera 15 minutos' });
+const limiteEliminar = limitador({ ventanaMs: 15 * 60 * 1000, maximo: 5, clave: (req) => `el:${req.usuario ? req.usuario.id : req.ip}`,
+  mensaje: 'Demasiados intentos. Espera 15 minutos' });
 const limiteGoogle = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 40, mensaje: 'Demasiados intentos con Google. Espera unos minutos' });
 const COOKIE_GOOGLE = 'prepar_google';
 const COOKIE_GOOGLE_REG = 'prepar_google_reg';
@@ -166,7 +172,10 @@ router.get('/auth/google/callback', limiteGoogle, asincrono(async (req, res) => 
   }
   if (u.estado === 'suspendida') return res.redirect(302, '/login.html?google=suspendida');
   if (u.estado !== 'activa') return res.redirect(302, '/login.html?google=inactiva');
-  const r = await db.conSistema((con) => abrirSesion(req, res, con, u.id));
+  const r = await db.conSistema(async (con) => {
+    await con.q('UPDATE usuarios SET correo_verificado_en = COALESCE(correo_verificado_en, NOW()) WHERE id = ?', [u.id]);
+    return abrirSesion(req, res, con, u.id);
+  });
   return res.redirect(302, r.destino);
 }));
 
@@ -220,8 +229,16 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
     const ut = await con.uno('SELECT id FROM unidades_territoriales WHERE id = ? AND activa', [unidad]);
     if (!ut) throw peticionInvalida('La colonia, barrio o pueblo seleccionado no existe');
     const filas = await con.call('sp_registrar_ciudadano', [nombre, correo, hashPass, nacimiento, genero, unidad, true]);
-    await con.q(`UPDATE usuarios SET terminos_version = (${SQL_VIGENTE}), terminos_aceptados_en = NOW() WHERE id = ?`, [filas[0].usuario_id]);
-    return abrirSesion(req, res, con, filas[0].usuario_id);
+    const id = filas[0].usuario_id;
+    await con.q(`UPDATE usuarios SET terminos_version = (${SQL_VIGENTE}), terminos_aceptados_en = NOW() WHERE id = ?`, [id]);
+    if (conGoogle) await con.q('UPDATE usuarios SET correo_verificado_en = NOW() WHERE id = ?', [id]);
+    const r = await abrirSesion(req, res, con, id);
+    if (!conGoogle && verificacion.activa()) {
+      await verificacion.enviarEnlace(con, { id, correo, nombre });
+      r.verificarCorreo = true;
+      r.mensaje = `Te enviamos un enlace a ${correo} para confirmar tu correo. Ábrelo para poder participar.`;
+    }
+    return r;
   });
   if (conGoogle) res.clearCookie(COOKIE_GOOGLE_REG, { path: '/api/auth' });
   res.status(201).json(resultado);
@@ -252,9 +269,30 @@ router.post('/auth/restablecer', limiteRecuperar, asincrono(async (req, res) => 
   if (!token) throw peticionInvalida('El enlace no es válido o ya expiró');
   const pass = v.password(b.password, 'la nueva contraseña');
   const nuevo = await hash.hash(pass);
-  await db.conSistema((con) => con.call('sp_restablecer_password', [sesion.hashToken(token), nuevo]));
+  await db.conSistema(async (con) => {
+    const t = await con.uno('SELECT usuario_id FROM tokens_recuperacion WHERE token_hash = ? AND usado_en IS NULL AND expira_en > NOW()', [sesion.hashToken(token)]);
+    await con.call('sp_restablecer_password', [sesion.hashToken(token), nuevo]);
+    if (t) {
+      await con.q('UPDATE usuarios SET correo_verificado_en = COALESCE(correo_verificado_en, NOW()) WHERE id = ?', [t.usuario_id]);
+      await con.q('UPDATE sesiones SET cerrada_en = NOW() WHERE usuario_id = ? AND cerrada_en IS NULL', [t.usuario_id]);
+    }
+  });
   sesion.olvidar();
   res.json({ ok: true, mensaje: 'Tu contraseña se actualizó. Ya puedes iniciar sesión.' });
+}));
+
+router.post('/auth/verificar-correo', limiteVerificar, asincrono(async (req, res) => {
+  const id = await db.conSistema((con) => con.transaccion(() => verificacion.confirmar(con, v.cuerpo(req).token)));
+  if (!id) throw peticionInvalida('El enlace no es válido o ya expiró. Inicia sesión y pide uno nuevo');
+  sesion.olvidar({ usuarioId: id });
+  res.json({ ok: true, mensaje: 'Tu correo quedó confirmado. Ya puedes participar.', conSesion: !!(req.usuario && req.usuario.id === id) });
+}));
+
+router.post('/auth/reenviar-verificacion', sesion.requiere('ciudadano'), limiteReenviar, asincrono(async (req, res) => {
+  const u = req.usuario;
+  if (!u.debeVerificarCorreo) return res.json({ ok: true, mensaje: 'Tu correo ya está confirmado' });
+  await db.conSistema((con) => verificacion.enviarEnlace(con, { id: u.id, correo: u.correo, nombre: u.nombre }));
+  return res.json({ ok: true, mensaje: `Te enviamos un nuevo enlace a ${u.correo}. Revisa también la carpeta de spam.` });
 }));
 
 router.post('/auth/cambiar-password', sesion.requiere(), asincrono(async (req, res) => {
@@ -332,6 +370,39 @@ router.put('/perfil/foto', sesion.requiere(), limiteFoto,
     sesion.olvidar({ usuarioId: req.usuario.id });
     res.json({ ok: true, fotoUuid: uuid });
   }));
+
+router.post('/perfil/eliminar', sesion.requiere(), limiteEliminar, asincrono(async (req, res) => {
+  const u = req.usuario;
+  if (u.rol !== 'ciudadano') throw new ErrorApp(403, 'Las cuentas de Funcionario y Administrador las da de baja el Administrador');
+  const b = v.cuerpo(req);
+  const pass = typeof b.password === 'string' ? b.password : '';
+  if (!pass) throw peticionInvalida('Escribe tu contraseña para confirmar');
+  if (b.confirmar !== 'ELIMINAR') throw peticionInvalida('Escribe ELIMINAR para confirmar');
+  const fila = await db.conSistema((con) => con.uno('SELECT password_hash FROM usuarios WHERE id = ?', [u.id]));
+  if (!fila || pass.length > 72 || !(await hash.comparar(pass, fila.password_hash))) throw peticionInvalida('La contraseña no es correcta');
+  const relleno = await hash.hash(crypto.randomBytes(24).toString('base64url'));
+  await db.conSistema((con) => con.transaccion(async () => {
+    const foto = await con.uno('SELECT foto_archivo_id AS id FROM usuarios WHERE id = ? FOR UPDATE', [u.id]);
+    await con.q(`UPDATE usuarios SET nombre_completo = 'Cuenta eliminada', correo = ?, password_hash = ?, estado = 'desactivada',
+      telefono = NULL, foto_archivo_id = NULL, recibir_correos = FALSE, correo_verificado_en = NULL, eliminado_en = NOW(),
+      intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = ?`, [`eliminada-${u.id}@prepar.invalid`, relleno, u.id]);
+    await con.q(`UPDATE ciudadanos SET genero = 'prefiero_no_decir', fecha_nacimiento = MAKEDATE(YEAR(fecha_nacimiento), 1)
+      WHERE usuario_id = ?`, [u.id]);
+    if (foto && foto.id) {
+      await con.q('UPDATE archivos SET eliminado_en = NOW() WHERE id = ? AND eliminado_en IS NULL', [foto.id]);
+      await con.q('DELETE FROM archivos_contenido WHERE archivo_id = ?', [foto.id]);
+    }
+    await con.q('UPDATE sesiones SET cerrada_en = NOW() WHERE usuario_id = ? AND cerrada_en IS NULL', [u.id]);
+    await con.q('DELETE FROM tokens_recuperacion WHERE usuario_id = ?', [u.id]);
+    await con.q('DELETE FROM tokens_verificacion WHERE usuario_id = ?', [u.id]);
+    await con.q('DELETE FROM notificaciones WHERE usuario_id = ?', [u.id]);
+    await con.q('DELETE FROM correos_salida WHERE usuario_id = ?', [u.id]);
+    await con.q("INSERT INTO bitacora (usuario_id, rol, accion, entidad, entidad_id) VALUES (?, 'ciudadano', 'cuenta_eliminar', 'usuarios', ?)", [u.id, u.id]);
+  }));
+  sesion.olvidar({ usuarioId: u.id });
+  sesion.borrarCookie(res);
+  res.json({ ok: true, mensaje: 'Tu cuenta se eliminó. Tus datos personales se borraron y tus votos siguen siendo anónimos.' });
+}));
 
 router.delete('/perfil/foto', sesion.requiere(), asincrono(async (req, res) => {
   await db.conUsuario(req.usuario.id, async (con) => {

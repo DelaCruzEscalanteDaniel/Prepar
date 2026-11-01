@@ -43,7 +43,6 @@
     return P.textoEstatus(c.estado);
   }
 
-  // ---- Modo del simulador: oficial (calendario del IECM + APIs) o práctica (ciclo que elija el Administrador)
   var modoDatos = null;
   var modoElegido = null;
   function cargarModo() {
@@ -125,7 +124,7 @@
           <h2 style="margin:8px 0 4px">${c.nombre}</h2>
           <span class="texto-2">${P.t('Año simulado {a} · Presupuesto total {p} · {pct}% en partes iguales · Índices: {o}', { a: c.anio_simulado, p: P.dinero(c.presupuesto_total), pct: P.numero(c.porcentaje_partes_iguales, 0), o: P.t({ api: 'datos abiertos', aleatorio: 'aleatorios', manual: 'captura manual' }[c.origen_indices]) })}</span></div>
           <div class="fila">
-            ${borrador ? P.html`<button class="btn2 chico" data-editar-ciclo>Editar datos</button><button class="btn-peligro chico" data-eliminar-ciclo>Eliminar borrador</button>` : ''}
+            ${borrador && c.tipo !== 'oficial' ? P.html`<button class="btn2 chico" data-editar-ciclo>Editar datos</button><button class="btn-peligro chico" data-eliminar-ciclo>Eliminar borrador</button>` : ''}
             ${!cerrado ? P.html`<label class="btn2 chico" style="flex-direction:row;cursor:pointer">${c.convocatoria_uuid ? P.t('Reemplazar convocatoria') : P.t('Subir convocatoria (PDF)')}<input type="file" accept="application/pdf" class="solo-lector" id="pdf-conv"></label>` : ''}
             ${c.convocatoria_uuid ? P.html`<a class="btn2 chico" href="${P.img(c.convocatoria_uuid)}" target="_blank" rel="noopener">Ver convocatoria</a>` : ''}
             <button class="btn2 chico" data-descargar="/api/admin/ciclos/${c.id}/reporte.pdf">Reporte (PDF)</button>

@@ -2,6 +2,7 @@
 const mysql = require('mysql2/promise');
 const config = require('./config');
 const log = require('./lib/log');
+const { esErrorConexion, conexionCaida } = require('./lib/errores');
 
 const TIEMPO_CONSULTA_MS = 15000;
 
@@ -49,15 +50,39 @@ function consultar(conexion, sql, params) {
   return conexion.query({ sql, timeout: TIEMPO_CONSULTA_MS }, params);
 }
 
-async function conUsuario(usuarioId, trabajo) {
+const ESPERA_CAIDA_MS = 15000;
+const SIN_LLEGAR = ['ETIMEDOUT', 'ECONNREFUSED', 'ENOTFOUND', 'EAI_AGAIN', 'EHOSTUNREACH', 'ENETUNREACH'];
+let caidaHasta = 0;
+let causaCaida = '';
+
+async function abrir(usuarioId) {
   const p = obtenerPool();
-  const conexion = await p.getConnection();
+  if (Date.now() < caidaHasta) {
+    throw Object.assign(new Error(`MySQL no responde (${causaCaida}); se reintentará en unos segundos`), { code: causaCaida, rapida: true });
+  }
+  for (let intento = 1; ; intento += 1) {
+    let conexion = null;
+    try {
+      conexion = await p.getConnection();
+      await consultar(conexion, 'SET @usuario_id = ?, @interno = 0', [usuarioId == null ? null : usuarioId]);
+      caidaHasta = 0;
+      return conexion;
+    } catch (e) {
+      if (conexion) { try { conexion.destroy(); } catch { } }
+      if (e && SIN_LLEGAR.includes(e.code)) { caidaHasta = Date.now() + ESPERA_CAIDA_MS; causaCaida = e.code; }
+      if (!conexionCaida(e) || intento >= 3) throw e;
+      await new Promise((r) => setTimeout(r, 150 * intento));
+    }
+  }
+}
+
+async function conUsuario(usuarioId, trabajo) {
+  const conexion = await abrir(usuarioId);
   let sana = true;
   try {
-    await consultar(conexion, 'SET @usuario_id = ?, @interno = 0', [usuarioId == null ? null : usuarioId]);
     return await trabajo(envolver(conexion));
   } catch (e) {
-    if (e && (e.fatal || e.code === 'PROTOCOL_SEQUENCE_TIMEOUT')) sana = false;
+    if (e && (e.fatal || e.code === 'PROTOCOL_SEQUENCE_TIMEOUT' || esErrorConexion(e))) sana = false;
     throw e;
   } finally {
     if (sana) {
@@ -148,4 +173,4 @@ async function cerrar() {
   }
 }
 
-module.exports = { conUsuario, conSistema, salud, cerrar, obtenerPool };
+module.exports = { conUsuario, conSistema, salud, cerrar, obtenerPool, _reiniciarCaida: () => { caidaHasta = 0; } };

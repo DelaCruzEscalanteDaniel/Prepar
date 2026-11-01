@@ -25,7 +25,7 @@ function borrarCookie(res) {
 }
 
 const SQL_PERFIL = `
-  SELECT u.id, u.rol, u.nombre_completo, u.correo, u.idioma, u.recibir_correos, u.estado, u.telefono,
+  SELECT u.id, u.rol, u.nombre_completo, u.correo, u.idioma, u.recibir_correos, u.estado, u.telefono, u.correo_verificado_en,
          u.terminos_version,
          (SELECT tc.version FROM terminos_condiciones tc WHERE tc.vigente_desde <= CURDATE()
            ORDER BY tc.vigente_desde DESC LIMIT 1) AS terminos_vigente,
@@ -64,6 +64,7 @@ function normalizarPerfil(p) {
     debeCambiarPassword: p.rol === 'funcionario' && !!p.debe_cambiar_password,
     debeAceptarTerminos: !!p.terminos_vigente && p.terminos_version !== p.terminos_vigente,
     terminosVigentes: p.terminos_vigente || null,
+    debeVerificarCorreo: p.rol === 'ciudadano' && !p.correo_verificado_en && require('./verificacion').activa(),
   };
 }
 
@@ -121,6 +122,7 @@ async function leerSesion(req, res, next) {
 
 const PERMITIDAS_TEMPORAL = /^\/api\/(auth\/|perfil|publico\/|catalogos|notificaciones)/;
 const PERMITIDAS_TERMINOS = /^\/api\/(auth\/|publico\/|catalogos)/;
+const PERMITIDAS_SIN_VERIFICAR = /^\/api\/(auth\/|perfil|publico\/|catalogos|notificaciones)/;
 
 function requiere(...roles) {
   return (req, res, next) => {
@@ -137,6 +139,9 @@ function requiere(...roles) {
     }
     if (req.usuario.debeCambiarPassword && !PERMITIDAS_TEMPORAL.test(req.originalUrl)) {
       return next(new ErrorApp(403, 'Cambia tu contraseña temporal para continuar', { codigo: 'cambiar_password' }));
+    }
+    if (req.usuario.debeVerificarCorreo && req.method !== 'GET' && !PERMITIDAS_SIN_VERIFICAR.test(req.originalUrl)) {
+      return next(new ErrorApp(403, 'Confirma tu correo para participar: abre el enlace que te enviamos', { codigo: 'verificar_correo' }));
     }
     return next();
   };

@@ -38,7 +38,6 @@ const PASOS = [
   },
   {
     nombre: 'contraseñas temporales ocultas en correos ya enviados',
-    // Los pendientes también, si no hay correo configurado: nunca se enviarán y el Administrador ya vio la contraseña.
     falta: async (con) => !!(await con.uno(`SELECT 1 AS si FROM correos_salida WHERE plantilla = 'contrasena_temporal'
       AND (estado <> 'pendiente' OR ?) AND cuerpo NOT LIKE '%[oculta]%' LIMIT 1`, [!require('./correo').configurado()])),
     aplicar: (con) => con.q(`${require('./correo').SQL_OCULTAR_TEMPORAL} WHERE plantilla = 'contrasena_temporal'
@@ -115,6 +114,48 @@ const PASOS = [
         OR (cargo = 'Ventanilla Única de Coyoacán' AND direccion = 'Jardín Hidalgo 1, Coyoacán')`);
       await con.q(sentenciaDelScript('UPDATE directorio d JOIN alcaldias a ON a.id = d.alcaldia_id JOIN ('));
       await con.q(sentenciaDelScript('INSERT INTO directorio (alcaldia_id, tipo, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web, fuente_nombre'));
+    },
+  },
+  {
+    nombre: 'verificación de correo y baja de cuenta (usuarios.correo_verificado_en, usuarios.eliminado_en, tokens_verificacion)',
+    falta: async (con) => !(await existeTabla(con, 'tokens_verificacion')),
+    aplicar: async (con) => {
+      if (!(await existeColumna(con, 'usuarios', 'correo_verificado_en'))) {
+        await con.q('ALTER TABLE usuarios ADD COLUMN correo_verificado_en DATETIME NULL AFTER bloqueado_hasta, ADD COLUMN eliminado_en DATETIME NULL AFTER correo_verificado_en');
+      }
+      await con.q('UPDATE usuarios SET correo_verificado_en = creado_en WHERE correo_verificado_en IS NULL');
+      await con.q(sentenciaDelScript('CREATE TABLE tokens_verificacion'));
+    },
+  },
+  {
+    nombre: 'aviso de privacidad 2.0 con derechos ARCO',
+    falta: async (con) => !(await con.uno("SELECT 1 AS si FROM avisos_privacidad WHERE version = '2.0'")),
+    aplicar: (con) => con.q(sentenciaDelScript("INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUES\n  ('2.0'")),
+  },
+  {
+    nombre: 'ciclo oficial con el monto y el calendario publicados (Gaceta Oficial e IECM)',
+    falta: async (con) => {
+      const { PP_2026 } = require('./datosOficiales');
+      const c = await con.uno("SELECT id, presupuesto_total FROM ciclos WHERE tipo = 'oficial' AND nombre = ? AND estado <> 'cerrado' AND votacion_abierta = FALSE LIMIT 1", [PP_2026.nombre]);
+      if (!c) return false;
+      const fases = await con.q("SELECT f.clave, DATE_FORMAT(cf.fecha_inicio, '%Y-%m-%d') AS ini, DATE_FORMAT(cf.fecha_fin, '%Y-%m-%d') AS fin FROM ciclo_fases cf JOIN fases f ON f.id = cf.fase_id WHERE cf.ciclo_id = ?", [c.id]);
+      const distinta = Object.entries(PP_2026.fases).some(([k, [ini, fin]]) => !fases.some((f) => f.clave === k && f.ini === ini && f.fin === fin));
+      const suma = await con.uno('SELECT COALESCE(SUM(presupuesto_asignado), 0) AS s FROM ciclo_unidades WHERE ciclo_id = ?', [c.id]);
+      return distinta || Number(c.presupuesto_total) === 1500000000 || Math.abs(Number(suma.s) - Number(c.presupuesto_total)) > 1;
+    },
+    aplicar: async (con) => {
+      const { PP_2026, repartirOficial } = require('./datosOficiales');
+      const c = await con.uno("SELECT id FROM ciclos WHERE tipo = 'oficial' AND nombre = ? AND estado <> 'cerrado' AND votacion_abierta = FALSE LIMIT 1", [PP_2026.nombre]);
+      const catalogo = await con.q('SELECT id, clave FROM fases');
+      await con.transaccion(async () => {
+        for (const f of catalogo) {
+          const r = PP_2026.fases[f.clave];
+          if (!r) continue;
+          await con.q(`INSERT INTO ciclo_fases (ciclo_id, fase_id, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)
+            ON DUPLICATE KEY UPDATE fecha_inicio = VALUES(fecha_inicio), fecha_fin = VALUES(fecha_fin)`, [c.id, f.id, r[0], r[1]]);
+        }
+        await repartirOficial(con, c.id);
+      });
     },
   },
 ];
