@@ -27,9 +27,27 @@
             <td>${chipEstado(f.estado)}<br><span class="tenue pequeno">${P.t('Último acceso')}: ${f.ultimo_acceso ? P.fechaHora(f.ultimo_acceso) : P.t('Nunca')}</span></td>
             <td><div class="fila" style="gap:6px"><button type="button" class="btn2 chico" data-editar="${f.id}">Editar</button>
               ${f.estado === 'activa' ? P.html`<button type="button" class="btn2 chico" data-estado="desactivada" data-id="${f.id}">Desactivar</button>` : P.html`<button type="button" class="btn2 chico" data-estado="activa" data-id="${f.id}">Reactivar</button>`}
-              <button type="button" class="btn2 chico" data-restablecer="${f.id}">Nueva contraseña</button></div></td></tr>`;
+              <button type="button" class="btn2 chico" data-restablecer="${f.id}">Nueva contraseña</button>
+              <button type="button" class="btn-peligro chico" data-eliminar="funcionarios" data-id="${f.id}" data-nombre="${f.nombre_completo}">Eliminar</button></div></td></tr>`;
         })}</tbody></table>` : P.html`<p class="vacio" style="margin:12px">Aún no hay funcionarios registrados</p>`);
     }, function (e) { P.poner(P.$('#funcionarios'), P.html`<p class="mensaje error">${e.message}</p>`); });
+  }
+
+  function confirmarEliminar(boton) {
+    var tipo = boton.getAttribute('data-eliminar');
+    var esFunc = tipo === 'funcionarios';
+    P.confirmar(P.t(esFunc ? '¿Eliminar al funcionario?' : '¿Eliminar al ciudadano?'),
+      P.t(esFunc ? '¿Seguro que quieres eliminar a {n}? Se borrarán sus datos personales y no se puede deshacer.'
+        : '¿Seguro que quieres eliminar a {n}? Se borrarán sus datos personales y no se puede deshacer.', { n: boton.getAttribute('data-nombre') }),
+      { si: 'Eliminar', peligro: true }).then(function (ok) {
+      if (!ok) return;
+      P.accion(boton, function () {
+        return P.post('/api/admin/' + tipo + '/' + boton.getAttribute('data-id') + '/eliminar', { confirmar: 'ELIMINAR' }).then(function (r) {
+          if (esFunc) cargarFuncionarios(); else cargarCiudadanos();
+          return r;
+        });
+      });
+    });
   }
 
   function mostrarTemporal(nombre, pass) {
@@ -87,7 +105,8 @@
         ${d.ciudadanos.map(function (c) {
           return P.html`<tr><td><strong>${c.nombre_completo}</strong><br><span class="tenue pequeno">${c.correo}</span></td><td>${c.unidad_territorial}, ${c.alcaldia}</td>
             <td>${P.t({ '18-29': '18 a 29', '30-44': '30 a 44', '45-59': '45 a 59', '60+': '60 o más' }[c.rango_edad] || '—')}</td><td>${chipEstado(c.estado)}${c.estado === 'suspendida' && c.ultimo_motivo ? P.html`<br><span class="tenue pequeno">${c.ultimo_motivo}</span>` : ''}</td>
-            <td>${c.estado === 'suspendida' ? P.html`<button type="button" class="btn2 chico" data-reactivar="${c.id}">Reactivar</button>` : P.html`<button type="button" class="btn2 chico" data-suspender="${c.id}" data-nombre="${c.nombre_completo}">Suspender</button>`}</td></tr>`;
+            <td><div class="fila" style="gap:6px">${c.estado === 'suspendida' ? P.html`<button type="button" class="btn2 chico" data-reactivar="${c.id}">Reactivar</button>` : P.html`<button type="button" class="btn2 chico" data-suspender="${c.id}" data-nombre="${c.nombre_completo}">Suspender</button>`}
+              <button type="button" class="btn-peligro chico" data-eliminar="ciudadanos" data-id="${c.id}" data-nombre="${c.nombre_completo}">Eliminar</button></div></td></tr>`;
         })}</tbody></table>` : P.html`<p class="vacio" style="margin:12px">No hay ciudadanos con estos filtros</p>`);
     }, function (e) { P.poner(P.$('#ciudadanos'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
@@ -136,6 +155,8 @@
     P.$('#sig-ciu').addEventListener('click', function () { paginaC += 1; cargarCiudadanos(); });
     document.addEventListener('click', function (e) {
       var t = e.target;
+      var el = t.closest('[data-eliminar]');
+      if (el) { confirmarEliminar(el); return; }
       var ed = t.closest('[data-editar]');
       if (ed) { formFuncionario(funcionarios.find(function (f) { return String(f.id) === ed.getAttribute('data-editar'); })); return; }
       var rs = t.closest('[data-restablecer]');

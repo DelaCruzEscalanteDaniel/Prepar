@@ -1083,7 +1083,10 @@
     var a = b.getAttribute('data-accion');
     if (a === 'tema') P.cambiarTema();
     else if (a === 'idioma') P.cambiarIdioma();
-    else if (a === 'salir') P.salir();
+    else if (a === 'salir') {
+      P.confirmar(P.t('¿Cerrar sesión?'), P.t('¿Seguro que quieres salir? Tendrás que volver a iniciar sesión para entrar.'), { si: 'Cerrar sesión' })
+        .then(function (ok) { if (ok) P.salir(); });
+    }
     else if (a === 'ayuda') P.bienvenida(true);
     else if (a === 'menu-c') {
       var mc = P.$('#menu-c');
