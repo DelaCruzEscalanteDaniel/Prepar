@@ -3,17 +3,11 @@
   var P = window.Prepar;
   var u = null;
   var registros = [];
-  var ubicaciones = [];
-  var ubSel = null;
-  var mapa = null;
-  var pin = null;
-  var punto = null;
 
   function pestana(n) {
     P.$$('[data-pestana]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-pestana') === n ? 'true' : 'false'); });
     P.$$('[data-panel]').forEach(function (p) { p.hidden = p.getAttribute('data-panel') !== n; });
     if (n === 'moderacion') cargarModeracion();
-    if (n === 'ubicaciones') { iniciarMapa(); setTimeout(function () { if (mapa) mapa.invalidateSize(); }, 60); }
   }
   function cuenta(n, v) { var el = P.$('[data-n="' + n + '"]'); if (el) el.textContent = v; }
 
@@ -101,72 +95,7 @@
     }, function (e) { P.poner(cont, P.html`<p class="mensaje error">${e.message}</p>`); });
   }
 
-  function iniciarMapa() {
-    if (mapa) return;
-    mapa = P.mapa(P.$('#mapa-ub'), { zoom: 14 });
-    if (!mapa) return;
-    mapa.on('click', function (e) { colocar(e.latlng.lat, e.latlng.lng); });
-    P.simbologia(mapa, [{ titulo: '', filas: [
-      { color: '#8A94A6', glifo: 'punto', texto: 'Punto del proyecto (su color es el de su tipo): arrástralo o toca el mapa para moverlo' },
-    ] }], { abierta: true });
-    if (ubSel) centrarEn(ubSel);
-  }
-  function colocar(lat, lng) {
-    if (!ubSel) return;
-    if (lat < 18.9 || lat > 19.8 || lng < -99.5 || lng > -98.8) { P.aviso('El punto debe estar dentro de la Ciudad de México', 'error'); return; }
-    punto = { latitud: Number(lat.toFixed(6)), longitud: Number(lng.toFixed(6)) };
-    if (pin) pin.setLatLng([lat, lng]);
-    else if (mapa) pin = P.marcador(lat, lng, P.colorCategoria(ubSel), { draggable: true, glifo: P.glifoCategoria(ubSel), title: P.t('Ubicación del proyecto (arrástrala para moverla)') }).addTo(mapa).on('dragend', function (ev) { var ll = ev.target.getLatLng(); colocar(ll.lat, ll.lng); });
-    P.$('#guardar-ub').disabled = false;
-    pintarEstadoUb('Punto colocado · falta guardar', 'alerta-texto');
-  }
-  function centrarEn(p) {
-    if (!mapa) return;
-    var lat = p.latitud !== null ? Number(p.latitud) : (p.ut_latitud !== null ? Number(p.ut_latitud) : null);
-    var lng = p.longitud !== null ? Number(p.longitud) : (p.ut_longitud !== null ? Number(p.ut_longitud) : null);
-    if (lat !== null && lng !== null) mapa.setView([lat, lng], 16);
-  }
-  function pintarEstadoUb(t, clase) { var e = P.$('#estado-ub'); if (e) { e.textContent = P.t(t); e.className = clase; } }
-  function elegirUbicacion(id) {
-    ubSel = ubicaciones.find(function (x) { return String(x.id) === String(id); }) || null;
-    punto = null;
-    if (pin && mapa) { mapa.removeLayer(pin); pin = null; }
-    P.$('#guardar-ub').disabled = true;
-    var caja = P.$('#caja-ubicacion');
-    if (!ubSel) { P.poner(caja, P.html`<p class="vacio">No hay ubicaciones por corregir.</p>`); return; }
-    P.$('#texto-mapa-ub').textContent = P.t('O toca el mapa para colocar el punto exacto dentro de {u}:', { u: ubSel.unidad_territorial });
-    P.poner(caja, P.html`${ubicaciones.length > 1 ? P.html`<label>Proyecto<select id="sel-ub">${ubicaciones.map(function (x) { return P.html`<option value="${x.id}" ${x.id === ubSel.id ? P.seguro('selected') : ''}>${x.folio} · ${x.titulo}</option>`; })}</select></label>` : ''}
-      <span class="tenue" style="font-size:13px">${ubSel.folio} · ${ubSel.unidad_territorial}</span>
-      <strong style="font-size:18px">${ubSel.titulo}</strong>
-      <span id="estado-ub" class="${ubSel.estado_ubicacion === 'no_ubicado' ? 'error-texto' : 'alerta-texto'}" style="font-size:13px;font-weight:700">${ubSel.estado_ubicacion === 'no_ubicado' ? P.t('✗ El sistema no encontró la dirección') : P.t('Ubicación pendiente de revisar')}</span>
-      <form id="form-ub" class="columna" style="gap:12px" novalidate>
-        <label>Calle <span class="opcional">(hasta 100)</span><input type="text" name="calle" maxlength="100" value="${ubSel.calle || ''}" required></label>
-        <label>Número <span class="opcional">(hasta 10)</span><input type="text" name="numero" maxlength="10" value="${ubSel.numero || ''}"></label>
-        <label>Referencias <span class="opcional">(hasta 100)</span><input type="text" name="referencias" maxlength="100" value="${ubSel.referencias || ''}"></label>
-        <button type="button" class="btn2" id="buscar-ub">Buscar dirección otra vez</button>
-      </form>`);
-    centrarEn(ubSel);
-    var s = P.$('#sel-ub');
-    if (s) s.addEventListener('change', function () { elegirUbicacion(s.value); });
-    P.$('#buscar-ub').addEventListener('click', function (e) {
-      var d = P.datosForm(P.$('#form-ub'));
-      if (Array.from(d.calle).length < 2) { P.aviso('Escribe la calle', 'error'); return; }
-      P.accion(e.currentTarget, function () {
-        return P.post('/api/geocodificar', { direccion: d.calle + (d.numero ? ' ' + d.numero : '') + ', ' + ubSel.unidad_territorial + ', ' + (u.alcaldia || '') }).then(function (r) {
-          if (r.encontrado) { colocar(r.latitud, r.longitud); if (mapa) mapa.setView([r.latitud, r.longitud], 17); pintarEstadoUb('✓ Dirección encontrada · falta guardar', 'ok-texto'); }
-          else P.aviso('No encontramos la dirección. Toca el mapa para colocar el punto', 'error');
-        });
-      });
-    });
-  }
-  function cargarUbicaciones() {
-    return P.get('/api/func/ubicaciones').then(function (lista) {
-      ubicaciones = lista.filter(function (x) { return ['no_ubicado', 'pendiente'].indexOf(x.estado_ubicacion) >= 0; });
-      cuenta('ubicaciones', ubicaciones.length);
-      elegirUbicacion(ubicaciones[0] && ubicaciones[0].id);
-    }, function (e) { P.poner(P.$('#caja-ubicacion'), P.html`<p class="mensaje error">${e.message}</p>`); });
-  }
-
+  if (location.hash === '#ubicaciones') { location.replace('/funcionario/mapa.html'); return; }
   P.pagina(function (ctx) {
     u = ctx.usuario;
     P.$$('[data-pestana]').forEach(function (b) { b.addEventListener('click', function () { pestana(b.getAttribute('data-pestana')); }); });
@@ -174,15 +103,6 @@
     P.$('#filtros-mod').addEventListener('submit', function (e) { e.preventDefault(); cargarModeracion(); });
     P.$('#filtros-mod').addEventListener('change', cargarModeracion);
     P.$('#filtros-mod').addEventListener('input', P.debounce(function (e) { if (e.target.name === 'q') cargarModeracion(); }, 400));
-    P.$('#guardar-ub').addEventListener('click', function (e) {
-      if (!ubSel || !punto) return;
-      var d = P.datosForm(P.$('#form-ub'));
-      if (Array.from(d.calle).length < 2) { P.aviso('Escribe la calle', 'error'); return; }
-      P.accion(e.currentTarget, function () {
-        return P.put('/api/func/ubicaciones/' + ubSel.id, { calle: d.calle, numero: d.numero || null, referencias: d.referencias || null, latitud: punto.latitud, longitud: punto.longitud })
-          .then(function (r) { P.actualizarCuentas(); cargarUbicaciones(); cargarRegistros(); return r; });
-      });
-    });
     document.addEventListener('click', function (e) {
       var dt = e.target.closest('[data-detalle]');
       if (dt) { detalle(dt.getAttribute('data-detalle')); return; }
@@ -204,9 +124,7 @@
       if (m) moderar(P.datosForm(P.$('#filtros-mod')).tipo, m.getAttribute('data-id'), m.getAttribute('data-mod'), m);
     });
     if (u.funciones.indexOf('moderacion') >= 0) P.get('/api/func/moderacion?tipo=idea&estado=visible').then(function (l) { cuenta('moderacion', l.length); }).catch(function () { return null; });
-    cargarUbicaciones();
     if (location.hash === '#moderacion') pestana('moderacion');
-    else if (location.hash === '#ubicaciones') pestana('ubicaciones');
     return cargarRegistros();
   });
 }());

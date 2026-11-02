@@ -603,7 +603,7 @@
   ];
   var MENU_FUNCIONARIO = [
     { id: 'inicio', url: '/funcionario/inicio.html', icono: 'inicio', texto: 'Inicio', sub: 'Tus pendientes del día' },
-    { id: 'registros', url: '/funcionario/registros.html', icono: 'registros', texto: 'Registros y foro', sub: 'Revisar, moderar y ubicar', funciones: ['revision_registros', 'moderacion'], cuenta: 'registros' },
+    { id: 'registros', url: '/funcionario/registros.html', icono: 'registros', texto: 'Registros y foro', sub: 'Revisar registros y moderar el foro', funciones: ['revision_registros', 'moderacion'], cuenta: 'registros' },
     { id: 'dictaminacion', url: '/funcionario/dictaminacion.html', icono: 'dictamen', texto: 'Dictaminación', sub: 'Decidir si un proyecto es viable', funciones: ['dictaminacion'], cuenta: 'dictaminar' },
     { id: 'sorteo', url: '/funcionario/sorteo.html', icono: 'sorteo', texto: 'Sorteo y casos especiales', sub: 'Boletas, empates y desempates', funciones: ['dictaminacion', 'consulta'], cuenta: 'casos' },
     { id: 'mapa', url: '/funcionario/mapa.html', icono: 'mapa', texto: 'Mapa y ubicaciones', sub: 'Mover y ajustar proyectos en el mapa', cuenta: 'sin_ubicar' },
