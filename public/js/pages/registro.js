@@ -8,7 +8,7 @@
     var max = new Date(hoy.getFullYear() - 18, hoy.getMonth(), hoy.getDate());
     var fecha = form.querySelector('[name=fecha_nacimiento]');
     fecha.max = max.toISOString().slice(0, 10);
-    fecha.min = (hoy.getFullYear() - 110) + '-01-01';
+    fecha.min = (hoy.getFullYear() - 120) + '-01-01';
     var avisoEdad = P.$('#aviso-edad');
     var btnCrear = P.$('#btn-crear');
     var edadDe = function (v) {
@@ -19,7 +19,17 @@
       if (dm < 0 || (dm === 0 && hoy.getDate() < Number(m[3]))) e -= 1;
       return e >= 0 && e < 130 ? e : null;
     };
+    var errorFecha = function () {
+      if (fecha.validity && fecha.validity.badInput) return P.t('Esa fecha no existe. Revisa el día, el mes y el año.');
+      if (!fecha.value) return null;
+      if (fecha.value < fecha.min || fecha.value.slice(0, 4) > String(hoy.getFullYear())) {
+        return P.t('Escribe un año de nacimiento entre {a} y {b}.', { a: fecha.min.slice(0, 4), b: hoy.getFullYear() - 18 });
+      }
+      return null;
+    };
     var pintarEdad = function () {
+      var ef = errorFecha();
+      if (ef) { btnCrear.disabled = false; P.poner(avisoEdad, P.html`<div class="mensaje error" role="alert"><span>${ef}</span></div>`); return; }
       var e = edadDe(fecha.value);
       btnCrear.disabled = e !== null && e < 18;
       if (e === null) { P.poner(avisoEdad, ''); return; }
@@ -63,6 +73,7 @@
     conf.addEventListener('input', revisarPass);
     fecha.addEventListener('change', pintarEdad);
     fecha.addEventListener('input', pintarEdad);
+    fecha.addEventListener('blur', pintarEdad);
 
     P.catalogos().then(function (cat) {
       P.selectoresUbicacion(P.$('#sel-alcaldia'), P.$('#sel-unidad'), cat);
@@ -84,10 +95,12 @@
       var d = P.datosForm(form);
       var error = null;
       if (!d.nombre || Array.from(d.nombre).length < 3) error = 'Escribe tu nombre completo';
-      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(d.correo)) error = 'El correo electrónico no es válido';
+      else if (P.errorNombre(d.nombre)) error = P.errorNombre(d.nombre);
+      else if (!P.correoValido(d.correo)) error = 'El correo electrónico no es válido';
       else if (!conGoogle && P.errorPassword(d.password)) error = P.errorPassword(d.password);
       else if (!conGoogle && !d.confirmar) error = 'Escribe tu contraseña otra vez en «Confirmar contraseña»';
       else if (!conGoogle && d.confirmar !== d.password) error = 'Las contraseñas no coinciden: escribe la misma contraseña en los dos campos';
+      else if (errorFecha()) error = errorFecha();
       else if (!d.fecha_nacimiento) error = 'Indica tu fecha de nacimiento';
       else if (d.fecha_nacimiento > fecha.max) error = 'Solo pueden registrarse personas mayores de 18 años';
       else if (!d.genero) error = 'Elige tu género';

@@ -334,9 +334,7 @@ router.put('/perfil', sesion.requiere(), asincrono(async (req, res) => {
   const recibir = b.recibir_correos === undefined ? u.recibirCorreos : v.booleano(b.recibir_correos);
   let telefono = u.telefono || null;
   if (u.rol !== 'ciudadano' && b.telefono !== undefined) {
-    const t = b.telefono === null ? '' : String(b.telefono).replace(/[\s()-]/g, '');
-    if (t && !/^\d{10}$/.test(t)) throw peticionInvalida('El teléfono debe tener 10 dígitos');
-    telefono = t || null;
+    telefono = b.telefono === null || b.telefono === '' ? null : v.telefono(b.telefono);
   }
   await db.conUsuario(u.id, (con) => con.transaccion(async () => {
     await con.q('UPDATE usuarios SET nombre_completo = ?, idioma = ?, recibir_correos = ?, telefono = ? WHERE id = ?', [nombre, idioma, recibir, telefono, u.id]);

@@ -91,7 +91,7 @@ router.post('/func/registros/:id/revision', soloFuncionario, requiereFuncion('re
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
   const resultado = v.opcion(b.resultado, ['completo', 'correccion_solicitada'], { campo: 'el resultado de la revisión' });
-  const observacion = v.texto(b.observacion, { campo: 'la observación', max: L.comentario, requerido: resultado === 'correccion_solicitada', multilinea: true });
+  const observacion = v.texto(b.observacion, { campo: 'la observación', max: L.comentario, requerido: resultado === 'correccion_solicitada', letras: 3, multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     await cicloObligatorio(con, ['diagnostico_registro', 'dictaminacion']);
     await con.transaccion(() => con.q(
@@ -152,7 +152,7 @@ router.post('/func/moderacion', soloFuncionario, requiereFuncion('moderacion'), 
   const tipo = v.opcion(b.tipo_objeto, Object.keys(TIPOS_MOD), { campo: 'el tipo de contenido' });
   const objeto = v.id(b.objeto_id, 'el contenido');
   const accion = v.opcion(b.accion, ['ocultar', 'eliminar', 'restaurar'], { campo: 'la acción' });
-  const motivo = v.texto(b.motivo, { campo: 'el motivo', max: L.motivo, min: 3, multilinea: true });
+  const motivo = v.texto(b.motivo, { campo: 'el motivo', max: L.motivo, min: 3, letras: 3, multilinea: true });
   await db.conUsuario(req.usuario.id, (con) => con.transaccion(() => con.q(
     'INSERT INTO moderaciones (tipo_objeto, objeto_id, accion, motivo) VALUES (?, ?, ?, ?)', [tipo, objeto, accion, motivo])));
   const textos = { ocultar: 'El contenido quedó oculto', eliminar: 'El contenido se eliminó', restaurar: 'El contenido se restauró' };
@@ -194,14 +194,14 @@ router.post('/func/dictamenes/:id', soloFuncionario, requiereFuncion('dictaminac
     return {
       id: v.id(c.criterio_id, 'el criterio'),
       cumple: v.booleano(c.cumple),
-      observacion: v.texto(c.observacion, { campo: 'la observación del criterio', max: L.comentario, requerido: false, multilinea: true }),
+      observacion: v.texto(c.observacion, { campo: 'la observación del criterio', max: L.comentario, requerido: false, letras: 2, multilinea: true }),
     };
   });
   let resultado = null;
   let justificacion = null;
   if (emitir) {
     resultado = v.opcion(b.resultado, ['viable', 'no_viable'], { campo: 'el resultado del dictamen' });
-    justificacion = v.texto(b.justificacion, { campo: 'la justificación', max: L.justificacion, min: 10, multilinea: true });
+    justificacion = v.texto(b.justificacion, { campo: 'la justificación', max: L.justificacion, min: 10, letras: 6, multilinea: true });
   }
   await db.conUsuario(req.usuario.id, async (con) => {
     await cicloObligatorio(con, ['dictaminacion']);
@@ -304,7 +304,7 @@ router.post('/func/casos/:ut', soloFuncionario, requiereFuncion('consulta'), asi
   const ut = v.id(req.params.ut, 'la unidad territorial');
   const b = v.cuerpo(req);
   const metodo = v.opcion(b.metodo, ['asamblea_seleccion', 'asamblea_sorteo'], { campo: 'el método' });
-  const justificacion = v.texto(b.justificacion, { campo: 'la justificación', max: L.justificacion, min: 10, multilinea: true });
+  const justificacion = v.texto(b.justificacion, { campo: 'la justificación', max: L.justificacion, min: 10, letras: 6, multilinea: true });
   const proyecto = metodo === 'asamblea_seleccion' ? v.id(b.proyecto_id, 'el proyecto seleccionado') : null;
   const filas = await db.conUsuario(req.usuario.id, async (con) => {
     const ciclo = await cicloObligatorio(con);
@@ -335,9 +335,10 @@ router.get('/func/ubicaciones', soloFuncionario, asincrono(async (req, res) => {
 router.put('/func/ubicaciones/:id', soloFuncionario, asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
-  const calle = v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2 });
+  const calle = v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2, letras: 2 });
   const numero = v.texto(b.numero, { campo: 'el número', max: L.numero, requerido: false });
-  const referencias = v.texto(b.referencias, { campo: 'las referencias', max: L.referencias, requerido: false });
+  if (numero && !/^s\/?n$/i.test(numero) && !/\d/.test(numero)) throw peticionInvalida('El número exterior debe tener dígitos (por ejemplo 45 o 12-B) o escribe S/N');
+  const referencias = v.texto(b.referencias, { campo: 'las referencias', max: L.referencias, requerido: false, letras: 2 });
   let coords = v.coordenadas(b.latitud, b.longitud, false);
   let geoId = null;
   const proyecto = await db.conUsuario(req.usuario.id, (con) => con.uno(
@@ -359,7 +360,7 @@ router.put('/func/ubicaciones/:id', soloFuncionario, asincrono(async (req, res) 
 }));
 
 router.post('/geocodificar', requiere(), limiteGeo, asincrono(async (req, res) => {
-  const direccion = v.texto(v.cuerpo(req).direccion, { campo: 'la dirección', max: 250, min: 4 });
+  const direccion = v.texto(v.cuerpo(req).direccion, { campo: 'la dirección', max: 250, min: 4, letras: 3 });
   const g = await geocodificar(/ciudad de m[eé]xico|cdmx/i.test(direccion) ? direccion : `${direccion}, Ciudad de México`);
   res.json(g ? { encontrado: true, latitud: g.latitud, longitud: g.longitud, direccion: g.direccion } : { encontrado: false });
 }));
@@ -390,9 +391,9 @@ router.post('/func/seguimiento/:id/avance', soloFuncionario, requiereFuncion('se
   const porcentaje = v.decimal(b.porcentaje, { campo: 'el porcentaje de avance', min: 0, max: 100 });
   const monto = v.decimal(b.monto_ejercido, { campo: 'el monto ejercido', min: 0 });
   const estatus = v.opcion(b.estatus, ESTATUS_GANADOR, { campo: 'el estatus' });
-  const nota = v.texto(b.nota, { campo: 'la nota para los vecinos', max: L.nota, requerido: false, multilinea: true });
+  const nota = v.texto(b.nota, { campo: 'la nota para los vecinos', max: L.nota, requerido: false, letras: 3, multilinea: true });
   const justif = estatus === 'inejecutable'
-    ? v.texto(b.justificacion_inejecutable, { campo: 'la justificación de por qué es inejecutable', max: L.justificacion, min: 10, multilinea: true })
+    ? v.texto(b.justificacion_inejecutable, { campo: 'la justificación de por qué es inejecutable', max: L.justificacion, min: 10, letras: 6, multilinea: true })
     : null;
   if (estatus === 'concluido' && porcentaje < 100) throw peticionInvalida('Un proyecto concluido debe tener 100 % de avance');
   await db.conUsuario(req.usuario.id, (con) => con.transaccion(() => con.q(
@@ -421,7 +422,7 @@ router.post('/func/reportes/:id', soloFuncionario, requiereFuncion('seguimiento'
   const id = v.id(req.params.id, 'el reporte');
   const b = v.cuerpo(req);
   const accion = v.opcion(b.accion, ['atender', 'eliminar'], { campo: 'la acción' });
-  const texto = v.texto(b.texto, { campo: accion === 'atender' ? 'la respuesta al vecino' : 'el motivo de eliminación', max: L.comentario, min: 5, multilinea: true });
+  const texto = v.texto(b.texto, { campo: accion === 'atender' ? 'la respuesta al vecino' : 'el motivo de eliminación', max: L.comentario, min: 5, letras: 4, multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     const r = await con.uno('SELECT estatus FROM reportes WHERE id = ?', [id]);
     if (!r) throw noEncontrado('El reporte no existe');
@@ -437,10 +438,10 @@ function datosDirectorio(b, alcaldiaPorDefecto) {
   return {
     alcaldia: v.id(b.alcaldia_id ?? alcaldiaPorDefecto, 'la alcaldía'),
     tipo: v.opcion(b.tipo, ['alcaldia', 'titular', 'sede_atencion'], { campo: 'el tipo de registro' }),
-    cargo: v.texto(b.cargo, { campo: 'el cargo', max: L.cargo, min: 2 }),
-    titular: v.texto(b.nombre_titular, { campo: 'el nombre de la persona titular', max: L.nombre, requerido: false }),
-    temas: v.texto(b.temas, { campo: 'los temas de atención', max: L.temas, requerido: false }),
-    direccion: v.texto(b.direccion, { campo: 'la dirección', max: L.direccion, requerido: false }),
+    cargo: v.texto(b.cargo, { campo: 'el cargo', max: L.cargo, min: 2, letras: 2 }),
+    titular: v.texto(b.nombre_titular, { campo: 'el nombre de la persona titular', max: L.nombre, requerido: false, letras: 3 }),
+    temas: v.texto(b.temas, { campo: 'los temas de atención', max: L.temas, requerido: false, letras: 3 }),
+    direccion: v.texto(b.direccion, { campo: 'la dirección', max: L.direccion, requerido: false, letras: 3 }),
     telefono: v.telefono(b.telefono),
     correo: v.correo(b.correo, { requerido: false, campo: 'el correo' }),
     web: v.url(b.sitio_web),
@@ -505,8 +506,8 @@ router.get('/avisos', personal, asincrono(async (req, res) => {
 
 router.post('/avisos', personal, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  const titulo = v.texto(b.titulo, { campo: 'el título del aviso', max: L.avisoTitulo, min: 3 });
-  const mensaje = v.texto(b.mensaje, { campo: 'el mensaje', max: L.avisoMensaje, min: 5, multilinea: true });
+  const titulo = v.texto(b.titulo, { campo: 'el título del aviso', max: L.avisoTitulo, min: 3, letras: 3 });
+  const mensaje = v.texto(b.mensaje, { campo: 'el mensaje', max: L.avisoMensaje, min: 5, letras: 5, multilinea: true });
   let alcaldia = null;
   if (req.usuario.rol === 'funcionario') {
     alcaldia = v.opcion(b.alcance || 'mi_alcaldia', ['todas', 'mi_alcaldia'], { campo: 'a quién va dirigido' }) === 'todas' ? null : req.usuario.alcaldiaId;
@@ -516,6 +517,8 @@ router.post('/avisos', personal, asincrono(async (req, res) => {
   const vigente = v.fecha(b.vigente_hasta, { campo: 'la fecha de vigencia', requerido: false });
   const hoy = new Date(Date.now() - 6 * 3600 * 1000).toISOString().slice(0, 10);
   if (vigente && vigente < hoy) throw peticionInvalida('La fecha de vigencia no puede ser anterior a hoy');
+  const enUnAnio = new Date(Date.now() - 6 * 3600 * 1000 + 366 * 86400000).toISOString().slice(0, 10);
+  if (vigente && vigente > enUnAnio) throw peticionInvalida('La fecha de vigencia no puede ser de más de un año');
   await db.conUsuario(req.usuario.id, (con) => con.q('INSERT INTO avisos (alcaldia_id, titulo, mensaje, vigente_hasta) VALUES (?, ?, ?, ?)', [alcaldia, titulo, mensaje, vigente]));
   res.status(201).json({ ok: true, mensaje: 'El aviso se publicó en el panel de los ciudadanos' });
 }));

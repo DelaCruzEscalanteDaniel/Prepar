@@ -125,6 +125,9 @@
     [/^(.+) no es una dirección válida$/, function (m, c) { return mayusEn(c(m[1])) + ' is not a valid address'; }],
     [/^(.+) no es válid[oa]$/, function (m, c) { return mayusEn(c(m[1])) + ' is not valid'; }],
     [/^(.+) no existe$/, function (m, c) { return mayusEn(c(m[1])) + ' does not exist'; }],
+    [/^(.+) debe tener palabras, no solo números o símbolos$/, function (m, c) { return mayusEn(c(m[1])) + ' must contain words, not just numbers or symbols'; }],
+    [/^(.+) no parece un texto válido$/, function (m, c) { return mayusEn(c(m[1])) + " doesn't look like valid text"; }],
+    [/^El costo estimado no puede ser mayor al presupuesto de tu colonia \((.+)\)$/, function (m) { return 'The estimated cost cannot exceed your neighborhood budget (' + m[1] + ')'; }],
     [/^(.+) solo puede tener letras, números y estos símbolos: (.+)$/, function (m, c) { return mayusEn(c(m[1])) + ' can only contain letters, numbers and these symbols: ' + m[2]; }],
     [/^(.+) no puede tener espacios$/, function (m, c) { return mayusEn(c(m[1])) + ' cannot contain spaces'; }],
     [/^(.+) debe tener al menos una letra mayúscula$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least one uppercase letter'; }],
@@ -358,6 +361,20 @@
     });
   };
 
+  P.correoValido = function (c) {
+    return /^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/.test(String(c || '').trim());
+  };
+  P.errorNombre = function (valor) {
+    var s = String(valor || '').trim().replace(/\s+/g, ' ');
+    if (Array.from(s).length < 3) return P.t('Escribe tu nombre completo');
+    if (!/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ][A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ .'’-]*$/.test(s)) return P.t('El nombre solo puede tener letras y espacios');
+    var palabras = s.split(' ');
+    if (palabras.length < 2) return P.t('Escribe tu nombre y al menos un apellido');
+    if (palabras.some(function (p) { return !/^[A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ]+(?:['’-][A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ]+)*\.?$/.test(p); })) return P.t('El nombre tiene signos fuera de lugar');
+    if (palabras.filter(function (p) { return (p.match(/[A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ]/g) || []).length >= 2; }).length < 2) return P.t('Escribe tu nombre y al menos un apellido completos');
+    if (/([A-Za-zÁÉÍÓÚÜÑáéíóúüñÀ-ÿ])\1{2,}/i.test(s)) return P.t('El nombre no parece válido: tiene letras repetidas');
+    return null;
+  };
   var SIMBOLOS_PASS = '@ # $ % &';
   var RE_PASS_SIMBOLOS = /^[A-Za-z0-9ÑñÁÉÍÓÚÜáéíóúü@#$%&]*$/;
   P.reglasPassword = function (valor) {
@@ -1688,9 +1705,10 @@
     var nom = form.querySelector('[name=nombre]');
     var contar = function () {
       var n = Array.from(nom.value).length;
-      var ok = nom.value.trim().length >= 3 && /^[A-Za-zÁÉÍÓÚÜÑáéíóúüñ' .-]+$/.test(nom.value);
+      var errNom = P.errorNombre(nom.value);
+      var ok = !errNom;
       var c = P.$('#cuenta-nombre');
-      c.textContent = n + '/50' + (ok ? '' : ' · ' + P.t('escribe tu nombre (solo letras)'));
+      c.textContent = n + '/50' + (ok ? '' : ' · ' + errNom);
       c.classList.toggle('error-campo', !ok);
     };
     nom.addEventListener('input', contar);
@@ -1748,7 +1766,7 @@
       }
       var pasos = [];
       if (!temporal) {
-        if (Array.from(d.nombre).length < 3) { P.poner(msg, P.html`<span class="error-campo" role="alert">${P.t('Escribe tu nombre completo')}</span>`); return; }
+        if (P.errorNombre(d.nombre)) { P.poner(msg, P.html`<span class="error-campo" role="alert">${P.errorNombre(d.nombre)}</span>`); return; }
         var cuerpo = { nombre: d.nombre, recibir_correos: d.recibir_correos };
         if (!esCiudadano) {
           var tel = String(d.telefono || '').replace(/\D/g, '');

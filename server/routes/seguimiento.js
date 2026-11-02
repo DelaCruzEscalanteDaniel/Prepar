@@ -157,7 +157,7 @@ router.post('/foto-denuncia/reportes', soloCiudadano, limiteEscritura, asincrono
   const b = v.cuerpo(req);
   const proyecto = v.id(b.proyecto_id, 'el proyecto');
   const tipo = v.opcion(b.tipo, ['avance', 'irregularidad'], { campo: 'el tipo de reporte' });
-  const descripcion = v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, multilinea: true });
+  const descripcion = v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, letras: 6, multilinea: true });
   const fotos = Array.isArray(b.fotos) ? b.fotos : [];
   if (!fotos.length) throw peticionInvalida('Agrega al menos una fotografía');
   if (fotos.length > 5) throw peticionInvalida('Un reporte admite como máximo 5 fotografías');
@@ -181,7 +181,7 @@ router.post('/foto-denuncia/reportes', soloCiudadano, limiteEscritura, asincrono
 
 router.post('/foto-denuncia/reportes/:id/comentarios', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el reporte');
-  const contenido = v.texto(v.cuerpo(req).contenido, { campo: 'tu comentario', max: L.comentario, multilinea: true });
+  const contenido = v.texto(v.cuerpo(req).contenido, { campo: 'tu comentario', max: L.comentario, letras: 2, multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     const r = await con.uno("SELECT id FROM reportes WHERE id = ? AND estatus <> 'eliminado'", [id]);
     if (!r) throw noEncontrado('El reporte no existe o fue eliminado');
@@ -194,7 +194,7 @@ router.post('/foto-denuncia/proyectos/:id/calificacion', soloCiudadano, limiteEs
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
   const puntuacion = v.entero(b.puntuacion, { campo: 'la calificación', min: 1, max: 5 });
-  const comentario = v.texto(b.comentario, { campo: 'el comentario', max: L.comentario, requerido: false, multilinea: true });
+  const comentario = v.texto(b.comentario, { campo: 'el comentario', max: L.comentario, requerido: false, letras: 2, multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     const p = await con.uno('SELECT id FROM proyectos WHERE id = ?', [id]);
     if (!p) throw noEncontrado('El proyecto no existe');

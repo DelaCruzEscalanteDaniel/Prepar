@@ -114,7 +114,7 @@ router.get('/foro', soloCiudadano, asincrono(async (req, res) => {
 
 router.post('/foro/ideas', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  const contenido = v.texto(b.contenido, { campo: 'tu idea', max: L.idea, min: 5, multilinea: true });
+  const contenido = v.texto(b.contenido, { campo: 'tu idea', max: L.idea, min: 5, letras: 4, multilinea: true });
   const rubro = v.id(b.rubro_id, 'el rubro');
   const id = await db.conUsuario(req.usuario.id, async (con) => {
     exigirParticipacion(await contexto(con, req.usuario), 'diagnostico_registro');
@@ -145,7 +145,7 @@ router.get('/foro/ideas/:id/comentarios', soloCiudadano, asincrono(async (req, r
 
 router.post('/foro/ideas/:id/comentarios', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
   const ideaId = v.id(req.params.id, 'la idea');
-  const contenido = v.texto(v.cuerpo(req).contenido, { campo: 'tu comentario', max: L.comentario, multilinea: true });
+  const contenido = v.texto(v.cuerpo(req).contenido, { campo: 'tu comentario', max: L.comentario, letras: 2, multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     await ideaDeMiForo(con, req.usuario, ideaId);
     await con.q('INSERT INTO comentarios_idea (idea_id, contenido) VALUES (?, ?)', [ideaId, contenido]);
@@ -200,6 +200,19 @@ async function idImagen(con, u, uuid, categoria) {
   return a.id;
 }
 
+function numeroExterior(valor) {
+  const s = v.texto(valor, { campo: 'el número', max: L.numero, requerido: false });
+  if (s && !/^s\/?n$/i.test(s) && !/\d/.test(s)) throw peticionInvalida('El número exterior debe tener dígitos (por ejemplo 45 o 12-B) o escribe S/N');
+  return s;
+}
+
+function revisarCosto(ctx, costo) {
+  const tope = ctx && ctx.unidad ? Number(ctx.unidad.presupuesto_asignado) : 0;
+  if (tope > 0 && costo > tope) {
+    throw peticionInvalida(`El costo estimado no puede ser mayor al presupuesto de tu colonia ($${tope.toLocaleString('es-MX', { maximumFractionDigits: 2 })})`);
+  }
+}
+
 function datosProyecto(b) {
   const d = datosProyectoBase(b);
   if (!d.categoria) d.categoria = categorias.adivinar(d.titulo, d.descripcion);
@@ -207,14 +220,14 @@ function datosProyecto(b) {
 }
 function datosProyectoBase(b) {
   return {
-    titulo: v.texto(b.titulo, { campo: 'el título', max: L.titulo, min: 5 }),
-    descripcion: v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, multilinea: true }),
+    titulo: v.texto(b.titulo, { campo: 'el título', max: L.titulo, min: 5, letras: 4 }),
+    descripcion: v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, letras: 6, multilinea: true }),
     rubro: v.id(b.rubro_id, 'el rubro'),
     categoria: v.opcion(b.categoria, categorias.claves(), { campo: 'el tipo de proyecto', requerido: false }),
-    costo: v.decimal(b.costo_estimado, { campo: 'el costo estimado', min: 0, max: 999999999999.99, minExclusivo: true }),
-    calle: v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2 }),
-    numero: v.texto(b.numero, { campo: 'el número', max: L.numero, requerido: false }),
-    referencias: v.texto(b.referencias, { campo: 'las referencias', max: L.referencias, requerido: false }),
+    costo: v.decimal(b.costo_estimado, { campo: 'el costo estimado', min: 1000, max: 999999999.99 }),
+    calle: v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2, letras: 2 }),
+    numero: numeroExterior(b.numero),
+    referencias: v.texto(b.referencias, { campo: 'las referencias', max: L.referencias, requerido: false, letras: 2 }),
     coords: v.coordenadas(b.latitud, b.longitud, false),
   };
 }
@@ -235,7 +248,9 @@ router.post('/proyectos', soloCiudadano, limiteEscritura, asincrono(async (req, 
   const ideaId = v.id(b.idea_id, 'la idea de origen', false);
   const u = req.usuario;
   const imagenId = await db.conUsuario(u.id, async (con) => {
-    exigirParticipacion(await contexto(con, u), 'diagnostico_registro');
+    const ctx = await contexto(con, u);
+    exigirParticipacion(ctx, 'diagnostico_registro');
+    revisarCosto(ctx, d.costo);
     const r = await con.uno('SELECT id FROM rubros WHERE id = ? AND activo', [d.rubro]);
     if (!r) throw peticionInvalida('El rubro no existe');
     return idImagen(con, u, b.imagen_uuid, 'imagen_proyecto');
@@ -267,6 +282,7 @@ router.put('/proyectos/:id', soloCiudadano, limiteEscritura, asincrono(async (re
   const previo = await db.conUsuario(u.id, async (con) => {
     const p = await con.uno('SELECT id, proponente_id, calle, numero, latitud, longitud, imagen_archivo_id, estado_ubicacion, geocodificacion_id FROM proyectos WHERE id = ?', [id]);
     if (!p || p.proponente_id !== u.id) throw noEncontrado('El proyecto no existe');
+    revisarCosto(await contexto(con, u), d.costo);
     const r = await con.uno('SELECT id FROM rubros WHERE id = ? AND activo', [d.rubro]);
     if (!r) throw peticionInvalida('El rubro no existe');
     let imagen = p.imagen_archivo_id;

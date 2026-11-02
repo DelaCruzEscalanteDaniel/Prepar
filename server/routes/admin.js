@@ -92,7 +92,7 @@ router.get('/admin/ciclos/:id', asincrono(async (req, res) => {
 
 router.post('/admin/ciclos', asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  const nombre = v.texto(b.nombre, { campo: 'el nombre del ciclo', max: L.cicloNombre, min: 3 });
+  const nombre = v.texto(b.nombre, { campo: 'el nombre del ciclo', max: L.cicloNombre, min: 3, letras: 3 });
   const anio = v.entero(b.anio_simulado, { campo: 'el año simulado', min: 2000, max: 2100 });
   const presupuesto = v.decimal(b.presupuesto_total, { campo: 'el presupuesto total', min: 0, max: 999999999999.99, minExclusivo: true });
   const alcaldias = v.listaIds(b.alcaldias, { campo: 'las alcaldías', max: 16 });
@@ -129,7 +129,7 @@ router.post('/admin/ciclos', asincrono(async (req, res) => {
 router.put('/admin/ciclos/:id', asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el ciclo');
   const b = v.cuerpo(req);
-  const nombre = v.texto(b.nombre, { campo: 'el nombre del ciclo', max: L.cicloNombre, min: 3 });
+  const nombre = v.texto(b.nombre, { campo: 'el nombre del ciclo', max: L.cicloNombre, min: 3, letras: 3 });
   const anio = v.entero(b.anio_simulado, { campo: 'el año simulado', min: 2000, max: 2100 });
   const presupuesto = v.decimal(b.presupuesto_total, { campo: 'el presupuesto total', min: 0, max: 999999999999.99, minExclusivo: true });
   const pct = v.decimal(b.porcentaje_partes_iguales ?? 50, { campo: 'el porcentaje en partes iguales', min: 0, max: 100 });
@@ -177,6 +177,7 @@ router.put('/admin/ciclos/:id/fases', asincrono(async (req, res) => {
     const ordenadas = [...fases].sort((a, b2) => mapa.get(a.fase) - mapa.get(b2.fase));
     for (let i = 1; i < ordenadas.length; i += 1) {
       if (ordenadas[i].inicio < ordenadas[i - 1].inicio) throw peticionInvalida('Las fases deben seguir el orden del calendario');
+      if (ordenadas[i].inicio <= ordenadas[i - 1].fin) throw peticionInvalida('Las fases no pueden encimarse: cada una debe empezar después de que termine la anterior');
     }
     for (const f of fases) {
       await con.q(`INSERT INTO ciclo_fases (ciclo_id, fase_id, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)
@@ -492,7 +493,7 @@ router.post('/admin/ciudadanos/:id/suspension', asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el ciudadano');
   const b = v.cuerpo(req);
   const accion = v.opcion(b.accion, ['suspender', 'reactivar'], { campo: 'la acción' });
-  const motivo = v.texto(b.motivo, { campo: 'el motivo', max: L.motivo, min: accion === 'suspender' ? 5 : 0, requerido: accion === 'suspender', multilinea: true });
+  const motivo = v.texto(b.motivo, { campo: 'el motivo', max: L.motivo, min: accion === 'suspender' ? 5 : 0, letras: 3, requerido: accion === 'suspender', multilinea: true });
   await db.conUsuario(req.usuario.id, async (con) => {
     const c = await con.uno('SELECT u.estado FROM usuarios u JOIN ciudadanos c ON c.usuario_id = u.id WHERE u.id = ?', [id]);
     if (!c) throw noEncontrado('El ciudadano no existe');
@@ -634,14 +635,14 @@ function claveDe(nombre) {
   return /^[a-z]/.test(c) ? c : `t_${c}`.slice(0, 17);
 }
 function datosTipo(b, parcial) {
-  const nombreEs = v.texto(b.nombre_es, { campo: 'el nombre del tipo', max: 60, min: 3 });
+  const nombreEs = v.texto(b.nombre_es, { campo: 'el nombre del tipo', max: 60, min: 3, letras: 3 });
   const color = String(b.color || '').trim();
   if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw peticionInvalida('Elige un color válido (por ejemplo #3B9EDB)');
   const palabras = v.texto(b.palabras, { campo: 'las palabras clave', max: 400, requerido: false }) || '';
   if (palabras && palabras.split(',').some((p) => p.trim().length > 40)) throw peticionInvalida('Separa las palabras clave con comas (cada una de máximo 40 letras)');
   return {
     nombre_es: nombreEs,
-    nombre_en: v.texto(b.nombre_en, { campo: 'el nombre en inglés', max: 60, requerido: false }) || nombreEs,
+    nombre_en: v.texto(b.nombre_en, { campo: 'el nombre en inglés', max: 60, requerido: false, letras: 3 }) || nombreEs,
     color: color.toUpperCase(),
     icono: v.opcion(b.icono, categorias.ICONOS, { campo: 'el dibujo' }),
     palabras: palabras.split(',').map((p) => p.trim().replace(/\s+/g, ' ')).filter(Boolean).join(', '),

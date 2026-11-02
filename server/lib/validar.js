@@ -20,7 +20,7 @@ function limpiarTexto(valor, multilinea) {
 
 const largo = (s) => [...s].length;
 
-function texto(valor, { campo, max, min = 0, requerido = true, multilinea = false } = {}) {
+function texto(valor, { campo, max, min = 0, requerido = true, multilinea = false, letras = 0 } = {}) {
   if (valor === undefined || valor === null || valor === '') {
     if (requerido) throw peticionInvalida(`Escribe ${campo}`);
     return null;
@@ -34,6 +34,10 @@ function texto(valor, { campo, max, min = 0, requerido = true, multilinea = fals
   const n = largo(s);
   if (max && n > max) throw peticionInvalida(`${mayus(campo)} admite hasta ${max} caracteres (escribiste ${n})`);
   if (min && n < min) throw peticionInvalida(`${mayus(campo)} debe tener al menos ${min} caracteres`);
+  if (letras) {
+    if ((s.match(/\p{L}/gu) || []).length < letras) throw peticionInvalida(`${mayus(campo)} debe tener palabras, no solo números o símbolos`);
+    if (/^(.)\1+$/u.test(s.replace(/\s/g, '')) || /(\p{L})\1{4,}/u.test(s)) throw peticionInvalida(`${mayus(campo)} no parece un texto válido`);
+  }
   return s;
 }
 
@@ -100,7 +104,7 @@ function booleano(valor, def = false) {
   return def;
 }
 
-const RE_CORREO = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const RE_CORREO = /^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/;
 function correo(valor, { requerido = true, campo = 'tu correo electrónico' } = {}) {
   const s = texto(valor, { campo, max: LIMITES.correo, requerido });
   if (s === null) return null;
@@ -154,6 +158,11 @@ function contrasenaSegura(valor, { correo, nombre } = {}) {
 function nombrePersona(valor, campo = 'el nombre completo') {
   const s = texto(valor, { campo, max: LIMITES.nombre, min: 3 });
   if (!/^[\p{L}\p{M}][\p{L}\p{M} .'’-]*$/u.test(s)) throw peticionInvalida('El nombre solo puede tener letras y espacios');
+  const palabras = s.split(' ');
+  if (palabras.length < 2) throw peticionInvalida('Escribe tu nombre y al menos un apellido');
+  if (palabras.some((p) => !/^[\p{L}\p{M}]+(?:['’-][\p{L}\p{M}]+)*\.?$/u.test(p))) throw peticionInvalida('El nombre tiene signos fuera de lugar');
+  if (palabras.filter((p) => (p.match(/\p{L}/gu) || []).length >= 2).length < 2) throw peticionInvalida('Escribe tu nombre y al menos un apellido completos');
+  if (/(\p{L})\1{2,}/iu.test(s)) throw peticionInvalida('El nombre no parece válido: tiene letras repetidas');
   return s;
 }
 
@@ -164,6 +173,7 @@ function telefono(valor, requerido = false) {
   }
   const s = String(valor).replace(/[\s()-]/g, '');
   if (!/^\d{10}$/.test(s)) throw peticionInvalida('El teléfono debe tener 10 dígitos');
+  if (!/^[2-9]/.test(s) || /^(\d)\1{9}$/.test(s) || /^(0123456789|1234567890|9876543210)$/.test(s)) throw peticionInvalida('El teléfono no es válido');
   return s;
 }
 
