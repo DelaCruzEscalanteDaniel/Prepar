@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="es" data-tema="oscuro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#0F172A">
+<title>Recuperar contraseña · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+<script src="/js/tema.js"></script>
+</head>
+<body data-rol="invitado" data-pagina="recuperar" class="acceso-fondo">
+<main id="principal" tabindex="-1">
+<div class="acceso">
+  <div class="barra-sup">
+    <a class="volver" href="/">← Volver al inicio</a>
+    <div class="acciones"><button type="button" class="herr" data-accion="tema"></button><button type="button" class="herr" data-accion="idioma"></button></div>
+  </div>
+  <div class="centro-acceso">
+    <div class="caja-vidrio angosta">
+      <div class="cabeza-acceso">
+        <img src="/img/logo.png" alt="Logo de Prepar" class="logo-acceso">
+        <h1>Recuperar contraseña</h1>
+        <p>Escribe el correo de tu cuenta y te enviaremos un enlace para crear una contraseña nueva. El enlace vale 1 hora.</p>
+      </div>
+      <div id="mensaje-recuperar"></div>
+      <form id="form-recuperar" class="columna" novalidate>
+        <label>Correo electrónico<input type="email" name="correo" maxlength="50" autocomplete="email" required inputmode="email" placeholder="usuario@dominio.com"></label>
+        <div id="captcha-recuperar" hidden></div>
+        <button type="submit" class="btn grande">Enviar enlace</button>
+      </form>
+      <p class="centro texto-2" style="margin:0;font-size:15px">¿Ya la recordaste? <a href="/login.html" style="font-weight:700">Inicia sesión</a></p>
+    </div>
+  </div>
+</div>
+</main>
+<script src="/js/i18n-en.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/recuperar.js" defer></script>
+</body>
+</html>
