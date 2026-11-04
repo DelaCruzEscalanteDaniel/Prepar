@@ -1073,6 +1073,7 @@
       var p = doc.createElement('div');
       P.poner(p, pie());
       body.appendChild(p.firstElementChild);
+      body.classList.add('con-pie');
     }
     var guia = rol !== 'invitado' && usuario ? guiaDe(rol, pagina) : null;
     if (guia) {
