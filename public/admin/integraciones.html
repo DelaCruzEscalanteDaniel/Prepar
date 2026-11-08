@@ -19,21 +19,6 @@
   <div class="fila entre" style="gap:10px"><h2 class="h" id="tit-correo" style="margin:0;font-size:22px">Correo electrónico</h2><span id="chip-correo"></span></div>
   <p class="texto-2" style="margin:0">Con el correo configurado, el sistema envía solo las contraseñas temporales de los funcionarios, los enlaces para recuperar contraseña y los avisos.</p>
   <div id="estado-correo"><div class="cargando-bloque">Cargando…</div></div>
-  <details class="plegable pasos-correo" id="como-correo">
-    <summary><span class="plegable-titulo">Cómo activarlo con Gmail (gratis, 5 minutos)</span><span class="tenue">Sirve cualquier cuenta de Gmail, por ejemplo la del equipo.</span></summary>
-    <ol class="guia-pasos">
-      <li>Entra a <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">myaccount.google.com/security</a> con la cuenta de Gmail y activa la <strong>Verificación en dos pasos</strong>.</li>
-      <li>Entra a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">myaccount.google.com/apppasswords</a>, escribe el nombre «Prepar» y presiona <strong>Crear</strong>. Google te muestra una contraseña de 16 letras: cópiala.</li>
-      <li>Abre el archivo <code>.env</code> del proyecto y escribe:
-        <pre class="codigo-env">CORREO_PROVEEDOR=gmail
-CORREO_SMTP_USUARIO=tu_correo@gmail.com
-CORREO_SMTP_CONTRASENA=las16letrasdegoogle
-CORREO_REMITENTE=Prepar &lt;tu_correo@gmail.com&gt;</pre></li>
-      <li>Guarda el archivo, detén el servidor (Ctrl + C) y vuelve a arrancarlo con <code>npm start</code>.</li>
-      <li>Regresa a esta página y presiona <strong>Enviar correo de prueba</strong>.</li>
-    </ol>
-    <p class="guia-nota">💡 No uses la contraseña normal de Gmail: Google la rechaza. Usa la contraseña de aplicación. El archivo <code>.env</code> nunca se sube a GitHub.</p>
-  </details>
   <form id="form-prueba-correo" class="fila" style="gap:10px;align-items:flex-end" novalidate>
     <label style="flex:1 1 260px">Enviar un correo de prueba a<input type="email" name="destinatario" maxlength="50" required placeholder="tu_correo@gmail.com"></label>
     <button type="submit" class="btn" id="btn-prueba-correo">Enviar correo de prueba</button>
