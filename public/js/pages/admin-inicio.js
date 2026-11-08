@@ -14,10 +14,11 @@
     var t = resumen.totales;
     var proyectos = det ? det.estatus.reduce(function (s, e) { return s + Number(e.n); }, 0) : null;
     P.poner(P.$('#resumen'), P.html`
-      <div class="tarjeta kpi-maq"><span>Ciudadanos registrados</span><strong class="h">${P.numero(t.ciudadanos, 0)}</strong></div>
-      <div class="tarjeta kpi-maq"><span>Proyectos registrados</span><strong class="h">${proyectos === null ? '—' : P.numero(proyectos, 0)}</strong></div>
-      <div class="tarjeta kpi-maq"><span>Funcionarios activos</span><strong class="h">${P.numero(t.funcionarios, 0)}</strong></div>
+      <div class="tarjeta kpi-maq"><span>Ciudadanos registrados</span><strong class="h" data-contar="${Number(t.ciudadanos) || 0}">${P.numero(t.ciudadanos, 0)}</strong></div>
+      <div class="tarjeta kpi-maq"><span>Proyectos registrados</span>${proyectos === null ? P.html`<strong class="h">—</strong>` : P.html`<strong class="h" data-contar="${proyectos}">${P.numero(proyectos, 0)}</strong>`}</div>
+      <div class="tarjeta kpi-maq"><span>Funcionarios activos</span><strong class="h" data-contar="${Number(t.funcionarios) || 0}">${P.numero(t.funcionarios, 0)}</strong></div>
       <a class="tarjeta kpi-maq enlace" href="/admin/estadisticas.html">${P.t('Ver todas las estadísticas')} →</a>`);
+    P.animarNumeros(P.$('#resumen'));
   }
 
   function cargarCiclos(seleccion) {
@@ -217,10 +218,11 @@
       case 'consulta':
         l.push({ t: 'Abrir la votación', d: 'Los ciudadanos podrán votar en la boleta de su colonia.', cta: 'Abrir', hecha: abierta || contado, accion: 'abrir', off: !activo });
         l.push({ t: 'Cerrar la votación', d: 'Deja de recibir votos al terminar el plazo.', cta: 'Cerrar', hecha: contado, accion: 'cerrar', off: !abierta });
-        l.push({ t: 'Contar votos', d: 'El sistema cuenta y marca ganadores y casos especiales.', cta: 'Contar', hecha: contado, accion: 'cerrar', off: !abierta });
+        l.push({ t: 'Contar votos', d: contado ? 'Ya se contaron: revisa cuántos votaron, por qué proyecto y quién ganó en cada colonia.' : 'El sistema cuenta y marca ganadores y casos especiales.', cta: 'Contar', hecha: contado, accion: 'cerrar', off: !abierta, resumen: contado });
         break;
       case 'resultados':
         if (!contado && abierta) l.push({ t: 'Cerrar la votación y contar votos', d: 'Deja de recibir votos y calcula el ganador de cada colonia.', cta: 'Cerrar y contar', hecha: false, accion: 'cerrar' });
+        if (contado) l.push({ t: 'Resumen de la votación', d: 'Cuántos votaron, votos de cada proyecto, ganadores y casos especiales por colonia.', hecha: true, resumen: true });
         l.push({ t: 'Publicar ganadores', d: pen.casos_sin_resolver ? P.t('Se habilita cuando los funcionarios resuelven los casos especiales (faltan {n}).', { n: pen.casos_sin_resolver }) : 'Los proyectos ganadores cambian a estatus Ganador y se avisa a sus proponentes.', cta: 'Publicar', hecha: !!c.resultados_publicados_en, accion: 'ganadores', off: !contado || pen.casos_sin_resolver > 0 });
         break;
       case 'evaluacion':
@@ -271,8 +273,10 @@
         <div><h2 class="h" style="margin:0;font-size:22px">Qué hacer en esta fase</h2><p class="tenue" style="margin:4px 0 0;font-size:14px">Completa estas acciones antes de avanzar. Los funcionarios se encargan de lo demás.</p></div>
         ${acc.length ? acc.map(function (a, i) {
           return P.html`<div class="accion-fase" data-i="${i}"><div class="fila" style="gap:12px;flex-wrap:nowrap"><span class="num-accion ${a.hecha ? 'hecha' : ''}">${a.hecha ? '✓' : (a.info ? '!' : '')}</span><span><strong>${P.t(a.t)}</strong><br><span class="tenue" style="font-size:13px">${P.t(a.d)}</span></span></div>
-            ${a.hecha ? P.html`<span class="ok-texto" style="font-weight:700">${P.t('Hecho')}</span>` : (a.cta ? P.html`<button type="button" class="btn" ${a.ir ? P.seguro('data-ir="' + a.ir + '"') : P.seguro('data-accion-ciclo="' + a.accion + '"')} ${a.off ? P.seguro('disabled') : ''}>${P.t(a.cta)}</button>` : '')}</div>`;
+            ${a.resumen ? P.html`<button type="button" class="btn" data-ver-resumen>${P.t('Ver resumen')}</button>` : a.hecha ? P.html`<span class="ok-texto" style="font-weight:700">${P.t('Hecho')}</span>` : (a.cta ? P.html`<button type="button" class="btn" ${a.ir ? P.seguro('data-ir="' + a.ir + '"') : P.seguro('data-accion-ciclo="' + a.accion + '"')} ${a.off ? P.seguro('disabled') : ''}>${P.t(a.cta)}</button>` : '')}</div>`;
         }) : P.html`<span class="tenue">${P.t(cerrado ? 'El ciclo está cerrado y es de solo lectura.' : 'En esta fase no hay acciones del administrador; los ciudadanos y funcionarios están trabajando.')}</span>`}
+        ${(Number(c.votacion_abierta) || c.computo_realizado_en || Number(det.pendientes.votos)) && !acc.some(function (a) { return a.resumen; }) ? P.html`<div class="accion-fase"><div class="fila" style="gap:12px;flex-wrap:nowrap"><span class="num-accion">${P.numero(det.pendientes.votos, 0)}</span><span><strong>${P.t('Votación en curso')}</strong><br><span class="tenue" style="font-size:13px">${P.t('Mira cuántos ciudadanos han votado y en qué colonias. Los votos por proyecto se muestran al contar.')}</span></span></div><button type="button" class="btn2" data-ver-resumen>${P.t('Ver participación')}</button></div>` : ''}
+        ${orden >= 7 ? P.html`<div class="accion-fase"><div class="fila" style="gap:12px;flex-wrap:nowrap"><span class="num-accion">⚒</span><span><strong>${P.t('Avance de las obras')}</strong><br><span class="tenue" style="font-size:13px">${P.t('Etapas cumplidas de cada proyecto ganador y alertas cuando el gasto va muy por delante del avance.')}</span></span></div><button type="button" class="btn2" data-ver-obras>${P.t('Ver obras')}</button></div>` : ''}
       </section>`);
   }
 
@@ -372,8 +376,121 @@
       var url = '/api/admin/ciclos/' + cicloId;
       var pet = a === 'abrir' ? P.post(url + '/votacion', { accion: 'abrir' }) : a === 'cerrar' ? P.post(url + '/votacion', { accion: 'cerrar' })
         : a === 'ganadores' ? P.post(url + '/ganadores') : P.post(url + '/cerrar');
-      P.accion(boton, function () { return pet.then(function (r) { cargarCiclos(cicloId); cargarResumen(); return r; }); });
+      P.accion(boton, function () { return pet.then(function (r) { cargarCiclos(cicloId); cargarResumen(); if (a === 'cerrar') setTimeout(function () { resumenVotacion(cicloId); }, 400); return r; }); });
     });
+  }
+
+  var GENEROS = { mujer: 'Mujer', hombre: 'Hombre', no_binario: 'No binario', prefiero_no_decir: 'Prefiere no decir' };
+  var CASOS = { empate: 'Empate', unico_viable: 'Un solo proyecto', sin_votos: 'Sin votos' };
+  function barras(lista, etiqueta) {
+    var max = Math.max.apply(null, lista.map(function (x) { return Number(x.votantes) || 0; }).concat([1]));
+    return lista.map(function (x) {
+      var vot = Number(x.votantes) || 0;
+      var reg = Number(x.registrados) || 0;
+      return P.html`<div class="voto-barra"><span class="voto-etq">${P.t(etiqueta ? etiqueta(x) : x.etiqueta)}</span>
+        <span class="voto-pista"><span style="width:${Math.round((100 * vot) / max)}%"></span></span>
+        <span class="voto-num">${P.numero(vot, 0)}${reg ? P.html` <small class="tenue">/ ${P.numero(reg, 0)}</small>` : ''}</span></div>`;
+    });
+  }
+  function nombreEtapa(e) { return P.idioma() === 'en' && e.nombre_en ? e.nombre_en : e.nombre_es; }
+  function pintarObras(m, id, r) {
+    var cuerpo = m.el.querySelector('.cuerpo-modal');
+    P.poner(cuerpo, P.html`
+      <p class="texto-2" style="margin-top:0">${P.t('El avance se calcula con las etapas que marca el funcionario. Hay alerta cuando el dinero ejercido supera al avance por {u} puntos o más.', { u: r.umbral })}</p>
+      ${r.alertas ? P.html`<div class="mensaje alerta" role="status">${P.t('{n} obra(s) con alerta de gasto', { n: r.alertas })}</div>` : ''}
+      ${r.obras.length ? r.obras.map(function (o) {
+        var av = Number(o.avance_porcentaje);
+        var fin = Number(o.avance_financiero);
+        var hechas = o.etapas.filter(function (e) { return e.cumplida_en; });
+        var ultima = hechas[hechas.length - 1];
+        return P.html`<details class="tarjeta" style="padding:14px 16px;margin-top:10px">
+          <summary style="cursor:pointer"><strong>${o.titulo}</strong> <span class="tenue">· ${o.folio} · ${o.colonia}, ${o.alcaldia}</span>
+            ${o.alerta_gasto ? P.html` <span class="etq error">${P.t('Revisar gasto')}</span>` : ''}
+            <div class="columna" style="gap:6px;margin-top:8px">
+              <div class="voto-barra"><span class="voto-etq">${P.t('Avance de la obra')}</span><span class="voto-pista"><span style="width:${Math.min(100, av)}%;background:var(--ok)"></span></span><span class="voto-num">${P.numero(av, 0)} %</span></div>
+              <div class="voto-barra"><span class="voto-etq">${P.t('Dinero ejercido')}</span><span class="voto-pista"><span style="width:${Math.min(100, fin)}%;background:var(--tenue)"></span></span><span class="voto-num">${P.numero(fin, 0)} %</span></div>
+            </div></summary>
+          <ol class="etapas-obra" style="margin-top:12px">${o.etapas.map(function (e) {
+            return P.html`<li class="${e.cumplida_en ? 'hecha' : 'pendiente'}"><span class="etapa-marca" aria-hidden="true">${e.cumplida_en ? '✓' : e.orden}</span>
+              <div class="columna" style="gap:4px;min-width:0;flex:1"><div class="fila entre" style="gap:8px"><strong>${nombreEtapa(e)}</strong><span class="etq">+${P.numero(e.peso, 0)} %</span></div>
+              ${e.cumplida_en ? P.html`<span class="pequeno texto-2">${P.t('Cumplida el {f}', { f: P.fecha(e.cumplida_en) })} · ${e.evidencia}</span>` : ''}
+              ${ultima && ultima.id === e.id ? P.html`<form class="columna" style="gap:8px;margin-top:6px" data-desmarcar="${o.id}" data-etapa="${e.id}" novalidate>
+                <textarea name="motivo" rows="2" maxlength="250" aria-label="${P.t('Motivo de la corrección')}" placeholder="${P.t('Motivo de la corrección (queda en la bitácora)')}"></textarea>
+                <div><button type="submit" class="btn2 chico">${P.t('Corregir: desmarcar esta etapa')}</button></div></form>` : ''}
+              </div></li>`;
+          })}</ol></details>`;
+      }) : P.html`<p class="vacio">${P.t('Todavía no hay proyectos ganadores en este ciclo.')}</p>`}`);
+  }
+  function verObras(id) {
+    var m = P.modal({ titulo: P.t('Avance de las obras'), ancho: true, contenido: P.esqueleto(3) });
+    var cargar = function () {
+      return P.get('/api/admin/ciclos/' + id + '/obras').then(function (r) { pintarObras(m, id, r); },
+        function (e) { P.poner(m.el.querySelector('.cuerpo-modal'), P.html`<p class="mensaje error">${e.message}</p>`); });
+    };
+    m.el.addEventListener('submit', function (e) {
+      var f = e.target.closest('[data-desmarcar]');
+      if (!f) return;
+      e.preventDefault();
+      var motivo = f.motivo.value.trim();
+      if (Array.from(motivo).length < 10) { P.aviso('Escribe el motivo de la corrección (al menos 10 caracteres)', 'error'); P.sacudir(f); f.motivo.focus(); return; }
+      P.accion(f.querySelector('[type=submit]'), function () {
+        return P.post('/api/admin/proyectos/' + f.getAttribute('data-desmarcar') + '/etapas/' + f.getAttribute('data-etapa') + '/desmarcar', { motivo: motivo })
+          .then(function (r) { return cargar().then(function () { return r; }); });
+      });
+    });
+    cargar();
+  }
+  function resumenVotacion(id) {
+    var m = P.modal({ titulo: P.t('Resumen de la votación'), ancho: true, contenido: P.html`<p class="tenue">${P.t('Cargando…')}</p>` });
+    P.get('/api/admin/ciclos/' + id + '/votacion/resumen').then(function (r) {
+      var t = r.totales;
+      var c = r.ciclo;
+      var contado = !!c.computo_realizado_en;
+      var estado = contado ? P.t('Votos contados el {f}', { f: P.fechaHora(c.computo_realizado_en) })
+        : (c.votacion_abierta ? P.t('La votación sigue abierta: los votos por proyecto se muestran al contar.') : P.t('La votación todavía no se abre.'));
+      var colonias = r.colonias.map(function (u) {
+        var maxV = Math.max.apply(null, u.proyectos.map(function (p) { return p.votos; }).concat([1]));
+        var pct = Number(u.padron) ? Math.round((1000 * Number(u.participantes)) / Number(u.padron)) / 10 : 0;
+        return P.html`<details class="tarjeta plegable voto-colonia"${r.colonias.length <= 3 ? P.seguro(' open') : ''}>
+          <summary><span class="plegable-titulo">${u.colonia} <small class="tenue">· ${u.alcaldia}</small></span>
+            <span class="fila" style="gap:6px">${u.caso_especial && !u.ganador ? P.html`<span class="etq alerta">${P.t(CASOS[u.caso_especial] || u.caso_especial)}</span>` : ''}${u.ganador ? P.html`<span class="etq ok">${P.t('Ganador definido')}</span>` : ''}
+            <span class="etq">${P.t('{v} de {p} votaron ({x}%)', { v: P.numero(u.participantes, 0), p: P.numero(u.padron, 0), x: P.numero(pct, 1) })}</span></span></summary>
+          ${contado ? (u.proyectos.length ? P.html`<div class="columna" style="gap:8px">${u.proyectos.map(function (p) {
+            return P.html`<div class="voto-barra ${p.ganador ? 'ganador' : ''}"><span class="voto-etq"><strong>${p.numero ? p.numero + '. ' : ''}${p.titulo}</strong><br><small class="tenue">${p.folio}${p.ganador ? P.html` · <span class="ok-texto">${P.t('Ganador')}</span>` : ''}</small></span>
+              <span class="voto-pista"><span style="width:${Math.round((100 * p.votos) / maxV)}%"></span></span>
+              <span class="voto-num">${P.numero(p.votos, 0)} ${P.t(p.votos === 1 ? 'voto' : 'votos')}</span></div>`;
+          })}</div>` : P.html`<p class="tenue">${P.t('Sin proyectos en la boleta.')}</p>`) : P.html`<p class="tenue">${P.t('Los votos por proyecto se muestran cuando se cuentan.')}</p>`}
+        </details>`;
+      });
+      P.poner(m.el.querySelector('.cuerpo-modal'), P.html`
+        <p class="tenue" style="margin:0 0 12px">${r.ciclo.nombre} · ${estado}</p>
+        <div class="rejilla tres" style="margin-bottom:14px">
+          <div class="kpi"><span class="valor" data-contar="${Number(t.participantes) || 0}">${P.numero(t.participantes, 0)}</span><span class="nombre">${P.t('Personas que votaron')}</span></div>
+          <div class="kpi"><span class="valor" data-contar="${Number(t.porcentaje) || 0}" data-decimales="1" data-sufijo="%">${P.numero(t.porcentaje, 1)}%</span><span class="nombre">${P.t('Participación ({p} registrados)', { p: P.numero(t.padron, 0) })}</span></div>
+          <div class="kpi"><span class="valor">${P.numero(t.colonias_con_votos, 0)} / ${P.numero(t.colonias_con_boleta, 0)}</span><span class="nombre">${P.t('Colonias con votos / con boleta')}</span></div>
+          ${contado ? P.html`<div class="kpi"><span class="valor">${P.numero(t.ganadores, 0)}</span><span class="nombre">${P.t('Colonias con ganador')}</span></div>
+          <div class="kpi"><span class="valor">${P.numero(t.casos_especiales, 0)}</span><span class="nombre">${P.t('Casos especiales por resolver')}</span></div>` : ''}
+        </div>
+        <h3 class="h" style="font-size:17px;margin:6px 0">${P.t('Resultados por colonia')}</h3>
+        ${colonias.length ? P.html`<div class="columna" style="gap:10px">${colonias}</div>` : P.html`<p class="vacio">${P.t('Todavía no hay colonias con boleta.')}</p>`}
+        <div class="rejilla dos" style="margin-top:16px;gap:16px">
+          <div><h3 class="h" style="font-size:17px;margin:6px 0">${P.t('Quién votó por género')}</h3>${r.por_genero.length ? barras(r.por_genero, function (x) { return GENEROS[x.etiqueta] || x.etiqueta; }) : P.html`<p class="tenue">${P.t('Sin datos')}</p>`}</div>
+          <div><h3 class="h" style="font-size:17px;margin:6px 0">${P.t('Quién votó por edad')}</h3>${r.por_edad.length ? barras(r.por_edad, function (x) { return P.t('{e} años', { e: x.etiqueta }); }) : P.html`<p class="tenue">${P.t('Sin datos')}</p>`}</div>
+        </div>
+        ${r.por_dia.length ? P.html`<h3 class="h" style="font-size:17px;margin:16px 0 6px">${P.t('Votos por día')}</h3>${barras(r.por_dia, function (x) { return P.fecha(x.dia); })}` : ''}
+        <h3 class="h" style="font-size:17px;margin:16px 0 6px">${P.t('Personas que votaron ({n})', { n: P.numero(r.participantes_total, 0) })}</h3>
+        <p class="tenue" style="margin:0 0 8px;font-size:13px">${P.t('El voto es secreto: aquí se ve quién participó, pero nunca por qué proyecto votó.')}</p>
+        ${r.participantes.length ? P.html`<input type="search" class="campo-buscar" data-buscar-votante placeholder="${P.t('Buscar por nombre o colonia')}" maxlength="60" style="margin-bottom:8px;width:100%">
+          <div class="tabla-cont" style="max-height:320px;overflow:auto"><table><thead><tr><th>${P.t('Nombre')}</th><th>${P.t('Colonia')}</th><th>${P.t('Alcaldía')}</th><th>${P.t('Fecha y hora')}</th></tr></thead>
+          <tbody>${r.participantes.map(function (x) { return P.html`<tr data-fila-votante="${(x.nombre + ' ' + x.colonia + ' ' + x.alcaldia).toLowerCase()}"><td>${x.nombre}</td><td>${x.colonia}</td><td>${x.alcaldia}</td><td>${P.fechaHora(x.fecha)}</td></tr>`; })}</tbody></table></div>` : P.html`<p class="vacio">${P.t('Nadie ha votado todavía.')}</p>`}
+        ${contado ? P.html`<div class="fila" style="margin-top:14px"><button type="button" class="btn2 chico" data-descargar="/api/admin/ciclos/${c.id}/resultados.csv">${P.t('Descargar resultados (CSV)')}</button></div>` : ''}`);
+      P.animarNumeros(m.el);
+      var buscar = m.el.querySelector('[data-buscar-votante]');
+      if (buscar) buscar.addEventListener('input', function () {
+        var q = buscar.value.trim().toLowerCase();
+        P.$$('[data-fila-votante]', m.el).forEach(function (f) { f.hidden = q && f.getAttribute('data-fila-votante').indexOf(q) < 0; });
+      });
+    }).catch(function (e) { P.poner(m.el.querySelector('.cuerpo-modal'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
 
   P.pagina(function () {
@@ -406,6 +523,8 @@
       if (cfa) { P.accion(cfa, function () { return P.post('/api/admin/ciclos/' + cicloId + '/fase', { fase: cfa.getAttribute('data-cambiar-fase') }).then(function (r) { pidiendo = null; setTimeout(function () { location.reload(); }, 700); return r; }); }); return; }
       var ir = t.closest('[data-ir]');
       if (ir) { var dest = P.$(ir.getAttribute('data-ir')); if (dest) { if (dest.tagName === 'DETAILS') dest.open = true; dest.scrollIntoView({ behavior: 'smooth', block: 'start' }); } return; }
+      if (t.closest('[data-ver-resumen]')) { resumenVotacion(cicloId); return; }
+      if (t.closest('[data-ver-obras]')) { verObras(cicloId); return; }
       var ac = t.closest('[data-accion-ciclo]');
       if (ac) { accionCiclo(ac.getAttribute('data-accion-ciclo'), ac); return; }
       var ind = t.closest('[data-indices]');

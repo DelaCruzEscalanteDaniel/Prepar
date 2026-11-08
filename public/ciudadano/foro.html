@@ -65,7 +65,10 @@
         <fieldset class="columna" style="gap:10px;padding:14px">
           <legend>Dirección del proyecto</legend>
           <div class="fila" style="flex-wrap:nowrap;gap:10px"><label style="flex:3">Calle<input type="text" name="calle" maxlength="100" required></label><label style="flex:1">Número<input type="text" name="numero" maxlength="10" placeholder="S/N"></label></div>
+          <label>Código postal <span class="opcional">(opcional)</span><input type="text" name="codigo_postal" inputmode="numeric" maxlength="5" placeholder="Ej.: 02080"></label>
           <label>Referencias <span class="opcional">(hasta 100)</span><input type="text" name="referencias" maxlength="100" placeholder="Ej.: Frente a la escuela"></label>
+          <div class="fila"><button type="button" class="btn2 chico" id="completar-dir">Completar dirección</button><span class="ayuda">Escribe lo que sepas de la dirección y te ayudamos a completarla.</span></div>
+          <div data-sugerencias-dir></div>
           <span class="ayuda">El sistema ubicará el proyecto en el mapa a partir de la dirección.</span>
         </fieldset>
         <label>Imagen (opcional)<input type="file" accept="image/jpeg,image/png" id="archivo-imagen"><span class="ayuda">JPG o PNG de hasta 5 MB.</span></label>

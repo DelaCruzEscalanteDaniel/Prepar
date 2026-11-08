@@ -2,6 +2,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const A = require('./ayuda');
+const db = require('../server/db');
 
 const CLAVERIA = 3;
 const SAN_ALVARO = 4;
@@ -277,6 +278,15 @@ test('registro, edición y retiro de proyectos con folio automático', async () 
   assert.equal(mios.datos[0].folio, p2.datos.folio, 'el folio no cambia al editar');
   const unidad = await c1.get('/api/proyectos/unidad');
   assert.equal(unidad.datos.length, 4);
+  const alc = await c1.get('/api/proyectos/alcaldia');
+  ok(alc);
+  assert.ok(alc.datos.alcaldia && Array.isArray(alc.datos.colonias) && alc.datos.colonias.length >= 2, 'lista las colonias de la alcaldía');
+  assert.ok(alc.datos.proyectos.length >= 5, 'incluye proyectos de otras colonias de la alcaldía');
+  assert.ok(alc.datos.proyectos.some((p) => p.de_mi_colonia) && alc.datos.proyectos.some((p) => !p.de_mi_colonia));
+  assert.ok(alc.datos.colonias.every((u) => 'presupuesto_asignado' in u), 'cada colonia trae su presupuesto');
+  falla(await c1.post('/api/proyectos', { ...base('Con CP malo'), codigo_postal: '99999' }), 400);
+  falla(await c1.post('/api/proyectos', { ...base('<script>alert(1)</script>') }), 400);
+  falla(await c1.post('/api/proyectos', { ...base('Con evento'), descripcion: 'Texto largo <img src=x onerror=alert(1)> para probar el filtro de código' }), 400);
   estado.p = { p1: p1.datos.id, p2: p2.datos.id, p3: p3.datos.id, p4: p4.datos.id, p5: p5.datos.id };
 });
 
@@ -398,6 +408,15 @@ test('votación: voto único y secreto, comprobante y cómputo', async () => {
   const cierre = await a.post(`/api/admin/ciclos/${estado.ciclo}/votacion`, { accion: 'cerrar' });
   ok(cierre);
   assert.equal(Number(cierre.datos.computo.unidades), 2);
+  const res = await a.get(`/api/admin/ciclos/${estado.ciclo}/votacion/resumen`);
+  ok(res);
+  assert.equal(Number(res.datos.totales.participantes), 5);
+  assert.equal(res.datos.participantes.length, 5);
+  assert.ok(res.datos.participantes.every((x) => !('proyecto_id' in x) && !('proyecto' in x)), 'no revela por quién votó cada persona');
+  const clav = res.datos.colonias.find((u) => /Claver/.test(u.colonia));
+  assert.ok(clav, 'Clavería aparece en el resumen');
+  assert.equal(clav.proyectos.reduce((t, p) => t + Number(p.votos), 0), 4);
+  falla(await c1.get(`/api/admin/ciclos/${estado.ciclo}/votacion/resumen`), 403, 'un ciudadano no ve el resumen');
 });
 
 test('casos especiales y publicación de ganadores', async () => {
@@ -429,10 +448,46 @@ test('seguimiento, foto denuncia, calificación y mapa', async () => {
   const [c1, c2] = estado.c;
   ok(await a.post(`/api/admin/ciclos/${estado.ciclo}/fase`, { fase: 'resultados' }));
   ok(await a.post(`/api/admin/ciclos/${estado.ciclo}/fase`, { fase: 'ejecucion_seguimiento' }));
-  ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { porcentaje: 40, monto_ejercido: 250000, estatus: 'en_ejecucion', nota: 'Inicio de obra' }));
-  falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { porcentaje: 80, monto_ejercido: 1, estatus: 'concluido' }), 400);
-  falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { porcentaje: 80, monto_ejercido: 1, estatus: 'inejecutable' }), 400, 'falta justificación');
-  falla(await f.post(`/api/func/seguimiento/${estado.p.p2}/avance`, { porcentaje: 10, monto_ejercido: 1, estatus: 'en_ejecucion' }), 409, 'no es ganador');
+  const seg0 = (await f.get('/api/func/seguimiento')).datos.proyectos.find((p) => p.id === estado.p.p1);
+  const et = seg0.etapas;
+  assert.ok(et.length >= 5, 'el proyecto trae las etapas de su rubro');
+  assert.equal(et.reduce((t, e) => t + e.peso, 0), 100, 'los pesos suman 100');
+  const marcar = (cli, id, etapa, evidencia = 'Se cumplió esta etapa conforme al calendario') => cli.post(`/api/func/seguimiento/${id}/etapa`, { etapa_id: etapa, evidencia });
+  falla(await marcar(f, estado.p.p1, et[1].id), 409, 'las etapas van en orden');
+  falla(await marcar(f, estado.p.p1, et[0].id, 'corto'), 400, 'evidencia muy corta');
+  falla(await marcar(f, estado.p.p1, et[0].id, 'Qué pinche desorden en la obra, nadie trabaja'), 400, 'evidencia con groserías');
+  falla(await marcar(f, estado.p.p1, 9999), 400, 'etapa de otro rubro');
+  const m1 = await marcar(f, estado.p.p1, et[0].id);
+  ok(m1);
+  assert.equal(Number(m1.datos.porcentaje), et[0].peso);
+  assert.equal(m1.datos.estatus, 'en_ejecucion');
+  falla(await marcar(f, estado.p.p1, et[0].id), 409, 'ya cumplida');
+  falla(await marcar(estado.c[0], estado.p.p1, et[1].id), 403, 'un ciudadano no marca etapas');
+  falla(await marcar(f, estado.p.p2, et[0].id), 409, 'no es ganador');
+  ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { porcentaje: 95, monto_ejercido: 250000, estatus: 'en_ejecucion', nota: 'Inicio de obra' }));
+  const tras = (await f.get('/api/func/seguimiento')).datos.proyectos.find((p) => p.id === estado.p.p1);
+  assert.equal(Number(tras.avance_porcentaje), et[0].peso, 'el porcentaje no se puede escribir a mano');
+  falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: 1, estatus: 'concluido' }), 400, 'concluido sin todas las etapas');
+  falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: 1, estatus: 'inejecutable' }), 400, 'falta justificación');
+  falla(await f.post(`/api/func/seguimiento/${estado.p.p2}/avance`, { monto_ejercido: 1, estatus: 'en_ejecucion' }), 409, 'no es ganador');
+  ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: Number(tras.costo_estimado) * 0.9, estatus: 'en_ejecucion' }));
+  const obras = await estado.admin.get(`/api/admin/ciclos/${estado.ciclo}/obras`);
+  ok(obras);
+  const o1 = obras.datos.obras.find((o) => o.id === estado.p.p1);
+  assert.equal(o1.alerta_gasto, true, 'gasto del 90 % con avance bajo dispara la alerta');
+  assert.ok(obras.datos.alertas >= 1);
+  falla(await f.get(`/api/admin/ciclos/${estado.ciclo}/obras`), 403, 'solo el administrador ve las alertas');
+  const corregir = (etapa, motivo) => estado.admin.post(`/api/admin/proyectos/${estado.p.p1}/etapas/${etapa}/desmarcar`, { motivo });
+  falla(await corregir(et[0].id, 'corto'), 400);
+  falla(await corregir(et[1].id, 'Se marcó por error la etapa equivocada'), 409, 'solo la última cumplida');
+  const cor = await corregir(et[0].id, 'Se marcó por error antes de tiempo');
+  ok(cor);
+  assert.equal(Number(cor.datos.porcentaje), 0);
+  falla(await f.post(`/api/admin/proyectos/${estado.p.p1}/etapas/${et[0].id}/desmarcar`, { motivo: 'Intento del funcionario de corregir' }), 403);
+  const bit = await db.conSistema((c) => c.uno("SELECT COUNT(*) AS n FROM bitacora WHERE accion = 'etapa_desmarcar' AND entidad_id = ?", [String(estado.p.p1)]));
+  assert.equal(Number(bit.n), 1, 'la corrección queda en la bitácora');
+  ok(await marcar(f, estado.p.p1, et[0].id));
+  ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: 250000, estatus: 'en_ejecucion' }));
   const seg = await f.get('/api/func/seguimiento');
   assert.equal(seg.datos.proyectos.length, 2);
   const fotos = [];
@@ -469,7 +524,8 @@ test('seguimiento, foto denuncia, calificación y mapa', async () => {
   assert.equal(mapa.datos.proyectos.length, 1);
   const ficha = await c1.get(`/api/mapa/proyectos/${estado.p.p1}`);
   assert.equal(ficha.datos.galeria.length, 2);
-  assert.equal(ficha.datos.avances.length, 1);
+  assert.ok(ficha.datos.avances.length >= 1);
+  assert.equal(ficha.datos.etapas.filter((e) => e.cumplida_en).length, 1, 'los vecinos ven las etapas cumplidas');
   ok(await c1.get('/api/mapa/unidades'));
   ok(await c1.get('/api/ciclos'));
   const ub = await f.get('/api/func/ubicaciones');
@@ -477,6 +533,14 @@ test('seguimiento, foto denuncia, calificación y mapa', async () => {
   ok(await f.put(`/api/func/ubicaciones/${estado.p.p3}`, { calle: 'Norte 45', numero: '20', latitud: 19.4701, longitud: -99.1849 }));
   const p3 = (await f.get('/api/func/ubicaciones?estado=corregido')).datos;
   assert.ok(p3.some((p) => p.id === estado.p.p3));
+  let ultima = null;
+  for (const e of et.slice(1)) {
+    ultima = await f.post(`/api/func/seguimiento/${estado.p.p1}/etapa`, { etapa_id: e.id, evidencia: `Se terminó la etapa ${e.orden} y se revisó en sitio` });
+    ok(ultima);
+  }
+  assert.equal(Number(ultima.datos.porcentaje), 100);
+  assert.equal(ultima.datos.estatus, 'concluido', 'al cumplir todas las etapas el proyecto queda concluido');
+  falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/etapa`, { etapa_id: et[0].id, evidencia: 'Intento de marcar de nuevo una etapa' }), 409);
 });
 
 test('estadísticas, bitácora e integraciones', async () => {

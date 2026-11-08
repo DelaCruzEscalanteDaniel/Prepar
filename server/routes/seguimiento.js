@@ -6,6 +6,7 @@ const v = require('../lib/validar');
 const { asincrono, limitador } = require('../lib/seguridad');
 const { requiere } = require('../lib/sesion');
 const { cicloActivo, ESTATUS_GANADOR } = require('../lib/comun');
+const etapasObra = require('../lib/etapas');
 const { peticionInvalida, noEncontrado } = require('../lib/errores');
 
 const router = express.Router();
@@ -65,7 +66,8 @@ router.get('/mapa/proyectos/:id', conSesion, asincrono(async (req, res) => {
       'SELECT foto_id, archivo_uuid, reporte_id, tipo, descripcion, estatus, subida_en FROM v_galeria_proyecto WHERE proyecto_id = ? ORDER BY subida_en DESC LIMIT 60', [id]);
     const avances = await con.q(
       'SELECT porcentaje, monto_ejercido, estatus, nota, justificacion_inejecutable, registrado_en FROM avances_proyecto WHERE proyecto_id = ? ORDER BY registrado_en DESC, id DESC LIMIT 50', [id]);
-    return { ...ficha, galeria, avances };
+    const etapas = ESTATUS_GANADOR.includes(ficha.estatus) ? await etapasObra.etapasDe(con, id) : [];
+    return { ...ficha, galeria, avances, etapas };
   });
   res.json(datos);
 }));

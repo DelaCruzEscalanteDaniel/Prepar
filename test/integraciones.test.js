@@ -442,3 +442,16 @@ test('una base de una versión anterior se actualiza sola al arrancar (sin reins
   assert.deepEqual([Number(dir.n), Number(dir.ejemplo)], [16, 0]);
   assert.deepEqual(await migrar(), [], 'correrla otra vez no hace nada');
 });
+
+test('verificación de Google Search Console solo responde al archivo configurado', async () => {
+  const antes = config.verificacionGoogle;
+  try {
+    config.verificacionGoogle = '';
+    assert.equal((await fetch(`${A.base}/google1a2b3c4d5e6f7a8b.html`)).status, 404);
+    config.verificacionGoogle = 'google1a2b3c4d5e6f7a8b.html';
+    const r = await fetch(`${A.base}/google1a2b3c4d5e6f7a8b.html`);
+    assert.equal(r.status, 200);
+    assert.equal(await r.text(), 'google-site-verification: google1a2b3c4d5e6f7a8b.html');
+    assert.equal((await fetch(`${A.base}/google9999999999999999.html`)).status, 404);
+  } finally { config.verificacionGoogle = antes; }
+});

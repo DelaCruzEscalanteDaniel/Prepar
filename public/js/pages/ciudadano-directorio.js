@@ -58,7 +58,7 @@
   function cargar() {
     var f = P.datosForm(P.$('#filtros-dir'));
     P.$('#volver-dir').hidden = !f.alcaldia;
-    P.poner(P.$('#directorio'), P.html`<div class="cargando-bloque">Cargando…</div>`);
+    P.poner(P.$('#directorio'), P.esqueleto(3, 80));
     return P.get('/api/directorio' + P.qs(f)).then(function (d) { lista = d; pintar(); },
       function (e) { P.poner(P.$('#directorio'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }

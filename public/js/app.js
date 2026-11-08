@@ -148,6 +148,12 @@
     [/^Modo (oficial|práctica): «(.+?)» está activo y «(.+)» quedó pausado$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active and “' + m[3] + '” was paused'; }],
     [/^Modo (oficial|práctica): «(.+)» está activo$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active'; }],
     [/^Cierra la votación de «(.+)» antes de cambiar de ciclo$/, function (m) { return 'Close voting in “' + m[1] + '” before switching cycles'; }],
+    [/^Las etapas se cumplen en orden: primero marca «(.+)»$/, function (m) { return 'Stages are completed in order: first mark “' + m[1] + '”'; }],
+    [/^Solo se puede corregir la última etapa cumplida \(«(.+)»\)$/, function (m) { return 'Only the last completed stage can be corrected (“' + m[1] + '”)'; }],
+    [/^(.+) tiene palabras ofensivas o groserías\. Escribe de forma respetuosa$/, function (m, c) { return mayusEn(c(m[1])) + ' contains offensive words or profanity. Please write respectfully'; }],
+    [/^(.+) tiene demasiadas letras o signos repetidos$/, function (m, c) { return mayusEn(c(m[1])) + ' has too many repeated letters or symbols'; }],
+    [/^(.+) tiene palabras que no se entienden\. Revisa lo que escribiste$/, function (m, c) { return mayusEn(c(m[1])) + ' has words that don’t make sense. Check what you wrote'; }],
+    [/^(.+) no puede llevar etiquetas HTML ni código \(por ejemplo < > con letras, «javascript:» o «onclick=»\)$/, function (m, c) { return mayusEn(c(m[1])) + ' cannot contain HTML tags or code (for example < > with letters, “javascript:” or “onclick=”)'; }],
   ];
   P.tMensaje = function (msg) {
     var t = P.t(msg);
@@ -351,6 +357,7 @@
       var msg = (e && e.message) || P.t('Ocurrió un error inesperado. Intenta de nuevo');
       if (opciones.destino) P.poner(opciones.destino, P.html`<div class="mensaje error" role="alert">${msg}</div>`);
       else P.aviso(msg, 'error');
+      if (boton && !opciones.sinSacudir) P.sacudir(boton.closest('form, .modal, .tarjeta') || boton);
       return undefined;
     }).then(function (r) {
       if (boton) {
@@ -361,6 +368,55 @@
     });
   };
 
+  P.sinMovimiento = function () {
+    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+  };
+  P.sacudir = function (el) {
+    if (!el || P.sinMovimiento()) return;
+    el.classList.remove('sacudir');
+    void el.offsetWidth;
+    el.classList.add('sacudir');
+    setTimeout(function () { el.classList.remove('sacudir'); }, 500);
+  };
+  P.animarNumeros = function (raiz) {
+    P.$$('[data-contar]', raiz || doc).forEach(function (el) {
+      var fin = Number(el.getAttribute('data-contar'));
+      if (!isFinite(fin) || el.getAttribute('data-contado') === String(fin)) return;
+      el.setAttribute('data-contado', String(fin));
+      var dec = Number(el.getAttribute('data-decimales') || 0);
+      var suf = el.getAttribute('data-sufijo') || '';
+      var dinero = el.hasAttribute('data-dinero');
+      var poner = function (v) { el.textContent = dinero ? P.dinero(v) : P.numero(v, dec) + suf; };
+      if (P.sinMovimiento() || fin === 0) { poner(fin); return; }
+      var t0 = null;
+      var dur = 700;
+      var paso = function (t) {
+        if (t0 === null) t0 = t;
+        var x = Math.min(1, (t - t0) / dur);
+        poner(fin * (1 - Math.pow(1 - x, 3)));
+        if (x < 1) window.requestAnimationFrame(paso); else poner(fin);
+      };
+      window.requestAnimationFrame(paso);
+    });
+  };
+  P.esqueleto = function (n, alto) {
+    var piezas = [];
+    for (var i = 0; i < (n || 3); i += 1) piezas.push(P.html`<div class="esqueleto" style="height:${alto || 96}px" aria-hidden="true"><span></span><span></span><span></span></div>`);
+    return P.html`<div class="columna" style="gap:12px" role="status" aria-label="${P.t('Cargando…')}">${piezas}</div>`;
+  };
+  P.celebrarVoto = function (texto) {
+    var capa = doc.createElement('div');
+    capa.className = 'voto-listo';
+    capa.setAttribute('role', 'status');
+    P.poner(capa, P.html`<div class="voto-listo-caja">
+      <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"></circle><path d="M15 27 l8 8 l15 -17"></path></svg>
+      <strong>${texto || P.t('¡Tu voto quedó registrado!')}</strong></div>`);
+    doc.body.appendChild(capa);
+    if (P.mascota) { try { P.mascota.celebrar(); } catch (e) { } }
+    var quitar = function () { if (capa.parentNode) { capa.classList.add('saliendo'); setTimeout(function () { if (capa.parentNode) capa.parentNode.removeChild(capa); }, 250); } };
+    capa.addEventListener('click', quitar);
+    setTimeout(quitar, 2200);
+  };
   P.correoValido = function (c) {
     return /^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/.test(String(c || '').trim());
   };
@@ -466,6 +522,102 @@
       var m = /^(\d+\.\s[^.]+\.)\s*([\s\S]*)$/.exec(x);
       return m ? P.html`<p><strong>${m[1]}</strong> ${m[2]}</p>` : P.html`<p>${x}</p>`;
     })}</div>`;
+  };
+
+  P.asistenteDireccion = function (form, op) {
+    op = op || {};
+    var calle = form.querySelector('[name=calle]');
+    var numero = form.querySelector('[name=numero]');
+    var cp = form.querySelector('[name=codigo_postal]');
+    var caja = form.querySelector('[data-sugerencias-dir]');
+    if (!calle || !caja) return null;
+    var lista = doc.createElement('div');
+    lista.className = 'sugerencias-calle';
+    lista.setAttribute('role', 'listbox');
+    lista.hidden = true;
+    calle.parentNode.style.position = 'relative';
+    calle.parentNode.appendChild(lista);
+    calle.setAttribute('autocomplete', 'off');
+    var locales = [];
+    var cerrarLista = function () { lista.hidden = true; P.poner(lista, ''); };
+    var buscarLocales = P.debounce(function () {
+      var q = calle.value.trim();
+      if (Array.from(q).length < 3) { cerrarLista(); return; }
+      P.get('/api/direcciones/locales?q=' + encodeURIComponent(q), { silencioso: true }).then(function (r) {
+        locales = r || [];
+        if (!locales.length || doc.activeElement !== calle) { cerrarLista(); return; }
+        P.poner(lista, locales.map(function (x, i) {
+          return P.html`<button type="button" role="option" data-local="${i}"><strong>${x.calle}</strong><small>${x.colonia}${x.codigo_postal ? ' · CP ' + x.codigo_postal : ''}</small></button>`;
+        }));
+        lista.hidden = false;
+      }).catch(cerrarLista);
+    }, 350);
+    calle.addEventListener('input', buscarLocales);
+    calle.addEventListener('blur', function () { setTimeout(cerrarLista, 200); });
+    calle.addEventListener('keydown', function (e) { if (e.key === 'Escape') cerrarLista(); });
+    lista.addEventListener('mousedown', function (e) { e.preventDefault(); });
+    lista.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-local]');
+      if (!b) return;
+      var x = locales[Number(b.getAttribute('data-local'))];
+      calle.value = x.calle;
+      if (cp && x.codigo_postal && !cp.value) cp.value = x.codigo_postal;
+      avisar();
+      cerrarLista();
+      (numero || calle).focus();
+    });
+    if (cp) cp.addEventListener('input', function () { cp.value = cp.value.replace(/\D/g, '').slice(0, 5); });
+    var avisar = function () { [calle, numero, cp].forEach(function (c) { if (c) c.dispatchEvent(new Event('input')); }); };
+    var opciones = [];
+    var elegir = function (x) {
+      calle.value = x.calle;
+      if (numero && x.numero && !/^s\/?n$/i.test(x.numero)) numero.value = x.numero;
+      if (cp && x.codigo_postal) cp.value = x.codigo_postal;
+      avisar();
+      form.dataset.lat = x.latitud;
+      form.dataset.lon = x.longitud;
+      P.poner(caja, P.html`<div class="mensaje ok" role="status">${P.t('Dirección completada: {d}', { d: x.texto })}</div>`);
+      if (op.alElegir) op.alElegir(x.latitud, x.longitud);
+    };
+    caja.addEventListener('click', function (e) {
+      var b = e.target.closest('[data-sugerencia]');
+      if (b) elegir(opciones[Number(b.getAttribute('data-sugerencia'))]);
+    });
+    var completar = function (boton) {
+      var q = calle.value.trim();
+      if (Array.from(q).length < 2) { P.aviso('Escribe primero la calle', 'error'); calle.focus(); return Promise.resolve(); }
+      var cuerpo = { calle: q, numero: numero ? numero.value.trim() || null : null, codigo_postal: cp ? cp.value.trim() || null : null };
+      return P.accion(boton, function () {
+        return P.post('/api/direcciones/buscar', cuerpo).then(function (r) {
+          opciones = r.sugerencias || [];
+          if (!opciones.length) {
+            P.poner(caja, P.html`<div class="mensaje alerta" role="status">${P.t(r.disponible ? 'No encontramos esa dirección. Revisa la calle o el código postal, o marca el punto en el mapa.' : 'El buscador de direcciones no está disponible ahora. Marca el punto en el mapa o deja la dirección: un funcionario la ubicará.')}</div>`);
+            return null;
+          }
+          if (opciones.length === 1) { elegir(opciones[0]); return null; }
+          P.poner(caja, P.html`<div class="sugerencias-dir"><span class="etiqueta">${P.t('¿Cuál de estas es tu dirección?')}</span>${opciones.map(function (x, i) {
+            return P.html`<button type="button" class="sugerencia-dir" data-sugerencia="${i}"><strong>${x.calle}${x.numero ? ' ' + x.numero : ''}</strong>
+              <small>${[x.colonia, x.codigo_postal ? 'CP ' + x.codigo_postal : '', x.alcaldia].filter(Boolean).join(' · ')}</small>
+              ${x.en_tu_alcaldia ? '' : P.html`<small class="alerta-texto">${P.t('Fuera de tu alcaldía')}</small>`}</button>`;
+          })}</div>`);
+          return null;
+        });
+      });
+    };
+    var desdePunto = function (lat, lon) {
+      return P.post('/api/direcciones/punto', { latitud: lat, longitud: lon }, { silencioso: true }).then(function (r) {
+        if (!r || !r.encontrado || !r.calle) return;
+        var cambios = [];
+        if (!calle.value.trim()) { calle.value = r.calle; cambios.push('calle'); }
+        if (numero && !numero.value.trim() && r.numero) { numero.value = r.numero; cambios.push('número'); }
+        if (cp && !cp.value.trim() && r.codigo_postal) { cp.value = r.codigo_postal; cambios.push('código postal'); }
+        avisar();
+        P.poner(caja, P.html`<div class="mensaje info" role="status">${P.t('El punto está en: {d}', { d: r.texto })}${cambios.length ? P.html`<br><small>${P.t('Completamos los datos que faltaban.')}</small>` : ''}</div>`);
+      }).catch(function () { return null; });
+    };
+    var limpiar = function () { delete form.dataset.lat; delete form.dataset.lon; opciones = []; P.poner(caja, ''); cerrarLista(); };
+    [calle, numero, cp].forEach(function (c) { if (c) c.addEventListener('input', function () { delete form.dataset.lat; delete form.dataset.lon; }); });
+    return { completar: completar, desdePunto: desdePunto, limpiar: limpiar };
   };
 
   P.modal = function (op) {
@@ -680,7 +832,7 @@
     var c = estado && estado.ciclo;
     var f = P.faseActiva(estado);
     var activa = pagina === 'proyectos' ? 'foro' : pagina;
-    return P.html`<header class="encabezado"><div class="fila">
+    return P.html`<div class="cabecera-fija"><header class="encabezado"><div class="fila">
       <a class="marca" href="/ciudadano/inicio.html"><img src="/img/logo.png" alt="Logo de Prepar"><span>Prepar</span></a>
       <div class="acciones">
         <div class="campana-c" style="position:relative"><button type="button" class="herr" data-accion="notificaciones" aria-label="Notificaciones" aria-expanded="false">${P.seguro(ICONOS.campana)}<span class="globo" hidden></span></button></div>
@@ -694,7 +846,7 @@
       </div></div></header>
       <nav class="navegacion" aria-label="Módulos"><div class="fila">
         ${NAV_CIUDADANO.map(function (n) { return P.html`<a href="${n[1]}" class="${n[0] === activa ? 'activo' : ''}" ${n[0] === activa ? P.seguro('aria-current="page"') : ''}>${P.seguro(ICONOS[n[3]] || '')}<span>${n[2]}</span></a>`; })}
-      </div></nav>
+      </div></nav></div>
       <div class="barra-ciclo"><div class="fila">${c ? P.html`<strong>${c.nombre}</strong><span aria-hidden="true">·</span>
         <span>${P.t('Fase activa:')} <strong>${f.orden} · ${f.nombre}</strong></span>
         ${f.fin ? P.html`<span aria-hidden="true">·</span><span>${P.t('Cierra el {fecha}', { fecha: P.fechaLarga(f.fin) })}</span>` : ''}`
@@ -976,6 +1128,7 @@
       var p = doc.createElement('div');
       P.poner(p, pie());
       body.appendChild(p.firstElementChild);
+      body.classList.add('con-pie');
     }
     var guia = rol !== 'invitado' && usuario ? guiaDe(rol, pagina) : null;
     if (guia) {

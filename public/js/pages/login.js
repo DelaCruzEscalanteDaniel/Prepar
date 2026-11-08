@@ -21,6 +21,7 @@
       var d = P.datosForm(form);
       if (!d.correo || !d.password) {
         P.poner(msg, P.html`<div class="mensaje error" role="alert">Escribe tu correo y tu contraseña</div>`);
+        P.sacudir(form);
         return;
       }
       if (captcha.vacio()) {

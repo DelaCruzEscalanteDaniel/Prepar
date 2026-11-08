@@ -1317,3 +1317,84 @@ html[data-tema="claro"] body { background: var(--velo), url(/img/fondo-claro.svg
   .navegacion a:last-child, .lp-nav a:last-child { margin-right: 20px; }
 }
 .reglas-pass { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 13px; font-weight: 600; }
+.voto-barra { display: grid; grid-template-columns: minmax(120px, 1.4fr) 2fr auto; align-items: center; gap: 10px; padding: 4px 0; font-size: 14px; }
+.voto-barra .voto-etq { min-width: 0; overflow-wrap: anywhere; }
+.voto-pista { display: block; height: 12px; border-radius: 6px; background: var(--borde-suave); overflow: hidden; }
+.voto-pista > span { display: block; height: 100%; border-radius: 6px; background: var(--acento); }
+.voto-barra.ganador .voto-pista > span { background: var(--ok); }
+.voto-num { font-weight: 700; white-space: nowrap; text-align: right; }
+.voto-colonia summary { gap: 8px; flex-wrap: wrap; }
+@media (max-width: 560px) { .voto-barra { grid-template-columns: 1fr auto; } .voto-barra .voto-pista { grid-column: 1 / -1; grid-row: 2; } }
+body:has(> footer.pie) { display: flex; flex-direction: column; }
+body:has(> footer.pie) > main { flex: 1 0 auto; width: 100%; }
+body:has(> footer.pie) > footer.pie { flex-shrink: 0; }
+.sugerencias-calle { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: 4px; display: flex; flex-direction: column; background: var(--tarjeta); border: 1px solid var(--borde); border-radius: 12px; box-shadow: var(--sombra); overflow: hidden; }
+.sugerencias-calle button { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border: 0; background: none; color: var(--texto); font: inherit; text-align: left; cursor: pointer; }
+.sugerencias-calle button + button { border-top: 1px solid var(--borde-suave); }
+.sugerencias-calle button:hover, .sugerencias-calle button:focus-visible { background: var(--hover); }
+.sugerencias-calle small, .sugerencia-dir small { color: var(--tenue); font-size: 12px; }
+.sugerencias-dir { display: flex; flex-direction: column; gap: 8px; }
+.sugerencia-dir { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 10px 14px; border: 1px solid var(--borde); border-radius: 12px; background: var(--campo); color: var(--texto); font: inherit; text-align: left; cursor: pointer; }
+.sugerencia-dir:hover, .sugerencia-dir:focus-visible { border-color: var(--acento); }
+
+.cabecera-fija { position: sticky; top: 0; z-index: 40; }
+.cabecera-fija .encabezado { position: relative; }
+.cabecera-fija .lp-cabecera { position: relative; }
+.cabecera-fija .navegacion, .cabecera-fija .lp-nav { box-shadow: 0 6px 14px rgba(2, 6, 23, .12); }
+html { scroll-padding-top: 140px; }
+@media (max-width: 720px) {
+  .encabezado { position: sticky; top: 0; }
+  .cabecera-fija .encabezado { position: relative; }
+}
+@media (max-width: 900px) {
+  .lateral { position: sticky; top: 0; z-index: 40; }
+  .lateral.abierto { max-height: 100vh; max-height: 100dvh; overflow-y: auto; }
+}
+.cabecera-fija::before { content: ''; position: absolute; inset: 0; background: var(--fondo); opacity: .9; z-index: -1; pointer-events: none; }
+@media (max-width: 900px) {
+  .lateral:not(.abierto) .tarjeta-usuario { display: none; }
+  .lateral::before { content: ''; position: absolute; inset: 0; background: var(--fondo); opacity: .9; z-index: -1; pointer-events: none; }
+  .lateral { isolation: isolate; }
+}
+body.con-pie { display: flex; flex-direction: column; min-height: 100vh; min-height: 100dvh; }
+body.con-pie > main { flex: 1 0 auto; width: 100%; }
+body.con-pie > footer.pie { flex-shrink: 0; margin-top: auto; }
+@keyframes crecer-barra { from { width: 0; } }
+.voto-pista > span, .barra > span, .barra-obra > span, .barra-doble > span { animation: crecer-barra .8s cubic-bezier(.2, .8, .2, 1) backwards; }
+@keyframes pulso-fase { 0% { box-shadow: 0 0 0 0 rgba(244, 200, 97, .55); } 70% { box-shadow: 0 0 0 9px rgba(244, 200, 97, 0); } 100% { box-shadow: 0 0 0 0 rgba(244, 200, 97, 0); } }
+.barra-fases .actual span, .fase-btn.activa, .chip-fase::before, .fases li.activa { animation: pulso-fase 2.4s ease-out infinite; }
+@keyframes sacudir { 10%, 90% { transform: translateX(-2px); } 20%, 80% { transform: translateX(4px); } 30%, 50%, 70% { transform: translateX(-7px); } 40%, 60% { transform: translateX(7px); } }
+.sacudir { animation: sacudir .45s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes pop-apoyo { 0% { transform: scale(1); } 40% { transform: scale(1.35); } 100% { transform: scale(1); } }
+[data-apoyar].pop svg, [data-apoyar].pop [data-total] { display: inline-block; animation: pop-apoyo .4s cubic-bezier(.3, 1.5, .5, 1); }
+@keyframes brillo-esqueleto { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+.esqueleto { display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 16px 18px; border-radius: 14px; border: 1px solid var(--vidrio-borde); background: var(--vidrio); }
+.esqueleto span { display: block; height: 12px; border-radius: 6px; background: linear-gradient(90deg, var(--borde-suave) 25%, var(--borde) 50%, var(--borde-suave) 75%); background-size: 200% 100%; animation: brillo-esqueleto 1.4s linear infinite; }
+.esqueleto span:nth-child(1) { width: 35%; }
+.esqueleto span:nth-child(2) { width: 85%; }
+.esqueleto span:nth-child(3) { width: 60%; }
+@keyframes pin-cae { 0% { transform: translateY(-26px); opacity: 0; } 60% { transform: translateY(3px); opacity: 1; } 100% { transform: translateY(0); } }
+@keyframes pin-rebota { 0% { transform: scale(1.22); } 30% { transform: translateY(-10px) scale(1.22); } 60% { transform: scale(1.22); } 80% { transform: translateY(-3px) scale(1.22); } 100% { transform: scale(1.22); } }
+.pin-maq svg { animation: pin-cae .45s cubic-bezier(.3, 1.3, .5, 1) backwards; }
+.pin-maq.elegido svg { animation: pin-rebota .55s ease-out; }
+.voto-listo { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; background: rgba(2, 6, 23, .55); animation: aparecer .2s ease-out; cursor: pointer; }
+.voto-listo.saliendo { opacity: 0; transition: opacity .25s; }
+.voto-listo-caja { display: flex; flex-direction: column; align-items: center; gap: 14px; padding: 28px 34px; border-radius: 20px; background: var(--fondo); border: 1px solid var(--vidrio-borde); box-shadow: 0 20px 50px rgba(0, 0, 0, .35); text-align: center; max-width: calc(100vw - 32px); }
+.voto-listo-caja strong { font-size: 20px; }
+.voto-listo svg { width: 84px; height: 84px; fill: none; stroke: var(--ok); stroke-width: 3.5; stroke-linecap: round; stroke-linejoin: round; }
+.voto-listo circle { stroke-dasharray: 151; stroke-dashoffset: 151; animation: trazo .55s ease-out forwards; }
+.voto-listo path { stroke-dasharray: 40; stroke-dashoffset: 40; animation: trazo .35s .45s ease-out forwards; }
+@keyframes trazo { to { stroke-dashoffset: 0; } }
+.etapas-obra { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.etapas-obra > li { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: 12px; border: 1px solid var(--vidrio-borde); background: var(--vidrio); }
+.etapas-obra .etapa-marca { flex: none; width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; font-weight: 700; font-size: 14px; border: 2px solid var(--borde); color: var(--tenue); }
+.etapas-obra .hecha .etapa-marca { background: var(--ok); border-color: var(--ok); color: var(--fondo); }
+.etapas-obra .siguiente { border-color: var(--acento); }
+.etapas-obra .siguiente .etapa-marca { border-color: var(--acento); color: var(--acento-texto, var(--acento)); }
+.etapas-obra .pendiente { opacity: .7; }
+.barra-obra.grande { height: 12px; border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) {
+  .voto-pista > span, .barra > span, .barra-obra > span, .barra-doble > span, .pin-maq svg, .pin-maq.elegido svg, .esqueleto span,
+  .barra-fases .actual span, .fase-btn.activa, .chip-fase::before, .fases li.activa, .sacudir, [data-apoyar].pop svg { animation: none !important; }
+  .voto-listo circle, .voto-listo path { animation: none; stroke-dashoffset: 0; }
+}

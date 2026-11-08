@@ -31,7 +31,7 @@
     var uts = d.unidades || [];
     cuenta('sorteo', uts.filter(function (x) { return !x.realizado_en; }).length);
     P.poner(P.$('#estado-sorteo'), !d.ciclo ? P.html`<div class="mensaje info">No hay un ciclo activo.</div>`
-      : (fase !== 'sorteo_difusion' ? P.html`<div class="mensaje info">El sorteo solo se realiza en la fase de Sorteo y Difusión. Puedes consultar las boletas.</div>` : ''));
+      : P.html`${fase !== 'sorteo_difusion' ? P.html`<div class="mensaje info">El sorteo solo se realiza en la fase de Sorteo y Difusión. Puedes consultar las boletas.</div>` : ''}${d.sin_proyectos ? P.html`<p class="tenue" style="margin:0;font-size:14px">${P.t('Solo se muestran las colonias con proyectos. Otras {n} colonia(s) de tu alcaldía no registraron proyectos y no necesitan sorteo.', { n: d.sin_proyectos })}</p>` : ''}`);
     if (!utSel || !uts.some(function (x) { return x.id === utSel; })) utSel = (uts.find(function (x) { return !x.realizado_en; }) || uts[0] || {}).id;
     P.poner(P.$('#lista-uts'), uts.length ? uts.map(function (x) {
       var e = estadoUt(x);

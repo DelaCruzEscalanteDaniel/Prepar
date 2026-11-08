@@ -46,6 +46,12 @@
             <span><strong>${P.t('Presupuesto de la colonia')}:</strong> ${corto(p.presupuesto_asignado)}</span>
             ${p.total_votos !== null && p.total_votos !== undefined ? P.html`<span><strong>${P.t('Votos')}:</strong> ${p.total_votos}</span>` : ''}
             ${p.calificacion_promedio ? P.html`<span><strong>${P.t('Calificación')}:</strong> ${P.numero(p.calificacion_promedio, 1)} / 5</span>` : ''}</div>
+          ${p.etapas && p.etapas.length ? P.html`<div class="columna" style="gap:8px;margin-top:10px"><strong class="pequeno">${P.t('Etapas de la obra')}</strong>
+            <ol class="etapas-obra">${p.etapas.map(function (e) {
+              return P.html`<li class="${e.cumplida_en ? 'hecha' : 'pendiente'}" style="padding:8px 10px"><span class="etapa-marca" aria-hidden="true">${e.cumplida_en ? '✓' : e.orden}</span>
+                <div class="columna" style="gap:2px;min-width:0;flex:1"><span class="pequeno"><strong>${P.idioma() === 'en' && e.nombre_en ? e.nombre_en : e.nombre_es}</strong> · ${P.numero(e.peso, 0)} %</span>
+                ${e.cumplida_en ? P.html`<span class="pequeno texto-2">${P.fecha(e.cumplida_en)} · ${e.evidencia}</span>` : ''}</div></li>`;
+            })}</ol></div>` : ''}
           ${p.avances.length ? P.html`<div class="columna" style="gap:6px;margin-top:8px">${p.avances.slice(0, 4).map(function (a) {
             return P.html`<div class="pequeno"><strong>${P.fecha(a.registrado_en)} · ${P.numero(a.porcentaje, 0)}%</strong><br><span class="texto-2">${a.nota || a.justificacion_inejecutable || ''}</span></div>`;
           })}</div>` : ''}

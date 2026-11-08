@@ -62,7 +62,7 @@
       <div class="fila" style="gap:10px;font-size:14px">
         <span class="pastilla ${Number(p.costo_estimado) > Number(p.presupuesto_asignado) ? 'mala' : ''}">${P.t('Costo')}: <strong>${corto(p.costo_estimado)}</strong></span>
         <span class="pastilla">${P.t('Presupuesto UT')}: <strong>${corto(p.presupuesto_asignado)}</strong></span>
-        <span class="pastilla">${P.t('Dirección')}: ${p.calle} ${p.numero || 'S/N'}</span></div>`;
+        <span class="pastilla">${P.t('Dirección')}: ${p.calle} ${p.numero || 'S/N'}${p.codigo_postal ? ', CP ' + p.codigo_postal : ''}</span></div>`;
     if (p.emitido_en) {
       var v = p.resultado === 'viable';
       P.poner(caja, P.html`${cab}<div role="status" class="resultado-dict ${v ? 'si' : 'no'}" style="padding:18px">

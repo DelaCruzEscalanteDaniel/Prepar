@@ -17,12 +17,12 @@
 <main id="principal" class="contenido" tabindex="-1">
 <a class="enlace-volver" href="/ciudadano/foro.html"><span aria-hidden="true">←</span> <span>Volver al foro vecinal</span></a>
 <div class="encabezado-pagina">
-  <div><h1>Mis proyectos</h1><p>Registra tu proyecto, da seguimiento a su revisión y dictamen, y consulta los de tu colonia.</p></div>
+  <div><h1>Mis proyectos</h1><p>Registra tu proyecto, da seguimiento a su revisión y dictamen, y consulta los de toda tu alcaldía.</p></div>
 </div>
 <div class="pestanas" role="tablist">
   <button type="button" role="tab" aria-selected="true" data-pestana="mios">Mis proyectos</button>
   <button type="button" role="tab" aria-selected="false" data-pestana="registrar" id="tab-registrar">Registrar proyecto</button>
-  <button type="button" role="tab" aria-selected="false" data-pestana="unidad">Proyectos de mi colonia</button>
+  <button type="button" role="tab" aria-selected="false" data-pestana="unidad">Proyectos de mi alcaldía</button>
 </div>
 <section data-panel="mios" class="lista" id="mis-proyectos"></section>
 <section data-panel="registrar" hidden>
@@ -38,13 +38,15 @@
     <fieldset class="completo"><legend>Dirección del proyecto</legend>
       <div class="formulario">
         <label>Calle<input type="text" name="calle" maxlength="100" data-contador required></label>
-        <label>Número <span class="opcional">(opcional)</span><input type="text" name="numero" maxlength="10" data-contador></label>
+        <label>Número <span class="opcional">(opcional)</span><input type="text" name="numero" maxlength="10" data-contador placeholder="Ej.: 45 o S/N"></label>
+        <label>Código postal <span class="opcional">(opcional)</span><input type="text" name="codigo_postal" inputmode="numeric" maxlength="5" placeholder="Ej.: 02080"></label>
+        <div class="completo columna" style="gap:6px"><div class="fila"><button type="button" class="btn2 chico" id="completar-dir">Completar dirección</button><span class="ayuda">¿No sabes bien la dirección? Escribe lo que sepas y te ayudamos a completarla.</span></div><div data-sugerencias-dir></div></div>
         <label class="completo">Referencias <span class="opcional">(opcional)</span><input type="text" name="referencias" maxlength="100" data-contador placeholder="Ej.: Frente al mercado"></label>
         <div class="completo columna">
           <div class="fila entre"><span class="etiqueta">Ubicación en el mapa <span class="opcional">(opcional: si no la marcas, el sistema la busca con la dirección)</span></span>
-            <div class="fila"><button type="button" class="btn2 chico" id="buscar-dir">Buscar la dirección</button><button type="button" class="btn2 chico" id="quitar-punto">Quitar punto</button></div></div>
+            <div class="fila"><button type="button" class="btn2 chico" id="quitar-punto">Quitar punto</button></div></div>
           <div id="mapa-form" class="mapa chico"></div>
-          <span class="ayuda" id="coords-texto">Haz clic en el mapa para marcar el lugar exacto.</span>
+          <span class="ayuda" id="coords-texto">Haz clic en el mapa para marcar el lugar exacto: completamos la calle y el código postal si faltan.</span>
         </div>
       </div>
     </fieldset>
@@ -58,7 +60,7 @@
     <div class="fila completo"><button class="btn" type="submit" id="guardar-proyecto">Registrar proyecto</button><button class="btn2" type="button" id="cancelar-edicion" hidden>Cancelar edición</button></div>
   </form>
 </section>
-<section data-panel="unidad" hidden class="lista" id="proyectos-unidad"></section>
+<section data-panel="unidad" hidden class="columna" style="gap:14px"><div id="filtro-alcaldia"></div><div class="lista" id="proyectos-unidad"></div></section>
 </main>
 <script src="/vendor/leaflet/leaflet.js" defer></script>
 <script src="/js/i18n-en.js" defer></script>

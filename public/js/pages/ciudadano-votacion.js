@@ -60,7 +60,7 @@
       P.$('#volver').addEventListener('click', function () { paso = 1; pintar(); });
       P.$('#confirmar').addEventListener('click', function (e) {
         P.accion(e.currentTarget, function () {
-          return P.post('/api/votacion', { proyecto_id: elegido.proyecto_id }).then(function () { paso = 3; return cargar(); });
+          return P.post('/api/votacion', { proyecto_id: elegido.proyecto_id }).then(function () { paso = 3; P.celebrarVoto(); return cargar(); });
         });
       });
       return;

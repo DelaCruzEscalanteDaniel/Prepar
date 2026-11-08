@@ -220,7 +220,7 @@ function datosProyecto(b) {
 }
 function datosProyectoBase(b) {
   return {
-    titulo: v.texto(b.titulo, { campo: 'el título', max: L.titulo, min: 5, letras: 4 }),
+    titulo: v.texto(b.titulo, { campo: 'el título', max: L.titulo, min: 5, letras: 4, revisar: true }),
     descripcion: v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, letras: 6, multilinea: true }),
     rubro: v.id(b.rubro_id, 'el rubro'),
     categoria: v.opcion(b.categoria, categorias.claves(), { campo: 'el tipo de proyecto', requerido: false }),
@@ -228,6 +228,7 @@ function datosProyectoBase(b) {
     calle: v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2, letras: 2 }),
     numero: numeroExterior(b.numero),
     referencias: v.texto(b.referencias, { campo: 'las referencias', max: L.referencias, requerido: false, letras: 2 }),
+    cp: v.codigoPostal(b.codigo_postal),
     coords: v.coordenadas(b.latitud, b.longitud, false),
   };
 }
@@ -236,7 +237,7 @@ async function ubicar(u, d) {
   if (d.coords) return { id: null, latitud: d.coords.latitud, longitud: d.coords.longitud, estado: 'ubicado' };
   const lugar = await db.conSistema((con) => con.uno(
     'SELECT ut.nombre, a.nombre AS alcaldia FROM unidades_territoriales ut JOIN alcaldias a ON a.id = ut.alcaldia_id WHERE ut.id = ?', [u.unidadId]));
-  const consulta = `${d.calle}${d.numero ? ` ${d.numero}` : ''}, ${lugar ? `${lugar.nombre}, ${lugar.alcaldia}, ` : ''}Ciudad de México`;
+  const consulta = `${d.calle}${d.numero && !/^s\/?n$/i.test(d.numero) ? ` ${d.numero}` : ''}, ${d.cp ? `${d.cp}, ` : ''}${lugar ? `${lugar.nombre}, ${lugar.alcaldia}, ` : ''}Ciudad de México`;
   const g = await geocodificar(consulta);
   return g ? { id: g.id, latitud: g.latitud, longitud: g.longitud, estado: 'ubicado' } : { id: null, latitud: null, longitud: null, estado: 'no_ubicado' };
 }
@@ -258,10 +259,10 @@ router.post('/proyectos', soloCiudadano, limiteEscritura, asincrono(async (req, 
   const ubic = await ubicar(u, d);
   const proyecto = await db.conUsuario(u.id, async (con) => {
     const r = await con.q(
-      `INSERT INTO proyectos (titulo, descripcion, rubro_id, categoria, costo_estimado, calle, numero, referencias,
+      `INSERT INTO proyectos (titulo, descripcion, rubro_id, categoria, costo_estimado, calle, numero, referencias, codigo_postal,
                               latitud, longitud, estado_ubicacion, geocodificacion_id, imagen_archivo_id, idea_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias, d.cp,
         ubic.latitud, ubic.longitud, ubic.estado, ubic.id, imagenId, ideaId]);
     return con.uno('SELECT id, folio, estado_ubicacion, latitud, longitud FROM proyectos WHERE id = ?', [r.insertId]);
   });
@@ -280,7 +281,7 @@ router.put('/proyectos/:id', soloCiudadano, limiteEscritura, asincrono(async (re
   const d = datosProyecto(b);
   const u = req.usuario;
   const previo = await db.conUsuario(u.id, async (con) => {
-    const p = await con.uno('SELECT id, proponente_id, calle, numero, latitud, longitud, imagen_archivo_id, estado_ubicacion, geocodificacion_id FROM proyectos WHERE id = ?', [id]);
+    const p = await con.uno('SELECT id, proponente_id, calle, numero, codigo_postal, latitud, longitud, imagen_archivo_id, estado_ubicacion, geocodificacion_id FROM proyectos WHERE id = ?', [id]);
     if (!p || p.proponente_id !== u.id) throw noEncontrado('El proyecto no existe');
     revisarCosto(await contexto(con, u), d.costo);
     const r = await con.uno('SELECT id FROM rubros WHERE id = ? AND activo', [d.rubro]);
@@ -290,14 +291,14 @@ router.put('/proyectos/:id', soloCiudadano, limiteEscritura, asincrono(async (re
     else if (b.imagen_uuid) imagen = await idImagen(con, u, b.imagen_uuid, 'imagen_proyecto');
     return { p, imagen };
   });
-  const cambioDireccion = previo.p.calle !== d.calle || (previo.p.numero || null) !== (d.numero || null);
+  const cambioDireccion = previo.p.calle !== d.calle || (previo.p.numero || null) !== (d.numero || null) || (previo.p.codigo_postal || null) !== (d.cp || null);
   let ubic = { id: previo.p.geocodificacion_id, latitud: previo.p.latitud, longitud: previo.p.longitud, estado: previo.p.estado_ubicacion };
   if (d.coords || cambioDireccion) ubic = await ubicar(u, d);
   await db.conUsuario(u.id, (con) => con.q(
-    `UPDATE proyectos SET titulo = ?, descripcion = ?, rubro_id = ?, categoria = ?, costo_estimado = ?, calle = ?, numero = ?, referencias = ?,
+    `UPDATE proyectos SET titulo = ?, descripcion = ?, rubro_id = ?, categoria = ?, costo_estimado = ?, calle = ?, numero = ?, referencias = ?, codigo_postal = ?,
                           latitud = ?, longitud = ?, estado_ubicacion = ?, geocodificacion_id = ?, imagen_archivo_id = ?
      WHERE id = ?`,
-    [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias,
+    [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias, d.cp,
       ubic.latitud, ubic.longitud, ubic.estado, ubic.id, previo.imagen, id]));
   res.json({ ok: true, mensaje: 'Los cambios de tu proyecto se guardaron' });
 }));
@@ -316,7 +317,7 @@ router.post('/proyectos/:id/retirar', soloCiudadano, limiteEscritura, asincrono(
 router.get('/proyectos/mios', soloCiudadano, asincrono(async (req, res) => {
   const filas = await db.conUsuario(req.usuario.id, (con) => con.q(
     `SELECT p.id, p.folio, p.ciclo_id, c.nombre AS ciclo, c.estado AS ciclo_estado, p.titulo, p.descripcion, p.rubro_id, p.categoria, r.nombre_es AS rubro,
-            p.costo_estimado, p.calle, p.numero, p.referencias, p.latitud, p.longitud, p.estado_ubicacion, p.estatus,
+            p.costo_estimado, p.calle, p.numero, p.referencias, p.codigo_postal, p.latitud, p.longitud, p.estado_ubicacion, p.estatus,
             p.numero_sorteo, p.avance_porcentaje, p.monto_ejercido, p.estado_moderacion, p.creado_en,
             (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid,
             d.resultado AS dictamen, d.justificacion AS dictamen_justificacion, d.emitido_en AS dictamen_emitido_en,
@@ -326,6 +327,34 @@ router.get('/proyectos/mios', soloCiudadano, asincrono(async (req, res) => {
      LEFT JOIN dictamenes d ON d.proyecto_id = p.id AND d.emitido_en IS NOT NULL
      WHERE p.proponente_id = ? ORDER BY p.creado_en DESC LIMIT 200`, [req.usuario.id]));
   res.json(filas);
+}));
+
+router.get('/proyectos/alcaldia', soloCiudadano, asincrono(async (req, res) => {
+  const u = req.usuario;
+  const ut = v.id(req.query.unidad, 'la colonia', false);
+  const datos = await db.conUsuario(u.id, async (con) => {
+    const ciclo = await cicloActivo(con);
+    const alc = await con.uno(
+      `SELECT a.id, a.nombre FROM unidades_territoriales ut JOIN alcaldias a ON a.id = ut.alcaldia_id WHERE ut.id = ?`, [u.unidadId]);
+    if (!ciclo || !alc) return { alcaldia: alc ? alc.nombre : null, colonias: [], proyectos: [] };
+    const colonias = await con.q(
+      `SELECT ut.id, ut.nombre, cu.presupuesto_asignado,
+              (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id
+                 AND p.estatus <> 'retirado' AND p.estado_moderacion = 'visible') AS proyectos
+       FROM ciclo_unidades cu JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
+       WHERE cu.ciclo_id = ? AND ut.alcaldia_id = ? ORDER BY ut.nombre`, [ciclo.id, alc.id]);
+    const proyectos = await con.q(
+      `SELECT p.id, p.folio, p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado, p.estatus, p.numero_sorteo,
+              p.unidad_territorial_id, ut.nombre AS colonia, (p.proponente_id = ?) AS es_mio, (p.unidad_territorial_id = ?) AS de_mi_colonia,
+              (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid
+       FROM proyectos p JOIN rubros r ON r.id = p.rubro_id JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+       WHERE p.ciclo_id = ? AND ut.alcaldia_id = ? AND (? IS NULL OR p.unidad_territorial_id = ?)
+         AND p.estatus <> 'retirado' AND p.estado_moderacion = 'visible'
+       ORDER BY (p.unidad_territorial_id = ?) DESC, ut.nombre, p.creado_en DESC LIMIT 500`,
+      [u.id, u.unidadId, ciclo.id, alc.id, ut, ut, u.unidadId]);
+    return { alcaldia: alc.nombre, mi_colonia: u.unidadId, colonias, proyectos };
+  });
+  res.json(datos);
 }));
 
 router.get('/proyectos/unidad', soloCiudadano, asincrono(async (req, res) => {

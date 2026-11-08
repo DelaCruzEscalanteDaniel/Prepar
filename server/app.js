@@ -25,8 +25,14 @@ function crearApp() {
     res.status(ok ? 200 : 503).json({ ok, hora: new Date().toISOString() });
   });
 
+  app.get(/^\/(google[a-z0-9]{6,64})\.html$/, (req, res, next) => {
+    const archivo = `${req.params[0]}.html`;
+    if (!config.verificacionGoogle || config.verificacionGoogle !== archivo) return next();
+    res.type('text/plain').send(`google-site-verification: ${archivo}`);
+  });
+
   const api = express.Router();
-  api.use(limitador({ ventanaMs: 60 * 1000, maximo: 3000, mensaje: 'Demasiadas solicitudes desde tu conexión. Espera un minuto' }));
+  api.use(limitador({ ventanaMs: 60 * 1000, maximo: 1500, mensaje: 'Demasiadas solicitudes desde tu conexión. Espera un minuto' }));
   api.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   api.use(cookies);
   api.use(antiCsrf);
@@ -53,6 +59,7 @@ function crearApp() {
         if (!/no-store/.test(String(res.getHeader('Cache-Control') || ''))) res.setHeader('Cache-Control', 'no-cache');
       }
       else if (/[\\/](vendor|img)[\\/]/.test(ruta)) res.setHeader('Cache-Control', 'public, max-age=2592000');
+      else if (/\.(css|js|json)$/i.test(ruta)) res.setHeader('Cache-Control', 'no-cache');
     },
   }));
   app.use((req, res) => {

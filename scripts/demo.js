@@ -2,6 +2,7 @@
 const zlib = require('zlib');
 const bcrypt = require('bcryptjs');
 const db = require('../server/db');
+const etapasObra = require('../server/lib/etapas');
 
 const FASES = ['convocatoria', 'diagnostico_registro', 'dictaminacion', 'sorteo_difusion', 'consulta', 'resultados', 'ejecucion_seguimiento', 'evaluacion'];
 const destino = process.argv[2] || 'diagnostico_registro';
@@ -190,14 +191,24 @@ async function principal() {
 
   await fase('ejecucion_seguimiento');
   const ganadores = await db.conSistema((c) => c.q(
-    `SELECT p.id, p.unidad_territorial_id, cu.presupuesto_asignado FROM resultados_unidad ru JOIN proyectos p ON p.id = ru.proyecto_ganador_id
+    `SELECT p.id, p.unidad_territorial_id, p.costo_estimado, cu.presupuesto_asignado FROM resultados_unidad ru JOIN proyectos p ON p.id = ru.proyecto_ganador_id
      JOIN ciclo_unidades cu ON cu.ciclo_id = p.ciclo_id AND cu.unidad_territorial_id = p.unidad_territorial_id WHERE ru.ciclo_id = ?`, [ciclo]));
   let n = 0;
   for (const g of ganadores) {
     const f = [ut['AZC-001'].id, ut['AZC-002'].id].includes(g.unidad_territorial_id) ? carlos : lucia;
-    const pct = [35, 60, 100, 15][n % 4];
-    await como(f, (c) => c.q('INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota) VALUES (?, ?, ?, ?, ?)',
-      [g.id, pct, Math.round(Number(g.presupuesto_asignado) * pct / 120), pct === 100 ? 'concluido' : 'en_ejecucion', pct === 100 ? 'Obra entregada a la comunidad.' : 'Trabajos en proceso conforme al calendario.']));
+    const meta = [35, 60, 100, 15][n % 4];
+    await como(f, async (c) => {
+      const lista = await etapasObra.etapasDe(c, g.id);
+      let pct = 0;
+      for (const e of lista) {
+        if (pct + e.peso > meta) break;
+        pct += e.peso;
+        await c.q('INSERT INTO etapas_proyecto (proyecto_id, etapa_id, evidencia, usuario_id) VALUES (?, ?, ?, ?)',
+          [g.id, e.id, `Se completó la etapa de ${e.nombre_es.toLowerCase()} conforme al calendario.`, f]);
+      }
+      await c.q('INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota) VALUES (?, ?, ?, ?, ?)',
+        [g.id, pct, Math.round(Number(g.costo_estimado) * (n % 4 === 3 ? 0.7 : (pct / 100) * 0.9)), pct >= 100 ? 'concluido' : 'en_ejecucion', pct >= 100 ? 'Obra entregada a la comunidad.' : 'Trabajos en proceso conforme al calendario.']);
+    });
     n += 1;
   }
   const vecinoDe = { [ut['AZC-001'].id]: 'jose.ramirez', [ut['AZC-002'].id]: 'jorge.castillo', [ut['COY-001'].id]: 'fernanda.reyes', [ut['COY-002'].id]: 'carmen.aguilar' };

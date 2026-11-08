@@ -17,6 +17,9 @@ const servidor = http.createServer(app);
 servidor.requestTimeout = 60 * 1000;
 servidor.headersTimeout = 20 * 1000;
 servidor.keepAliveTimeout = 65 * 1000;
+servidor.maxHeadersCount = 80;
+servidor.maxRequestsPerSocket = 1000;
+servidor.maxConnections = 2000;
 servidor.maxRequestsPerSocket = 1000;
 servidor.on('clientError', (err, socket) => {
   try { if (socket.writable) socket.end('HTTP/1.1 400 Bad Request\r\n\r\n'); } catch { }

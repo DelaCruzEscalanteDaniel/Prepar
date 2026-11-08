@@ -10,6 +10,56 @@
     { cuenta: 'sin_ubicar', funcion: null, titulo: 'Proyectos sin ubicar', detalle: 'El sistema no encontró su dirección en el mapa.', url: '/funcionario/mapa.html', cta: 'Corregir ubicación', fases: ['diagnostico_registro', 'dictaminacion'] },
     { cuenta: 'reportes', funcion: 'seguimiento', titulo: 'Reportes de obra', detalle: 'Irregularidades y avances enviados por vecinos.', url: '/funcionario/seguimiento.html', cta: 'Ver reportes', fases: ['ejecucion_seguimiento', 'evaluacion'], rojo: true },
   ];
+  var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+  var MESES_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  var TOCA = {
+    convocatoria: ['Revisa la convocatoria y prepara a tu equipo. Puedes publicar avisos para los vecinos.', null],
+    diagnostico_registro: ['Revisa que los registros de proyectos estén completos, modera el foro y corrige ubicaciones.', ['/funcionario/registros.html', 'Ir a registros']],
+    dictaminacion: ['Dictamina cada proyecto como viable o no viable con los criterios del órgano dictaminador.', ['/funcionario/dictaminacion.html', 'Ir a dictaminación']],
+    sorteo_difusion: ['Realiza el sorteo de cada colonia para asignar el número de los proyectos en la boleta.', ['/funcionario/sorteo.html', 'Ir al sorteo']],
+    consulta: ['Los vecinos votan. Cuando el Administrador cuente los votos, resuelve los casos especiales de tu alcaldía.', ['/funcionario/sorteo.html#casos', 'Ver casos especiales']],
+    resultados: ['Resuelve los casos especiales que falten para que el Administrador publique a los ganadores.', ['/funcionario/sorteo.html#casos', 'Ver casos especiales']],
+    ejecucion_seguimiento: ['Registra el avance de las obras ganadoras y atiende los reportes de los vecinos.', ['/funcionario/seguimiento.html', 'Ir a seguimiento']],
+    evaluacion: ['Revisa los reportes finales y la evaluación de los vecinos.', ['/funcionario/seguimiento.html', 'Ir a seguimiento']],
+  };
+  function corta(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
+    if (!m) return '';
+    var mes = Number(m[2]) - 1;
+    return P.idioma() === 'en' ? MESES_EN[mes] + ' ' + Number(m[3]) : Number(m[3]) + ' ' + MESES[mes];
+  }
+  function rango(f) {
+    if (!f.fecha_inicio) return '';
+    return f.fecha_inicio === f.fecha_fin ? corta(f.fecha_inicio) : corta(f.fecha_inicio) + ' – ' + corta(f.fecha_fin);
+  }
+  function lineaFases(estado) {
+    var fases = (estado && estado.fases) || [];
+    var act = P.faseActiva(estado);
+    var activa = act ? act.orden : 0;
+    if (!fases.length) { P.$('#linea').hidden = true; return; }
+    var sel = activa || 1;
+    var pintar = function () {
+      P.poner(P.$('#linea-fases'), fases.map(function (f) {
+        var est = !activa ? '' : (f.orden < activa ? 'Concluida' : (f.orden === activa ? 'Fase activa' : 'Próxima'));
+        var clase = (f.orden === activa ? 'activa ' : '') + (f.orden < activa ? 'pasada ' : '') + (f.orden === sel ? 'elegida' : '');
+        return P.html`<button type="button" class="fase-btn ${clase}" data-fase="${f.orden}" aria-pressed="${f.orden === sel ? 'true' : 'false'}">
+          <span class="estado-fase">${est ? P.t(est) : ''}</span><strong>${f.orden}. ${P.nombre(f)}</strong><span class="tenue" style="font-size:12px">${rango(f)}</span></button>`;
+      }));
+      var f = fases.find(function (x) { return x.orden === sel; });
+      if (!f) { P.poner(P.$('#detalle-fase'), ''); return; }
+      var toca = TOCA[f.clave] || ['', null];
+      var en = P.idioma() === 'en';
+      P.poner(P.$('#detalle-fase'), P.html`<div class="crece"><div class="antetitulo gris">${P.t('En la vida real')}</div><p>${en ? f.que_ocurre_en : f.que_ocurre_es}</p></div>
+        <div class="crece"><div class="antetitulo gris">${P.t('Lo que te toca como funcionario')}</div><p>${P.t(toca[0])}</p>${toca[1] && f.orden === activa ? P.html`<a class="btn" href="${toca[1][0]}">${P.t(toca[1][1])}</a>` : ''}</div>`);
+    };
+    pintar();
+    P.$('#linea-fases').addEventListener('click', function (e) {
+      var b = e.target.closest('[data-fase]');
+      if (!b) return;
+      sel = Number(b.getAttribute('data-fase'));
+      pintar();
+    });
+  }
   function saludo() {
     var h = new Date().getHours();
     return h < 12 ? 'Buenos días, {n}' : (h < 19 ? 'Buenas tardes, {n}' : 'Buenas noches, {n}');
@@ -34,6 +84,7 @@
   P.pagina(function (ctx) {
     var u = ctx.usuario;
     P.poner(P.$('#chip-fase'), P.chipFase(ctx.estado));
+    lineaFases(ctx.estado);
     P.$('#saludo').textContent = P.t(saludo(), { n: u.nombre.split(' ')[0] });
     P.$('#sub-inicio').textContent = P.t('Esto es lo que tienes pendiente en {a}. Empieza por lo marcado como prioridad.', { a: u.alcaldia });
     P.poner(P.$('#alcance'), P.html`<option value="mi_alcaldia">${u.alcaldia}</option><option value="todas">${P.t('Todas las alcaldías')}</option>`);

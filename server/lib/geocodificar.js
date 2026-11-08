@@ -5,8 +5,9 @@ const log = require('./log');
 const { coordenadas } = require('./validar');
 
 const URL_BASE = 'https://nominatim.openstreetmap.org/search';
+const URL_INVERSA = 'https://nominatim.openstreetmap.org/reverse';
 const TIEMPO_MAX_MS = 2000;
-const MAX_EN_COLA = 1;
+const MAX_EN_COLA = 3;
 let ultimaPeticion = 0;
 let enCola = 0;
 let cola = Promise.resolve();
@@ -21,21 +22,25 @@ function turno() {
   return espera;
 }
 
-async function consultarNominatim(consulta, agente) {
+async function consultarNominatim(consulta, agente, extra) {
   if (enCola >= MAX_EN_COLA) throw new Error('Demasiadas consultas simultáneas');
   enCola += 1;
   try {
     await turno();
-    const params = new URLSearchParams({
-      q: consulta, format: 'jsonv2', limit: '1', countrycodes: 'mx',
-      viewbox: '-99.37,19.60,-98.94,19.05', bounded: '1', 'accept-language': 'es',
-    });
+    const inversa = extra && extra.inversa;
+    const params = new URLSearchParams(inversa
+      ? { lat: String(extra.lat), lon: String(extra.lon), format: 'jsonv2', addressdetails: '1', zoom: '18', 'accept-language': 'es' }
+      : {
+        q: consulta, format: 'jsonv2', limit: String((extra && extra.limite) || 1), countrycodes: 'mx',
+        viewbox: '-99.37,19.60,-98.94,19.05', bounded: '1', 'accept-language': 'es', addressdetails: extra ? '1' : '0',
+      });
     const ctrl = new AbortController();
     const t = setTimeout(() => ctrl.abort(), TIEMPO_MAX_MS);
     try {
-      const r = await fetch(`${URL_BASE}?${params}`, { headers: { 'User-Agent': agente, Accept: 'application/json' }, signal: ctrl.signal });
+      const r = await fetch(`${inversa ? URL_INVERSA : URL_BASE}?${params}`, { headers: { 'User-Agent': agente, Accept: 'application/json' }, signal: ctrl.signal });
       if (!r.ok) throw new Error(`Nominatim respondió ${r.status}`);
       const datos = await r.json();
+      if (inversa) return datos && !datos.error ? [datos] : [];
       return Array.isArray(datos) ? datos : [];
     } finally {
       clearTimeout(t);
@@ -84,4 +89,62 @@ async function geocodificar(consulta) {
   }
 }
 
-module.exports = { geocodificar };
+const memoria = new Map();
+function recordar(clave, valor) {
+  memoria.set(clave, valor);
+  if (memoria.size > 500) memoria.delete(memoria.keys().next().value);
+  return valor;
+}
+
+async function agenteNominatim() {
+  const p = await db.conSistema((con) => con.uno("SELECT valor FROM parametros_sistema WHERE clave = 'nominatim_user_agent'"));
+  return (p && p.valor) || 'Prepar-Simulador/1.0';
+}
+
+function limpio(s, max) { return String(s || '').replace(/[<>"`]/g, '').replace(/\s+/g, ' ').trim().slice(0, max); }
+
+function desglosar(r) {
+  const a = r.address || {};
+  let coords = null;
+  try { coords = coordenadas(r.lat, r.lon); } catch { coords = null; }
+  if (!coords) return null;
+  const cp = /^\d{5}$/.test(a.postcode || '') ? a.postcode : null;
+  return {
+    calle: limpio(a.road || a.pedestrian || a.footway || a.residential || a.square || a.amenity || '', 100),
+    numero: limpio(a.house_number || '', 10) || null,
+    codigo_postal: cp,
+    colonia: limpio(a.neighbourhood || a.suburb || a.quarter || a.city_block || '', 100) || null,
+    alcaldia: limpio(a.city_district || a.borough || a.county || a.town || '', 100) || null,
+    texto: limpio(r.display_name, 200),
+    latitud: coords.latitud, longitud: coords.longitud,
+  };
+}
+
+async function sugerirDirecciones(consulta) {
+  const texto = String(consulta || '').replace(/\s+/g, ' ').slice(0, 300).trim();
+  if (!texto || !config.geocodificacion) return [];
+  const clave = `s:${texto.toLowerCase()}`;
+  if (memoria.has(clave)) return memoria.get(clave);
+  try {
+    const lista = await consultarNominatim(texto, await agenteNominatim(), { limite: 5 });
+    return recordar(clave, lista.map(desglosar).filter((x) => x && x.calle));
+  } catch (e) {
+    log.aviso('Sugerencias de dirección no disponibles:', e.message);
+    return [];
+  }
+}
+
+async function direccionDePunto(lat, lon) {
+  if (!config.geocodificacion) return null;
+  const clave = `r:${Number(lat).toFixed(5)},${Number(lon).toFixed(5)}`;
+  if (memoria.has(clave)) return memoria.get(clave);
+  try {
+    const lista = await consultarNominatim(null, await agenteNominatim(), { inversa: true, lat, lon });
+    return recordar(clave, lista.length ? desglosar(lista[0]) : null);
+  } catch (e) {
+    log.aviso('Dirección del punto no disponible:', e.message);
+    return null;
+  }
+}
+
+module.exports = { geocodificar, sugerirDirecciones, direccionDePunto, desglosar };

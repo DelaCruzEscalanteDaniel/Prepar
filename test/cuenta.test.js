@@ -228,3 +228,54 @@ test('el inicio de sesión nunca revela si el correo existe, si la cuenta está 
   const rec2 = await A.cliente().post('/api/auth/recuperar', { correo: 'no.existe.nunca@correo.mx' });
   assert.equal(`${rec1.estado} ${rec1.datos.mensaje}`, `${rec2.estado} ${rec2.datos.mensaje}`, 'recuperar responde igual exista o no');
 });
+
+test('el Administrador elimina funcionarios y ciudadanos: datos personales borrados, historial conservado', async () => {
+  const admin = A.cliente();
+  ok(await admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' }));
+  const f = await admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Por Borrar', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['directorio', 'moderacion'] });
+  ok(f);
+  const fu = A.cliente();
+  ok(await fu.post('/api/auth/login', { correo: 'borrar.func@prepar.mx', password: f.datos.passwordTemporal }));
+  ok(await fu.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'Borrar#2026', confirmar: 'Borrar#2026' }));
+  await A.db.conSistema((con) => con.q("INSERT INTO bitacora (usuario_id, rol, accion, entidad, entidad_id) VALUES (?, 'funcionario', 'directorio_editar', 'directorio', '1')", [f.datos.id]));
+  const c = A.cliente();
+  falla(await c.post('/api/auth/registro', datos('borrar.ciu@correo.mx'), {}), 201);
+  const ciu = (await c.get('/api/auth/yo')).datos;
+
+  falla(await admin.post(`/api/admin/funcionarios/${f.datos.id}/eliminar`, {}), 400, 'sin escribir ELIMINAR');
+  falla(await admin.post(`/api/admin/ciudadanos/${f.datos.id}/eliminar`, { confirmar: 'ELIMINAR' }), 404, 'un funcionario no se borra por la ruta de ciudadanos');
+  falla(await admin.post(`/api/admin/funcionarios/${ciu.id}/eliminar`, { confirmar: 'ELIMINAR' }), 404, 'ni un ciudadano por la de funcionarios');
+  const idAdmin = (await admin.get('/api/auth/yo')).datos.id;
+  falla(await admin.post(`/api/admin/funcionarios/${idAdmin}/eliminar`, { confirmar: 'ELIMINAR' }), 404, 'un administrador no se puede borrar');
+  falla(await admin.post(`/api/admin/ciudadanos/${idAdmin}/eliminar`, { confirmar: 'ELIMINAR' }), 404);
+  falla(await fu.post(`/api/admin/ciudadanos/${ciu.id}/eliminar`, { confirmar: 'ELIMINAR' }), 403, 'solo el Administrador');
+  falla(await c.post(`/api/admin/funcionarios/${f.datos.id}/eliminar`, { confirmar: 'ELIMINAR' }), 403);
+  for (const malo of ['abc', '-1', '0', '99999999']) {
+    const r = await admin.post(`/api/admin/ciudadanos/${malo}/eliminar`, { confirmar: 'ELIMINAR' });
+    assert.ok(r.estado === 400 || r.estado === 404, `${malo} → ${r.estado}`);
+  }
+
+  ok(await admin.post(`/api/admin/funcionarios/${f.datos.id}/eliminar`, { confirmar: 'ELIMINAR' }), 'borrar funcionario');
+  ok(await admin.post(`/api/admin/ciudadanos/${ciu.id}/eliminar`, { confirmar: 'ELIMINAR' }), 'borrar ciudadano');
+  falla(await fu.get('/api/auth/yo'), 401, 'su sesión se cerró al instante');
+  falla(await c.get('/api/auth/yo'), 401);
+  falla(await A.cliente().post('/api/auth/login', { correo: 'borrar.func@prepar.mx', password: 'Borrar#2026' }), 401);
+  falla(await admin.post(`/api/admin/funcionarios/${f.datos.id}/eliminar`, { confirmar: 'ELIMINAR' }), 404, 'no se borra dos veces');
+
+  const lf = await admin.get('/api/admin/funcionarios');
+  assert.ok(!lf.datos.some((x) => x.id === f.datos.id), 'ya no aparece en la lista de funcionarios');
+  const lc = await admin.get('/api/admin/ciudadanos?limite=200');
+  assert.ok(!lc.datos.ciudadanos.some((x) => x.id === ciu.id), 'ni en la de ciudadanos');
+  const uf = await fila('SELECT nombre_completo, correo, estado, eliminado_en FROM usuarios WHERE id = ?', [f.datos.id]);
+  assert.equal(uf.nombre_completo, 'Cuenta eliminada');
+  assert.equal(uf.correo, `eliminada-${f.datos.id}@prepar.invalid`);
+  assert.ok(uf.eliminado_en);
+  assert.equal((await fila('SELECT COUNT(*) AS n FROM funcionario_funciones WHERE funcionario_id = ?', [f.datos.id])).n, 0);
+  assert.ok(await fila("SELECT 1 AS si FROM bitacora WHERE usuario_id = ? AND accion = 'directorio_editar'", [f.datos.id]), 'su historial en la bitácora se conserva');
+  assert.ok(await fila("SELECT 1 AS si FROM bitacora WHERE accion = 'cuenta_eliminar' AND rol = 'administrador' AND entidad_id = ?", [String(f.datos.id)]), 'queda en la bitácora');
+  const uc = await fila("SELECT u.nombre_completo, c.genero FROM usuarios u JOIN ciudadanos c ON c.usuario_id = u.id WHERE u.id = ?", [ciu.id]);
+  assert.equal(uc.nombre_completo, 'Cuenta eliminada');
+  assert.equal(uc.genero, 'prefiero_no_decir');
+  ok(await admin.post('/api/admin/funcionarios', { nombre: 'Otra Funcionaria Nueva', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['directorio'] }), 'el correo quedó libre');
+  falla(await A.cliente().post('/api/auth/registro', datos('borrar.ciu@correo.mx'), {}), 201, 'también el del ciudadano');
+});

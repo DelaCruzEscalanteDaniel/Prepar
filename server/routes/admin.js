@@ -19,6 +19,8 @@ const categorias = require('../lib/categorias');
 const modo = require('../lib/modo');
 const ciclosIniciales = require('../lib/ciclosIniciales');
 const { repartirOficial } = require('../lib/datosOficiales');
+const cuentas = require('../lib/cuentas');
+const etapasObra = require('../lib/etapas');
 
 const router = express.Router();
 router.use('/admin', requiere('administrador'));
@@ -81,7 +83,9 @@ router.get('/admin/ciclos/:id', asincrono(async (req, res) => {
     const pendientes = await con.uno(`SELECT
         (SELECT COUNT(*) FROM proyectos WHERE ciclo_id = ? AND estatus IN ('registrado', 'en_dictaminacion') AND estado_moderacion = 'visible') AS sin_dictamen,
         (SELECT COUNT(*) FROM ciclo_unidades cu WHERE cu.ciclo_id = ?
-            AND NOT EXISTS (SELECT 1 FROM sorteos s WHERE s.ciclo_id = cu.ciclo_id AND s.unidad_territorial_id = cu.unidad_territorial_id)) AS sorteos_pendientes,
+            AND NOT EXISTS (SELECT 1 FROM sorteos s WHERE s.ciclo_id = cu.ciclo_id AND s.unidad_territorial_id = cu.unidad_territorial_id)
+            AND EXISTS (SELECT 1 FROM proyectos px WHERE px.ciclo_id = cu.ciclo_id AND px.unidad_territorial_id = cu.unidad_territorial_id
+                          AND px.estatus <> 'retirado' AND px.estado_moderacion = 'visible')) AS sorteos_pendientes,
         (SELECT COUNT(*) FROM resultados_unidad WHERE ciclo_id = ? AND proyecto_ganador_id IS NULL) AS casos_sin_resolver,
         (SELECT COUNT(*) FROM resultados_unidad WHERE ciclo_id = ? AND caso_especial IS NOT NULL) AS casos_especiales,
         (SELECT COUNT(*) FROM participaciones WHERE ciclo_id = ?) AS votos`, [id, id, id, id, id]);
@@ -281,6 +285,135 @@ router.post('/admin/ciclos/:id/votacion', asincrono(async (req, res) => {
   });
 }));
 
+router.get('/admin/ciclos/:id/obras', asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el ciclo');
+  const datos = await db.conUsuario(req.usuario.id, async (con) => {
+    await cicloExistente(con, id);
+    const obras = await con.q(
+      `SELECT p.id, p.folio, p.titulo, p.estatus, p.avance_porcentaje, p.monto_ejercido, p.costo_estimado, cu.presupuesto_asignado,
+              ut.nombre AS colonia, a.nombre AS alcaldia
+       FROM proyectos p JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+       JOIN alcaldias a ON a.id = ut.alcaldia_id
+       JOIN ciclo_unidades cu ON cu.ciclo_id = p.ciclo_id AND cu.unidad_territorial_id = p.unidad_territorial_id
+       WHERE p.ciclo_id = ? AND p.estatus IN ('ganador', 'en_ejecucion', 'concluido', 'inejecutable')
+       ORDER BY a.nombre, ut.nombre, p.folio`, [id]);
+    const etapas = await etapasObra.etapasDeVarios(con, obras.map((o) => o.id));
+    for (const o of obras) {
+      o.etapas = etapas.get(Number(o.id)) || [];
+      o.avance_financiero = etapasObra.avanceFinanciero(o.monto_ejercido, o.costo_estimado, o.presupuesto_asignado);
+      o.alerta_gasto = etapasObra.alerta(o.avance_porcentaje, o.avance_financiero);
+    }
+    obras.sort((a, b) => Number(b.alerta_gasto) - Number(a.alerta_gasto));
+    return { umbral: etapasObra.UMBRAL_ALERTA, obras, alertas: obras.filter((o) => o.alerta_gasto).length };
+  });
+  res.json(datos);
+}));
+
+router.post('/admin/proyectos/:id/etapas/:etapa/desmarcar', asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el proyecto');
+  const etapaId = v.id(req.params.etapa, 'la etapa');
+  const motivo = v.texto(v.cuerpo(req).motivo, { campo: 'el motivo de la corrección', max: 250, min: 10, letras: 6, multilinea: true });
+  const r = await db.conUsuario(req.usuario.id, (con) => con.transaccion(async () => {
+    const p = await con.uno('SELECT id, estatus, monto_ejercido FROM proyectos WHERE id = ? FOR UPDATE', [id]);
+    if (!p) throw noEncontrado('El proyecto no existe');
+    const etapas = await etapasObra.etapasDe(con, id);
+    const hechas = etapas.filter((e) => e.cumplida_en);
+    if (!hechas.length) throw conflicto('El proyecto no tiene etapas cumplidas');
+    const ultima = hechas[hechas.length - 1];
+    if (ultima.id !== etapaId) throw conflicto(`Solo se puede corregir la última etapa cumplida («${ultima.nombre_es}»)`);
+    await con.q('DELETE FROM etapas_proyecto WHERE proyecto_id = ? AND etapa_id = ?', [id, etapaId]);
+    ultima.cumplida_en = null;
+    const porcentaje = etapasObra.porcentaje(etapas);
+    const estatus = p.estatus === 'concluido' ? 'en_ejecucion' : p.estatus;
+    await con.q('INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota, justificacion_inejecutable) VALUES (?, ?, ?, ?, ?, ?)',
+      [id, porcentaje, p.monto_ejercido, estatus, `Corrección: ${motivo}`.slice(0, 250), estatus === 'inejecutable' ? motivo : null]);
+    await con.q('CALL sp_bitacora(?, ?, ?, NULL, JSON_OBJECT(?, ?, ?, ?))', ['etapa_desmarcar', 'proyectos', id, 'etapa', ultima.nombre_es, 'motivo', motivo]);
+    return { porcentaje, estatus };
+  }));
+  res.json({ ok: true, ...r, mensaje: 'Se corrigió la etapa y quedó registrado en la bitácora' });
+}));
+
+router.get('/admin/ciclos/:id/votacion/resumen', asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el ciclo');
+  const datos = await db.conUsuario(req.usuario.id, async (con) => {
+    const c = await cicloExistente(con, id);
+    const contado = !!c.computo_realizado_en;
+    const total = await con.uno(
+      `SELECT COALESCE(SUM(registrados), 0) AS padron, COALESCE(SUM(votantes), 0) AS participantes
+       FROM v_est_participacion WHERE ciclo_id = ?`, [id]);
+    const fuera = await con.uno(
+      `SELECT COUNT(*) AS n FROM participaciones pa
+       WHERE pa.ciclo_id = ? AND NOT EXISTS (SELECT 1 FROM ciclo_unidades cu WHERE cu.ciclo_id = pa.ciclo_id AND cu.unidad_territorial_id = pa.unidad_territorial_id)`, [id]);
+    const participantes = Number(total.participantes) + Number(fuera.n);
+    const porGenero = await con.q(
+      `SELECT genero AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
+       FROM v_est_participacion WHERE ciclo_id = ? GROUP BY genero ORDER BY genero`, [id]);
+    const porEdad = await con.q(
+      `SELECT rango_edad AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
+       FROM v_est_participacion WHERE ciclo_id = ? GROUP BY rango_edad ORDER BY rango_edad`, [id]);
+    const porDia = await con.q(
+      `SELECT DATE_FORMAT(participo_en, '%Y-%m-%d') AS dia, COUNT(*) AS votantes
+       FROM participaciones WHERE ciclo_id = ? GROUP BY dia ORDER BY dia`, [id]);
+    const colonias = await con.q(
+      `SELECT ut.id, ut.nombre AS colonia, a.nombre AS alcaldia,
+              (SELECT COUNT(*) FROM ciudadanos ci WHERE ci.unidad_territorial_id = ut.id) AS padron,
+              (SELECT COUNT(*) FROM participaciones pa WHERE pa.ciclo_id = cu.ciclo_id AND pa.unidad_territorial_id = ut.id) AS participantes,
+              (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id
+                 AND p.numero_sorteo IS NOT NULL AND p.estado_moderacion = 'visible') AS en_boleta,
+              ru.total_votos, ru.caso_especial, ru.metodo, ru.proyecto_ganador_id
+       FROM ciclo_unidades cu
+       JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
+       JOIN alcaldias a ON a.id = ut.alcaldia_id
+       LEFT JOIN resultados_unidad ru ON ru.ciclo_id = cu.ciclo_id AND ru.unidad_territorial_id = ut.id
+       WHERE cu.ciclo_id = ?
+         AND (EXISTS (SELECT 1 FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id AND p.numero_sorteo IS NOT NULL)
+              OR EXISTS (SELECT 1 FROM participaciones pa WHERE pa.ciclo_id = cu.ciclo_id AND pa.unidad_territorial_id = ut.id))
+       ORDER BY a.nombre, ut.nombre`, [id]);
+    const proyectos = contado ? await con.q(
+      `SELECT rp.unidad_territorial_id, p.folio, p.titulo, p.numero_sorteo, rp.total_votos, rp.posicion
+       FROM resultados_proyecto rp JOIN proyectos p ON p.id = rp.proyecto_id
+       WHERE rp.ciclo_id = ? ORDER BY rp.unidad_territorial_id, rp.posicion, p.numero_sorteo`, [id]) : [];
+    const ganadores = new Set(colonias.map((x) => x.proyecto_ganador_id).filter(Boolean));
+    const folioGanador = new Map();
+    if (contado) {
+      const g = await con.q('SELECT ru.unidad_territorial_id, p.folio FROM resultados_unidad ru JOIN proyectos p ON p.id = ru.proyecto_ganador_id WHERE ru.ciclo_id = ?', [id]);
+      g.forEach((x) => folioGanador.set(x.unidad_territorial_id, x.folio));
+    }
+    colonias.forEach((x) => {
+      x.proyectos = proyectos.filter((p) => p.unidad_territorial_id === x.id).map((p) => ({
+        folio: p.folio, titulo: p.titulo, numero: p.numero_sorteo, votos: Number(p.total_votos), posicion: p.posicion,
+        ganador: folioGanador.get(x.id) === p.folio,
+      }));
+      x.ganador = !!x.proyecto_ganador_id;
+      delete x.proyecto_ganador_id;
+      delete x.id;
+    });
+    const lista = await con.q(
+      `SELECT CASE WHEN u.eliminado_en IS NULL THEN u.nombre_completo ELSE 'Cuenta eliminada' END AS nombre,
+              ut.nombre AS colonia, a.nombre AS alcaldia, DATE_FORMAT(pa.participo_en, '%Y-%m-%dT%H:%i:%s') AS fecha
+       FROM participaciones pa
+       JOIN usuarios u ON u.id = pa.ciudadano_id
+       JOIN unidades_territoriales ut ON ut.id = pa.unidad_territorial_id
+       JOIN alcaldias a ON a.id = ut.alcaldia_id
+       WHERE pa.ciclo_id = ? ORDER BY pa.participo_en DESC LIMIT 2000`, [id]);
+    return {
+      ciclo: { id: c.id, nombre: c.nombre, votacion_abierta: !!Number(c.votacion_abierta), votacion_cerrada_en: c.votacion_cerrada_en,
+        computo_realizado_en: c.computo_realizado_en, resultados_publicados_en: c.resultados_publicados_en },
+      totales: {
+        padron: Number(total.padron), participantes,
+        porcentaje: Number(total.padron) ? Math.round((1000 * Number(total.participantes)) / Number(total.padron)) / 10 : 0,
+        colonias_con_boleta: colonias.filter((x) => Number(x.en_boleta) > 0).length,
+        colonias_con_votos: colonias.filter((x) => Number(x.participantes) > 0).length,
+        ganadores: ganadores.size,
+        casos_especiales: colonias.filter((x) => x.caso_especial && !x.ganador).length,
+      },
+      por_genero: porGenero, por_edad: porEdad, por_dia: porDia, colonias,
+      participantes: lista, participantes_total: participantes,
+    };
+  });
+  res.json(datos);
+}));
+
 router.post('/admin/ciclos/:id/ganadores', asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el ciclo');
   const r = await db.conUsuario(req.usuario.id, (con) => con.call('sp_publicar_ganadores', [id]));
@@ -394,10 +527,27 @@ router.get('/admin/funcionarios', asincrono(async (req, res) => {
             (SELECT GROUP_CONCAT(ff.funcion ORDER BY ff.funcion) FROM funcionario_funciones ff WHERE ff.funcionario_id = u.id) AS funciones,
             (SELECT MAX(s.creada_en) FROM sesiones s WHERE s.usuario_id = u.id) AS ultimo_acceso
      FROM usuarios u JOIN funcionarios f ON f.usuario_id = u.id JOIN alcaldias a ON a.id = f.alcaldia_id
+     WHERE u.eliminado_en IS NULL
      ORDER BY u.estado = 'activa' DESC, a.nombre, u.nombre_completo LIMIT 1000`));
   filas.forEach((f) => { f.funciones = f.funciones ? f.funciones.split(',') : []; });
   res.json(filas);
 }));
+
+async function eliminarPorAdmin(req, res, rol) {
+  const id = v.id(req.params.id, rol === 'funcionario' ? 'el funcionario' : 'el ciudadano');
+  if (v.cuerpo(req).confirmar !== 'ELIMINAR') throw peticionInvalida('Escribe ELIMINAR para confirmar');
+  const u = await db.conUsuario(req.usuario.id, (con) => con.uno('SELECT id, rol, eliminado_en FROM usuarios WHERE id = ?', [id]));
+  if (!u || u.rol !== rol || u.eliminado_en) throw noEncontrado(rol === 'funcionario' ? 'El funcionario no existe' : 'El ciudadano no existe');
+  await cuentas.eliminarCuenta(id, { porAdministrador: req.usuario.id });
+  olvidar({ usuarioId: id });
+  log.seguridad('cuenta_eliminada_por_admin', req, { eliminado: id, rol });
+  res.json({ ok: true, mensaje: rol === 'funcionario'
+    ? 'El funcionario se eliminó: se borraron sus datos personales y su correo quedó libre. Sus dictámenes y avisos se conservan.'
+    : 'El ciudadano se eliminó: se borraron sus datos personales y su correo quedó libre. Sus votos siguen siendo anónimos.' });
+}
+
+router.post('/admin/funcionarios/:id/eliminar', asincrono((req, res) => eliminarPorAdmin(req, res, 'funcionario')));
+router.post('/admin/ciudadanos/:id/eliminar', asincrono((req, res) => eliminarPorAdmin(req, res, 'ciudadano')));
 
 router.post('/admin/funcionarios', asincrono(async (req, res) => {
   const b = v.cuerpo(req);
@@ -470,7 +620,7 @@ router.get('/admin/ciudadanos', asincrono(async (req, res) => {
   const alcaldia = v.id(req.query.alcaldia, 'la alcaldía', false);
   const { limite, desplazamiento } = v.pagina(req.query, 50, 200);
   const datos = await db.conUsuario(req.usuario.id, async (con) => {
-    const where = `u.rol = 'ciudadano' AND (? IS NULL OR CONCAT(u.nombre_completo, ' ', u.correo) LIKE ?)
+    const where = `u.rol = 'ciudadano' AND u.eliminado_en IS NULL AND (? IS NULL OR CONCAT(u.nombre_completo, ' ', u.correo) LIKE ?)
                    AND (? IS NULL OR u.estado = ?) AND (? IS NULL OR ut.alcaldia_id = ?)`;
     const params = [q, q, estado, estado, alcaldia, alcaldia];
     const total = await con.uno(`SELECT COUNT(*) AS n FROM usuarios u JOIN ciudadanos c ON c.usuario_id = u.id

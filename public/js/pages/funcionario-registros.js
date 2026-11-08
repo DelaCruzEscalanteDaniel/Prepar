@@ -27,7 +27,7 @@
   function cargarRegistros() {
     var cont = P.$('#registros');
     if (u.funciones.indexOf('revision_registros') < 0) { P.poner(cont, P.html`<div class="mensaje alerta">No tienes asignada la función de Revisión de registros.</div>`); return Promise.resolve(); }
-    P.poner(cont, P.html`<div class="cargando-bloque">Cargando…</div>`);
+    P.poner(cont, P.esqueleto(3));
     return P.get('/api/func/registros' + (P.$('#ver-todos').checked ? '?estatus=todos' : '')).then(function (lista) {
       registros = lista;
       cuenta('registros', lista.filter(function (p) { return p.estatus === 'registrado'; }).length);
@@ -60,7 +60,7 @@
         <p class="texto-2" style="white-space:pre-wrap">${p.descripcion}</p>
         <div class="columna pequeno" style="gap:4px"><span><strong>${P.t('Rubro')}:</strong> ${P.t(p.rubro)}</span>
           <span><strong>${P.t('Costo')}:</strong> ${P.dinero(p.costo_estimado)} · <strong>${P.t('Presupuesto de la colonia')}:</strong> ${P.dinero(p.presupuesto_asignado)}</span>
-          <span><strong>${P.t('Dirección')}:</strong> ${p.calle} ${p.numero || 's/n'}${p.referencias ? ' · ' + p.referencias : ''} ${P.estatus(p.estado_ubicacion)}</span></div>`,
+          <span><strong>${P.t('Dirección')}:</strong> ${p.calle} ${p.numero || 's/n'}${p.codigo_postal ? ', CP ' + p.codigo_postal : ''}${p.referencias ? ' · ' + p.referencias : ''} ${P.estatus(p.estado_ubicacion)}</span></div>`,
       botones: [
         { texto: 'Ocultar o eliminar', clase: 'btn-peligro', accion: function (cerrar) { cerrar(); moderar('proyecto', p.id, 'ocultar', null); } },
         { texto: 'Cerrar', clase: 'btn2' },
@@ -82,7 +82,7 @@
     var cont = P.$('#moderacion');
     if (u.funciones.indexOf('moderacion') < 0) { P.poner(cont, P.html`<div class="mensaje alerta">No tienes asignada la función de Moderación.</div>`); return; }
     var f = P.datosForm(P.$('#filtros-mod'));
-    P.poner(cont, P.html`<div class="cargando-bloque">Cargando…</div>`);
+    P.poner(cont, P.esqueleto(3));
     P.get('/api/func/moderacion' + P.qs(f)).then(function (lista) {
       if (f.tipo === 'idea' && f.estado === 'visible' && !f.q) cuenta('moderacion', lista.length);
       P.poner(cont, lista.length ? lista.map(function (x) {

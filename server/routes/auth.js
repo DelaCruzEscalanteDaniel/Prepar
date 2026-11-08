@@ -390,25 +390,7 @@ router.post('/perfil/eliminar', sesion.requiere(), limiteEliminar, asincrono(asy
   if (b.confirmar !== 'ELIMINAR') throw peticionInvalida('Escribe ELIMINAR para confirmar');
   const fila = await db.conSistema((con) => con.uno('SELECT password_hash FROM usuarios WHERE id = ?', [u.id]));
   if (!fila || pass.length > 72 || !(await hash.comparar(pass, fila.password_hash))) throw peticionInvalida('La contraseña no es correcta');
-  const relleno = await hash.hash(crypto.randomBytes(24).toString('base64url'));
-  await db.conSistema((con) => con.transaccion(async () => {
-    const foto = await con.uno('SELECT foto_archivo_id AS id FROM usuarios WHERE id = ? FOR UPDATE', [u.id]);
-    await con.q(`UPDATE usuarios SET nombre_completo = 'Cuenta eliminada', correo = ?, password_hash = ?, estado = 'desactivada',
-      telefono = NULL, foto_archivo_id = NULL, recibir_correos = FALSE, correo_verificado_en = NULL, eliminado_en = NOW(),
-      intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = ?`, [`eliminada-${u.id}@prepar.invalid`, relleno, u.id]);
-    await con.q(`UPDATE ciudadanos SET genero = 'prefiero_no_decir', fecha_nacimiento = MAKEDATE(YEAR(fecha_nacimiento), 1)
-      WHERE usuario_id = ?`, [u.id]);
-    if (foto && foto.id) {
-      await con.q('UPDATE archivos SET eliminado_en = NOW() WHERE id = ? AND eliminado_en IS NULL', [foto.id]);
-      await con.q('DELETE FROM archivos_contenido WHERE archivo_id = ?', [foto.id]);
-    }
-    await con.q('UPDATE sesiones SET cerrada_en = NOW() WHERE usuario_id = ? AND cerrada_en IS NULL', [u.id]);
-    await con.q('DELETE FROM tokens_recuperacion WHERE usuario_id = ?', [u.id]);
-    await con.q('DELETE FROM tokens_verificacion WHERE usuario_id = ?', [u.id]);
-    await con.q('DELETE FROM notificaciones WHERE usuario_id = ?', [u.id]);
-    await con.q('DELETE FROM correos_salida WHERE usuario_id = ?', [u.id]);
-    await con.q("INSERT INTO bitacora (usuario_id, rol, accion, entidad, entidad_id) VALUES (?, 'ciudadano', 'cuenta_eliminar', 'usuarios', ?)", [u.id, u.id]);
-  }));
+  await require('../lib/cuentas').eliminarCuenta(u.id);
   log.seguridad('cuenta_eliminada', req);
   sesion.olvidar({ usuarioId: u.id });
   sesion.borrarCookie(res);

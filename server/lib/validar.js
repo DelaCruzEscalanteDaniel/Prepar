@@ -1,5 +1,6 @@
 'use strict';
 const { peticionInvalida } = require('./errores');
+const moderacion = require('./moderacion');
 
 const LIMITES = {
   nombre: 50, correo: 50, passwordMin: 8, passwordMax: 64,
@@ -20,7 +21,19 @@ function limpiarTexto(valor, multilinea) {
 
 const largo = (s) => [...s].length;
 
-function texto(valor, { campo, max, min = 0, requerido = true, multilinea = false, letras = 0 } = {}) {
+const RE_CODIGO = [
+  /<\s*[a-z!/?]/i,
+  /(?:java|vb)\s*script\s*:/i,
+  /data\s*:\s*text\/html/i,
+  /\bon[a-z]{3,}\s*=/i,
+  /&#x?[0-9a-f]+;?/i,
+  /&(?:lt|gt|quot|apos);/i,
+  /\$\{[^}]*\}/,
+  /\{\{[^}]*\}\}/,
+];
+function pareceCodigo(s) { return RE_CODIGO.some((re) => re.test(s)); }
+
+function texto(valor, { campo, max, min = 0, requerido = true, multilinea = false, letras = 0, revisar = false } = {}) {
   if (valor === undefined || valor === null || valor === '') {
     if (requerido) throw peticionInvalida(`Escribe ${campo}`);
     return null;
@@ -31,12 +44,16 @@ function texto(valor, { campo, max, min = 0, requerido = true, multilinea = fals
     if (requerido) throw peticionInvalida(`Escribe ${campo}`);
     return null;
   }
+  if (pareceCodigo(s)) throw peticionInvalida(`${mayus(campo)} no puede llevar etiquetas HTML ni código (por ejemplo < > con letras, «javascript:» o «onclick=»)`);
   const n = largo(s);
   if (max && n > max) throw peticionInvalida(`${mayus(campo)} admite hasta ${max} caracteres (escribiste ${n})`);
   if (min && n < min) throw peticionInvalida(`${mayus(campo)} debe tener al menos ${min} caracteres`);
   if (letras) {
     if ((s.match(/\p{L}/gu) || []).length < letras) throw peticionInvalida(`${mayus(campo)} debe tener palabras, no solo números o símbolos`);
     if (/^(.)\1+$/u.test(s.replace(/\s/g, '')) || /(\p{L})\1{4,}/u.test(s)) throw peticionInvalida(`${mayus(campo)} no parece un texto válido`);
+    if (moderacion.tieneGroserias(s)) throw peticionInvalida(`${mayus(campo)} tiene palabras ofensivas o groserías. Escribe de forma respetuosa`);
+    if (moderacion.tieneRepeticiones(s)) throw peticionInvalida(`${mayus(campo)} tiene demasiadas letras o signos repetidos`);
+    if ((multilinea || revisar) && moderacion.pareceSinSentido(s)) throw peticionInvalida(`${mayus(campo)} tiene palabras que no se entienden. Revisa lo que escribiste`);
   }
   return s;
 }
@@ -163,6 +180,7 @@ function nombrePersona(valor, campo = 'el nombre completo') {
   if (palabras.some((p) => !/^[\p{L}\p{M}]+(?:['’-][\p{L}\p{M}]+)*\.?$/u.test(p))) throw peticionInvalida('El nombre tiene signos fuera de lugar');
   if (palabras.filter((p) => (p.match(/\p{L}/gu) || []).length >= 2).length < 2) throw peticionInvalida('Escribe tu nombre y al menos un apellido completos');
   if (/(\p{L})\1{2,}/iu.test(s)) throw peticionInvalida('El nombre no parece válido: tiene letras repetidas');
+  if (moderacion.tieneGroserias(s)) throw peticionInvalida('El nombre no puede llevar groserías');
   return s;
 }
 
@@ -174,6 +192,18 @@ function telefono(valor, requerido = false) {
   const s = String(valor).replace(/[\s()-]/g, '');
   if (!/^\d{10}$/.test(s)) throw peticionInvalida('El teléfono debe tener 10 dígitos');
   if (!/^[2-9]/.test(s) || /^(\d)\1{9}$/.test(s) || /^(0123456789|1234567890|9876543210)$/.test(s)) throw peticionInvalida('El teléfono no es válido');
+  return s;
+}
+
+function codigoPostal(valor, requerido = false) {
+  if (valor === undefined || valor === null || String(valor).trim() === '') {
+    if (requerido) throw peticionInvalida('Escribe el código postal');
+    return null;
+  }
+  const s = String(valor).trim();
+  if (!/^\d{5}$/.test(s)) throw peticionInvalida('El código postal debe tener 5 dígitos');
+  const n = Number(s);
+  if (n < 1000 || n > 16999) throw peticionInvalida('El código postal no es de la Ciudad de México (van del 01000 al 16999)');
   return s;
 }
 
@@ -229,6 +259,6 @@ function busqueda(valor) {
 }
 
 module.exports = {
-  LIMITES, texto, entero, id, decimal, fecha, opcion, booleano, correo, password, contrasenaSegura, nombrePersona,
-  telefono, url, listaIds, coordenadas, cuerpo, pagina, busqueda, limpiarTexto, largo,
+  LIMITES, texto, pareceCodigo, entero, id, decimal, fecha, opcion, booleano, correo, password, contrasenaSegura, nombrePersona,
+  telefono, codigoPostal, url, listaIds, coordenadas, cuerpo, pagina, busqueda, limpiarTexto, largo,
 };

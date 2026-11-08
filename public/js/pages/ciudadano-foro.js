@@ -54,7 +54,7 @@
   function cargar(reiniciar) {
     if (reiniciar) { pagina = 1; cargadas = []; }
     var cont = P.$('#ideas');
-    if (reiniciar) P.poner(cont, P.html`<div class="cargando-bloque">Cargando…</div>`);
+    if (reiniciar) P.poner(cont, P.esqueleto(3));
     var q = filtros();
     q.pagina = pagina;
     return P.get('/api/foro' + P.qs(q)).then(function (d) {
@@ -92,7 +92,7 @@
     boton.setAttribute('aria-expanded', abrir ? 'true' : 'false');
     boton.querySelector('[data-texto]').textContent = abrir ? P.t('Ocultar comentarios') : P.t('Comentar');
     if (!abrir) return;
-    P.poner(hilo, P.html`<div class="cargando-bloque">Cargando…</div>`);
+    P.poner(hilo, P.esqueleto(2, 64));
     P.get('/api/foro/ideas/' + id + '/comentarios').then(function (lista) {
       boton.querySelector('[data-ncom]').textContent = lista.length;
       P.poner(hilo, P.html`${lista.map(function (c) {
@@ -204,6 +204,7 @@
             ap.classList.toggle('apoyada', !!r.apoyada);
             ap.querySelector('[data-texto]').textContent = r.apoyada ? P.t('Apoyada') : P.t('Apoyar');
             ap.querySelector('[data-total]').textContent = r.total_apoyos;
+            if (r.apoyada) { ap.classList.remove('pop'); void ap.offsetWidth; ap.classList.add('pop'); setTimeout(function () { ap.classList.remove('pop'); }, 450); }
           });
         });
         return;
@@ -257,6 +258,8 @@
       var n = leerCosto(e.target.value);
       if (n > 0) e.target.value = dineroCorto(n);
     });
+    var asistente = P.asistenteDireccion(form);
+    P.$('#completar-dir').addEventListener('click', function (e) { asistente.completar(e.currentTarget); });
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var d = P.datosForm(form);
@@ -268,15 +271,17 @@
       else if (!(costo > 0)) err = 'Indica el costo estimado';
       else if (presupuesto && costo > presupuesto) err = P.t('El costo no puede ser mayor que el presupuesto de tu colonia ({m})', { m: dineroCorto(presupuesto) });
       else if (Array.from(d.calle).length < 2) err = 'Escribe la calle';
+      else if (d.codigo_postal && !/^(0[1-9]|1[0-6])\d{3}$/.test(d.codigo_postal)) err = 'El código postal de la Ciudad de México tiene 5 dígitos y va del 01000 al 16999';
       if (err) { P.poner(P.$('#mensaje-proyecto'), P.html`<div class="mensaje error" role="alert">${P.t(err)}</div>`); return; }
       P.poner(P.$('#mensaje-proyecto'), '');
       var cuerpo = {
         titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), categoria: d.categoria || undefined, costo_estimado: costo,
-        calle: d.calle, numero: d.numero || null, referencias: d.referencias || null,
+        calle: d.calle, numero: d.numero || null, codigo_postal: d.codigo_postal || null, referencias: d.referencias || null,
       };
+      if (form.dataset.lat) { cuerpo.latitud = Number(form.dataset.lat); cuerpo.longitud = Number(form.dataset.lon); }
       if (imagenUuid) cuerpo.imagen_uuid = imagenUuid;
       P.accion(P.$('#guardar-proyecto'), function () {
-        return P.post('/api/proyectos', cuerpo, { tiempo: 45000 }).then(function (r) { registrado(r, d, u); return null; });
+        return P.post('/api/proyectos', cuerpo, { tiempo: 45000 }).then(function (r) { registrado(r, d, u); asistente.limpiar(); return null; });
       }, { destino: P.$('#mensaje-proyecto') });
     });
   });

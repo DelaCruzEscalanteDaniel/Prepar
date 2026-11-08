@@ -508,6 +508,7 @@ CREATE TABLE proyectos (
   calle                  VARCHAR(100)  NOT NULL,
   numero                 VARCHAR(10)   NULL,
   referencias            VARCHAR(100)  NULL,
+  codigo_postal          CHAR(5)       NULL CHECK (codigo_postal IS NULL OR codigo_postal REGEXP '^[0-9]{5}$'),
   latitud                DECIMAL(9,6)  NULL,
   longitud               DECIMAL(9,6)  NULL,
   estado_ubicacion       VARCHAR(10) NOT NULL DEFAULT 'pendiente' CHECK (estado_ubicacion IN ('pendiente', 'ubicado', 'no_ubicado', 'corregido')),
@@ -702,6 +703,31 @@ CREATE TABLE avances_proyecto (
   CONSTRAINT fk_av_funcionario FOREIGN KEY (funcionario_id) REFERENCES funcionarios(usuario_id),
   CONSTRAINT ck_av_valores     CHECK (porcentaje BETWEEN 0 AND 100 AND monto_ejercido >= 0),
   CONSTRAINT ck_av_inejecutable CHECK (estatus <> 'inejecutable' OR COALESCE(TRIM(justificacion_inejecutable), '') <> '')
+);
+
+CREATE TABLE etapas_rubro (
+  id         SMALLINT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  rubro_id   SMALLINT      NULL,
+  orden      TINYINT       NOT NULL,
+  nombre_es  VARCHAR(80)   NOT NULL,
+  nombre_en  VARCHAR(80)   NOT NULL,
+  peso       DECIMAL(5,2)  NOT NULL,
+  UNIQUE KEY uk_etapa_orden (rubro_id, orden),
+  CONSTRAINT fk_etapa_rubro FOREIGN KEY (rubro_id) REFERENCES rubros(id) ON DELETE CASCADE,
+  CONSTRAINT ck_etapa_peso  CHECK (peso > 0 AND peso <= 100 AND orden > 0)
+);
+
+CREATE TABLE etapas_proyecto (
+  proyecto_id    BIGINT        NOT NULL,
+  etapa_id       SMALLINT      NOT NULL,
+  evidencia      VARCHAR(250)  NOT NULL,
+  usuario_id     INT           NULL,
+  cumplida_en    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (proyecto_id, etapa_id),
+  CONSTRAINT fk_ep_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ep_etapa    FOREIGN KEY (etapa_id) REFERENCES etapas_rubro(id),
+  CONSTRAINT fk_ep_usuario  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT ck_ep_evidencia CHECK (COALESCE(TRIM(evidencia), '') <> '')
 );
 
 CREATE TABLE reportes (
@@ -2626,6 +2652,34 @@ INSERT INTO rubros (nombre_es, nombre_en, descripcion) VALUES
    'Obras de infraestructura y servicios para la comunidad.'),
   ('Actividades recreativas, deportivas y culturales', 'Recreational, sports and cultural activities',
    'Talleres, eventos y equipamiento recreativo, deportivo y cultural.');
+
+INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso)
+SELECT r.id, e.orden, e.nombre_es, e.nombre_en, e.peso FROM rubros r JOIN (
+  SELECT 'Mejoramiento de espacios públicos' AS rubro, 1 AS orden, 'Planeación y permisos' AS nombre_es, 'Planning and permits' AS nombre_en, 10 AS peso
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 2, 'Compra de materiales o contratación', 'Materials purchase or contracting', 20
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 3, 'Preparación del sitio', 'Site preparation', 15
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 4, 'Trabajos principales', 'Main works', 35
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 5, 'Detalles finales y limpieza', 'Finishing touches and cleanup', 10
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 6, 'Entrega a los vecinos', 'Handover to residents', 10
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 1, 'Proyecto ejecutivo y permisos', 'Detailed design and permits', 15
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 2, 'Licitación o contratación', 'Tender or contracting', 15
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 3, 'Inicio de obra', 'Construction start', 10
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 4, 'Obra al 50 %', 'Works 50 % done', 25
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 5, 'Obra terminada', 'Works finished', 25
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 6, 'Pruebas y entrega', 'Testing and handover', 10
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 1, 'Planeación y calendario', 'Planning and schedule', 15
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 2, 'Contratación de instructores o compra de equipo', 'Hiring instructors or buying equipment', 25
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 3, 'Difusión con los vecinos', 'Outreach to residents', 10
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 4, 'Actividades en curso', 'Activities under way', 35
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 5, 'Cierre y evaluación', 'Closing and evaluation', 15
+) e ON e.rubro = r.nombre_es;
+
+INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso) VALUES
+  (NULL, 1, 'Planeación y permisos', 'Planning and permits', 15),
+  (NULL, 2, 'Contratación o compras', 'Contracting or purchases', 20),
+  (NULL, 3, 'Inicio de los trabajos', 'Work start', 15),
+  (NULL, 4, 'Trabajos principales', 'Main works', 35),
+  (NULL, 5, 'Entrega a los vecinos', 'Handover to residents', 15);
 
 INSERT INTO criterios_dictamen (clave, orden, nombre_es, nombre_en, descripcion) VALUES
   ('viabilidad_tecnica',       1, 'Viabilidad técnica',    'Technical feasibility',     'El proyecto puede realizarse técnicamente en el sitio propuesto.'),

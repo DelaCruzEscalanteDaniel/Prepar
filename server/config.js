@@ -59,6 +59,7 @@ module.exports = {
   },
   cookieSegura: env.COOKIE_SEGURA ? env.COOKIE_SEGURA === 'true' : produccion,
   confiarProxy: entero(env.CONFIAR_PROXY, produccion ? 1 : 0),
+  verificacionGoogle: (env.GOOGLE_VERIFICACION || '').trim().replace(/^.*\//, ''),
   google: {
     clientId: (env.GOOGLE_CLIENT_ID || '').trim(),
     clientSecret: (env.GOOGLE_CLIENT_SECRET || '').trim(),

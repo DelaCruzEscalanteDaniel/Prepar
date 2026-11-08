@@ -116,9 +116,11 @@ test('cuerpos malformados, enormes o con tipo equivocado', async () => {
   assert.equal(pag.status, 404);
 });
 
-test('inyección SQL y XSS se guardan como texto, sin efecto', async () => {
+test('inyección SQL se guarda como texto sin efecto y el HTML se rechaza', async () => {
   const c = visitantes.ciudadano;
-  const texto = "<img src=x onerror=alert(1)> '; DROP TABLE ideas; --";
+  const html = await c.post('/api/foro/ideas', { rubro_id: 1, contenido: "<img src=x onerror=alert(1)> '; DROP TABLE ideas; --" });
+  assert.equal(html.estado, 400, 'el HTML o código se rechaza');
+  const texto = "Calle #5 & [norte] > 3 $; '; DROP TABLE ideas; --";
   const r = await c.post('/api/foro/ideas', { rubro_id: 1, contenido: texto });
   assert.equal(r.estado, 201);
   const foro = await c.get(`/api/foro?q=${encodeURIComponent("' OR 1=1 --")}`);

@@ -14,7 +14,7 @@ function preguntar(rl, texto) {
   try {
     if (!nombre) nombre = await preguntar(rl, 'Nombre completo: ');
     if (!correo) correo = await preguntar(rl, 'Correo: ');
-    if (!pass) pass = await preguntar(rl, 'Contraseña (8 a 24 caracteres): ');
+    if (!pass) pass = await preguntar(rl, 'Contraseña (8 a 64, con mayúscula y número): ');
     nombre = v.nombrePersona(nombre);
     correo = v.correo(correo);
     pass = v.password(pass);

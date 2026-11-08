@@ -6,8 +6,9 @@ const v = require('../lib/validar');
 const { asincrono, limitador } = require('../lib/seguridad');
 const { requiere, requiereFuncion } = require('../lib/sesion');
 const { cicloActivo, ESTATUS_GANADOR } = require('../lib/comun');
+const etapasObra = require('../lib/etapas');
 const { peticionInvalida, noEncontrado, conflicto, prohibido } = require('../lib/errores');
-const { geocodificar } = require('../lib/geocodificar');
+const { geocodificar, sugerirDirecciones, direccionDePunto } = require('../lib/geocodificar');
 
 const router = express.Router();
 const soloFuncionario = requiere('funcionario');
@@ -44,7 +45,9 @@ router.get('/func/panel', soloFuncionario, asincrono(async (req, res) => {
       `SELECT
          (SELECT COUNT(*) FROM ciclo_unidades cu JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
            WHERE cu.ciclo_id = ? AND ut.alcaldia_id = ?
-             AND NOT EXISTS (SELECT 1 FROM sorteos s WHERE s.ciclo_id = cu.ciclo_id AND s.unidad_territorial_id = cu.unidad_territorial_id)) AS sorteos_pendientes,
+             AND NOT EXISTS (SELECT 1 FROM sorteos s WHERE s.ciclo_id = cu.ciclo_id AND s.unidad_territorial_id = cu.unidad_territorial_id)
+            AND EXISTS (SELECT 1 FROM proyectos px WHERE px.ciclo_id = cu.ciclo_id AND px.unidad_territorial_id = cu.unidad_territorial_id
+                          AND px.estatus <> 'retirado' AND px.estado_moderacion = 'visible')) AS sorteos_pendientes,
          (SELECT COUNT(*) FROM resultados_unidad ru JOIN unidades_territoriales ut ON ut.id = ru.unidad_territorial_id
            WHERE ru.ciclo_id = ? AND ut.alcaldia_id = ? AND ru.caso_especial IS NOT NULL AND ru.proyecto_ganador_id IS NULL) AS casos,
          (SELECT COUNT(*) FROM reportes re JOIN proyectos p ON p.id = re.proyecto_id
@@ -71,7 +74,7 @@ router.get('/func/registros', soloFuncionario, requiereFuncion('revision_registr
     const ciclo = await cicloActivo(con);
     if (!ciclo) return [];
     return con.q(
-      `SELECT p.id, p.folio, p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado, p.calle, p.numero, p.referencias,
+      `SELECT p.id, p.folio, p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado, p.calle, p.numero, p.referencias, p.codigo_postal,
               p.estatus, p.estado_ubicacion, p.creado_en, p.actualizado_en, ut.nombre AS unidad_territorial, us.nombre_completo AS proponente,
               cu.presupuesto_asignado,
               (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid,
@@ -164,7 +167,7 @@ router.get('/func/dictamenes', soloFuncionario, requiereFuncion('dictaminacion')
   const datos = await db.conUsuario(u.id, async (con) => {
     const ciclo = await cicloActivo(con);
     if (!ciclo) return { ciclo: null, pendientes: [], emitidos: [] };
-    const base = `SELECT p.id, p.folio, p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado, p.calle, p.numero, p.referencias,
+    const base = `SELECT p.id, p.folio, p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado, p.calle, p.numero, p.referencias, p.codigo_postal,
                          p.estatus, ut.nombre AS unidad_territorial, cu.presupuesto_asignado,
                          (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid,
                          d.id AS dictamen_id, d.resultado, d.justificacion, d.emitido_en
@@ -245,7 +248,9 @@ router.get('/func/sorteos', soloFuncionario, requiereFuncion('dictaminacion'), a
               (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id
                  AND p.estatus IN ('viable', 'en_consulta') AND p.estado_moderacion = 'visible') AS viables,
               (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id
-                 AND p.estatus IN ('registrado', 'en_dictaminacion') AND p.estado_moderacion = 'visible') AS sin_dictamen
+                 AND p.estatus IN ('registrado', 'en_dictaminacion') AND p.estado_moderacion = 'visible') AS sin_dictamen,
+              (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = cu.ciclo_id AND p.unidad_territorial_id = ut.id
+                 AND p.estatus <> 'retirado' AND p.estado_moderacion = 'visible') AS proyectos
        FROM ciclo_unidades cu JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
        LEFT JOIN sorteos s ON s.ciclo_id = cu.ciclo_id AND s.unidad_territorial_id = ut.id
        WHERE cu.ciclo_id = ? AND ut.alcaldia_id = ? ORDER BY ut.nombre`, [ciclo.id, u.alcaldiaId]);
@@ -257,11 +262,12 @@ router.get('/func/sorteos', soloFuncionario, requiereFuncion('dictaminacion'), a
       `SELECT p.unidad_territorial_id, p.folio, p.titulo FROM proyectos p JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
        WHERE p.ciclo_id = ? AND ut.alcaldia_id = ? AND p.estatus IN ('viable', 'en_consulta') AND p.estado_moderacion = 'visible'
        ORDER BY p.folio`, [ciclo.id, u.alcaldiaId]);
-    unidades.forEach((x) => {
+    const conProyectos = unidades.filter((x) => Number(x.proyectos) > 0 || x.realizado_en);
+    conProyectos.forEach((x) => {
       x.boleta = boletas.filter((b) => b.unidad_territorial_id === x.id);
       x.proyectos_viables = viables.filter((b) => b.unidad_territorial_id === x.id);
     });
-    return { ciclo: { id: ciclo.id, fase: ciclo.fase }, unidades };
+    return { ciclo: { id: ciclo.id, fase: ciclo.fase }, unidades: conProyectos, sin_proyectos: unidades.length - conProyectos.length };
   });
   res.json(datos);
 }));
@@ -320,7 +326,7 @@ router.get('/func/ubicaciones', soloFuncionario, asincrono(async (req, res) => {
     const ciclo = await cicloActivo(con);
     if (!ciclo) return [];
     return con.q(
-      `SELECT p.id, p.folio, p.titulo, p.calle, p.numero, p.referencias, p.latitud, p.longitud, p.estado_ubicacion, p.estatus, p.rubro_id, p.categoria,
+      `SELECT p.id, p.folio, p.titulo, p.calle, p.numero, p.referencias, p.codigo_postal, p.latitud, p.longitud, p.estado_ubicacion, p.estatus, p.rubro_id, p.categoria,
               ut.id AS unidad_territorial_id, ut.nombre AS unidad_territorial, ut.latitud AS ut_latitud, ut.longitud AS ut_longitud
        FROM proyectos p JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
        WHERE p.ciclo_id = ? AND ut.alcaldia_id = ? AND p.estatus <> 'retirado' AND p.estado_moderacion = 'visible'
@@ -365,6 +371,59 @@ router.post('/geocodificar', requiere(), limiteGeo, asincrono(async (req, res) =
   res.json(g ? { encontrado: true, latitud: g.latitud, longitud: g.longitud, direccion: g.direccion } : { encontrado: false });
 }));
 
+function sinAcentos(s) { return String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+
+async function lugarDe(u) {
+  return db.conSistema((con) => (u.unidadId
+    ? con.uno('SELECT ut.nombre AS colonia, a.id AS alcaldia_id, a.nombre AS alcaldia FROM unidades_territoriales ut JOIN alcaldias a ON a.id = ut.alcaldia_id WHERE ut.id = ?', [u.unidadId])
+    : con.uno('SELECT NULL AS colonia, a.id AS alcaldia_id, a.nombre AS alcaldia FROM alcaldias a WHERE a.id = ?', [u.alcaldiaId || 0])));
+}
+
+router.get('/direcciones/locales', requiere(), limiteGeo, asincrono(async (req, res) => {
+  const q = v.texto(req.query.q, { campo: 'la búsqueda', max: 60, min: 2 });
+  const lugar = await lugarDe(req.usuario);
+  if (!lugar) return res.json([]);
+  const filas = await db.conSistema((con) => con.q(
+    `SELECT p.calle, MAX(p.codigo_postal) AS codigo_postal, ut.nombre AS colonia, COUNT(*) AS veces
+     FROM proyectos p JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+     WHERE ut.alcaldia_id = ? AND p.calle LIKE ? AND p.estado_moderacion = 'visible'
+     GROUP BY p.calle, ut.nombre ORDER BY (ut.nombre = ?) DESC, veces DESC, p.calle LIMIT 8`,
+    [lugar.alcaldia_id, `%${q.replace(/[\\%_]/g, (m) => `\\${m}`)}%`, lugar.colonia || '']));
+  res.json(filas.map((f) => ({ calle: f.calle, codigo_postal: f.codigo_postal, colonia: f.colonia })));
+}));
+
+router.post('/direcciones/buscar', requiere(), limiteGeo, asincrono(async (req, res) => {
+  const b = v.cuerpo(req);
+  const calle = v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2, letras: 2 });
+  const numero = v.texto(b.numero, { campo: 'el número', max: L.numero, requerido: false });
+  const cp = v.codigoPostal(b.codigo_postal);
+  const lugar = await lugarDe(req.usuario);
+  const base = `${calle}${numero && !/^s\/?n$/i.test(numero) ? ` ${numero}` : ''}`;
+  const intentos = [
+    `${base}, ${cp ? `${cp}, ` : ''}${lugar && lugar.colonia ? `${lugar.colonia}, ` : ''}${lugar ? `${lugar.alcaldia}, ` : ''}Ciudad de México`,
+    `${base}, ${cp ? `${cp}, ` : ''}${lugar ? `${lugar.alcaldia}, ` : ''}Ciudad de México`,
+    `${base}, Ciudad de México`,
+  ];
+  let lista = [];
+  for (const q of [...new Set(intentos)]) {
+    lista = await sugerirDirecciones(q);
+    if (lista.length) break;
+  }
+  const alc = lugar ? sinAcentos(lugar.alcaldia) : '';
+  res.json({
+    disponible: lista.length > 0 || require('../config').geocodificacion,
+    sugerencias: lista.map((x) => ({ ...x, numero: x.numero || numero || null, codigo_postal: x.codigo_postal || cp || null,
+      en_tu_alcaldia: !!alc && sinAcentos(`${x.alcaldia} ${x.texto}`).includes(alc) })),
+  });
+}));
+
+router.post('/direcciones/punto', requiere(), limiteGeo, asincrono(async (req, res) => {
+  const b = v.cuerpo(req);
+  const c = v.coordenadas(b.latitud, b.longitud, true);
+  const d = await direccionDePunto(c.latitud, c.longitud);
+  res.json(d ? { encontrado: true, ...d } : { encontrado: false });
+}));
+
 router.get('/func/seguimiento', soloFuncionario, requiereFuncion('seguimiento'), asincrono(async (req, res) => {
   const u = req.usuario;
   const filas = await db.conUsuario(u.id, async (con) => {
@@ -380,26 +439,71 @@ router.get('/func/seguimiento', soloFuncionario, requiereFuncion('seguimiento'),
        JOIN ciclo_unidades cu ON cu.ciclo_id = p.ciclo_id AND cu.unidad_territorial_id = p.unidad_territorial_id
        WHERE p.ciclo_id = ? AND ut.alcaldia_id = ? AND p.estatus IN (?) ORDER BY p.folio`,
       [ciclo.id, u.alcaldiaId, ESTATUS_GANADOR]);
+    const etapas = await etapasObra.etapasDeVarios(con, proyectos.map((p) => p.id));
+    for (const p of proyectos) {
+      p.etapas = etapas.get(Number(p.id)) || [];
+      p.avance_financiero = etapasObra.avanceFinanciero(p.monto_ejercido, p.costo_estimado, p.presupuesto_asignado);
+      p.alerta_gasto = etapasObra.alerta(p.avance_porcentaje, p.avance_financiero);
+    }
     return { ciclo: { id: ciclo.id, fase: ciclo.fase, fase_orden: ciclo.fase_orden }, proyectos };
   });
   res.json(filas);
 }));
 
+async function obraBloqueada(con, id, alcaldiaId) {
+  const p = await con.uno(
+    `SELECT p.id, p.estatus, p.monto_ejercido, ut.alcaldia_id FROM proyectos p
+     JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id WHERE p.id = ? FOR UPDATE`, [id]);
+  if (!p) throw noEncontrado('El proyecto no existe');
+  if (Number(p.alcaldia_id) !== Number(alcaldiaId)) throw prohibido('El proyecto no es de tu alcaldía');
+  if (!ESTATUS_GANADOR.includes(p.estatus)) throw conflicto('Solo se registra avance de proyectos ganadores');
+  return p;
+}
+
 router.post('/func/seguimiento/:id/avance', soloFuncionario, requiereFuncion('seguimiento'), asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
-  const porcentaje = v.decimal(b.porcentaje, { campo: 'el porcentaje de avance', min: 0, max: 100 });
   const monto = v.decimal(b.monto_ejercido, { campo: 'el monto ejercido', min: 0 });
   const estatus = v.opcion(b.estatus, ESTATUS_GANADOR, { campo: 'el estatus' });
   const nota = v.texto(b.nota, { campo: 'la nota para los vecinos', max: L.nota, requerido: false, letras: 3, multilinea: true });
   const justif = estatus === 'inejecutable'
     ? v.texto(b.justificacion_inejecutable, { campo: 'la justificación de por qué es inejecutable', max: L.justificacion, min: 10, letras: 6, multilinea: true })
     : null;
-  if (estatus === 'concluido' && porcentaje < 100) throw peticionInvalida('Un proyecto concluido debe tener 100 % de avance');
-  await db.conUsuario(req.usuario.id, (con) => con.transaccion(() => con.q(
-    `INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota, justificacion_inejecutable)
-     VALUES (?, ?, ?, ?, ?, ?)`, [id, porcentaje, monto, estatus, nota, justif])));
+  await db.conUsuario(req.usuario.id, (con) => con.transaccion(async () => {
+    await obraBloqueada(con, id, req.usuario.alcaldiaId);
+    const porcentaje = etapasObra.porcentaje(await etapasObra.etapasDe(con, id));
+    if (estatus === 'concluido' && porcentaje < 100) throw peticionInvalida('Para marcar el proyecto como concluido deben estar cumplidas todas sus etapas');
+    await con.q(
+      `INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota, justificacion_inejecutable)
+       VALUES (?, ?, ?, ?, ?, ?)`, [id, porcentaje, monto, estatus, nota, justif]);
+  }));
   res.json({ ok: true, mensaje: 'El avance se registró y ya lo pueden ver los vecinos' });
+}));
+
+router.post('/func/seguimiento/:id/etapa', soloFuncionario, requiereFuncion('seguimiento'), asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el proyecto');
+  const b = v.cuerpo(req);
+  const etapaId = v.id(b.etapa_id, 'la etapa');
+  const evidencia = v.texto(b.evidencia, { campo: 'la evidencia de la etapa', max: L.nota, min: 10, letras: 6, multilinea: true });
+  const r = await db.conUsuario(req.usuario.id, (con) => con.transaccion(async () => {
+    const p = await obraBloqueada(con, id, req.usuario.alcaldiaId);
+    if (p.estatus === 'concluido') throw conflicto('El proyecto ya está concluido');
+    if (p.estatus === 'inejecutable') throw conflicto('El proyecto se declaró inejecutable');
+    const etapas = await etapasObra.etapasDe(con, id);
+    const etapa = etapas.find((e) => e.id === etapaId);
+    if (!etapa) throw peticionInvalida('Esa etapa no corresponde a este proyecto');
+    if (etapa.cumplida_en) throw conflicto('Esa etapa ya está marcada como cumplida');
+    const siguiente = etapas.find((e) => !e.cumplida_en);
+    if (siguiente.id !== etapaId) throw conflicto(`Las etapas se cumplen en orden: primero marca «${siguiente.nombre_es}»`);
+    await con.q('INSERT INTO etapas_proyecto (proyecto_id, etapa_id, evidencia, usuario_id) VALUES (?, ?, ?, ?)', [id, etapaId, evidencia, req.usuario.id]);
+    etapa.cumplida_en = new Date();
+    const porcentaje = etapasObra.porcentaje(etapas);
+    const estatus = porcentaje >= 100 ? 'concluido' : 'en_ejecucion';
+    await con.q('INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus, nota) VALUES (?, ?, ?, ?, ?)',
+      [id, porcentaje, p.monto_ejercido, estatus, evidencia]);
+    return { porcentaje, estatus };
+  }));
+  res.json({ ok: true, ...r, mensaje: r.estatus === 'concluido' ? 'Se cumplieron todas las etapas: el proyecto quedó concluido' : 'La etapa se marcó como cumplida y ya la pueden ver los vecinos' });
 }));
 
 router.get('/func/reportes', soloFuncionario, requiereFuncion('seguimiento'), asincrono(async (req, res) => {
@@ -506,7 +610,7 @@ router.get('/avisos', personal, asincrono(async (req, res) => {
 
 router.post('/avisos', personal, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  const titulo = v.texto(b.titulo, { campo: 'el título del aviso', max: L.avisoTitulo, min: 3, letras: 3 });
+  const titulo = v.texto(b.titulo, { campo: 'el título del aviso', max: L.avisoTitulo, min: 3, letras: 3, revisar: true });
   const mensaje = v.texto(b.mensaje, { campo: 'el mensaje', max: L.avisoMensaje, min: 5, letras: 5, multilinea: true });
   let alcaldia = null;
   if (req.usuario.rol === 'funcionario') {

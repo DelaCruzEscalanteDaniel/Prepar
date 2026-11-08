@@ -50,6 +50,12 @@ const PASOS = [
       ADD CONSTRAINT ck_usuarios_telefono CHECK (telefono IS NULL OR telefono REGEXP '^[0-9]{10}$')`),
   },
   {
+    nombre: 'código postal de proyectos (proyectos.codigo_postal)',
+    falta: async (con) => !(await existeColumna(con, 'proyectos', 'codigo_postal')),
+    aplicar: (con) => con.q(`ALTER TABLE proyectos ADD COLUMN codigo_postal CHAR(5) NULL AFTER referencias,
+      ADD CONSTRAINT ck_proyectos_cp CHECK (codigo_postal IS NULL OR codigo_postal REGEXP '^[0-9]{5}$')`),
+  },
+  {
     nombre: 'vigencia de avisos (avisos.vigente_hasta)',
     falta: async (con) => !(await existeColumna(con, 'avisos', 'vigente_hasta')),
     aplicar: (con) => con.q('ALTER TABLE avisos ADD COLUMN vigente_hasta DATE NULL'),
@@ -156,6 +162,19 @@ const PASOS = [
         }
         await repartirOficial(con, c.id);
       });
+    },
+  },
+  {
+    nombre: 'avance de obra por etapas (tablas etapas_rubro y etapas_proyecto)',
+    falta: async (con) => !(await existeTabla(con, 'etapas_proyecto')),
+    aplicar: async (con) => {
+      if (!(await existeTabla(con, 'etapas_rubro'))) {
+        await con.q(sentenciaDelScript('CREATE TABLE etapas_rubro'));
+        await con.q(sentenciaDelScript('INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso)'));
+        await con.q(sentenciaDelScript('INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso) VALUES'));
+      }
+      await con.q(sentenciaDelScript('CREATE TABLE etapas_proyecto'));
+      await require('./etapas').rellenarAnteriores(con);
     },
   },
 ];

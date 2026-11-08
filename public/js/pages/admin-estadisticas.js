@@ -74,7 +74,7 @@
         }),
       },
       options: {
-        responsive: true, maintainAspectRatio: false, animation: { duration: 300 },
+        responsive: true, maintainAspectRatio: false, animation: { duration: 800, easing: 'easeOutCubic' },
         layout: { padding: { top: 18 } },
         plugins: {
           legend: { labels: { color: c.texto, font: { family: 'Public Sans' } }, display: series.length > 1 || tipoG === 'pie' },

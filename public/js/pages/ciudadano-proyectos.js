@@ -25,7 +25,7 @@
         <div class="fila">${P.estatus(p.estatus)}${p.estado_moderacion && p.estado_moderacion !== 'visible' ? P.estatus(p.estado_moderacion) : ''}</div></div>
       ${p.imagen_uuid ? P.html`<img class="miniatura" src="${P.img(p.imagen_uuid)}" alt="Imagen del proyecto" loading="lazy">` : ''}
       <div class="texto texto-2">${p.descripcion}</div>
-      <div class="meta"><span>${P.t(p.rubro)}</span><span>${P.dinero(p.costo_estimado)}</span>${p.calle ? P.html`<span>${p.calle} ${p.numero || ''}</span>` : ''}
+      <div class="meta"><span>${P.t(p.rubro)}</span><span>${P.dinero(p.costo_estimado)}</span>${p.calle ? P.html`<span>${p.calle} ${p.numero || ''}${p.codigo_postal ? ', CP ' + p.codigo_postal : ''}</span>` : ''}
         ${p.numero_sorteo ? P.html`<span class="etq acento">${P.t('Número en boleta: {n}', { n: p.numero_sorteo })}</span>` : ''}
         ${mio && p.estado_ubicacion ? P.estatus(p.estado_ubicacion) : ''}</div>
       ${p.correccion && p.estatus === 'registrado' ? P.html`<div class="mensaje alerta"><span><strong>Corrección solicitada:</strong> ${p.correccion}</span></div>` : ''}
@@ -36,27 +36,57 @@
   }
 
   var misProyectos = [];
+  var asistente = null;
   function cargarMios() {
     var cont = P.$('#mis-proyectos');
-    P.poner(cont, P.html`<div class="cargando-bloque">Cargando…</div>`);
+    P.poner(cont, P.esqueleto(3));
     return P.get('/api/proyectos/mios').then(function (lista) {
       misProyectos = lista;
       P.poner(cont, lista.length ? lista.map(function (p) { return tarjetaProyecto(p, true); })
         : P.html`<div class="vacio">Aún no registras proyectos. ${faseRegistro ? P.html`<button type="button" class="enlace-boton" data-ir="registrar">Registra el primero</button>` : ''}</div>`);
     }, function (e) { P.poner(cont, P.html`<p class="mensaje error">${e.message}</p>`); });
   }
+  var datosAlcaldia = null;
+  var coloniaSel = '';
+  function pintarAlcaldia() {
+    var d = datosAlcaldia;
+    var cont = P.$('#proyectos-unidad');
+    if (!d.colonias.length) { P.poner(P.$('#filtro-alcaldia'), ''); P.poner(cont, P.html`<p class="vacio">${P.t('Tu alcaldía no participa en el ciclo activo.')}</p>`); return; }
+    var sel = d.colonias.find(function (c) { return String(c.id) === coloniaSel; });
+    var lista = d.proyectos.filter(function (p) { return !coloniaSel || String(p.unidad_territorial_id) === coloniaSel; });
+    P.poner(P.$('#filtro-alcaldia'), P.html`<div class="tarjeta columna" style="gap:10px">
+      <div class="fila entre"><h2 class="h2-maq" style="margin:0;font-size:19px">${P.t('Proyectos de {a}', { a: d.alcaldia })}</h2>
+        <label style="flex:0 1 320px">${P.t('Colonia')}<select id="sel-colonia"><option value="">${P.t('Todas las colonias ({n})', { n: d.colonias.length })}</option>${d.colonias.map(function (c) {
+          return P.html`<option value="${c.id}" ${String(c.id) === coloniaSel ? P.seguro('selected') : ''}>${c.nombre}${c.id === d.mi_colonia ? ' · ' + P.t('tu colonia') : ''} (${c.proyectos})</option>`;
+        })}</select></label></div>
+      <p class="tenue" style="margin:0;font-size:14px">${sel ? P.t('Presupuesto de {c}: {p}. Cada colonia tiene su propio presupuesto y vota solo por los proyectos de su boleta.', { c: sel.nombre, p: P.dinero(sel.presupuesto_asignado) })
+        : P.t('El presupuesto se reparte por colonia: cada una tiene su monto y vota solo por sus proyectos. Elige una colonia para ver su presupuesto.')}</p></div>`);
+    P.poner(cont, lista.length ? lista.map(function (p) {
+      var col = d.colonias.find(function (c) { return c.id === p.unidad_territorial_id; });
+      return P.html`<article class="item">
+        <div class="fila entre arriba"><div class="crece"><span class="tenue pequeno">${p.folio} · ${p.colonia}${p.de_mi_colonia ? ' · ' + P.t('tu colonia') : ''}</span><h3 style="margin:2px 0 0">${p.titulo}</h3></div>
+          <div class="fila">${p.es_mio ? P.html`<span class="etq acento">${P.t('Tu proyecto')}</span>` : ''}${P.estatus(p.estatus)}</div></div>
+        ${p.imagen_uuid ? P.html`<img class="miniatura" src="${P.img(p.imagen_uuid)}" alt="Imagen del proyecto" loading="lazy">` : ''}
+        <div class="texto texto-2">${p.descripcion}</div>
+        <div class="meta"><span>${P.t(p.rubro)}</span><span>${P.t('Costo {c}', { c: P.dinero(p.costo_estimado) })}</span>${col ? P.html`<span>${P.t('Presupuesto de la colonia {p}', { p: P.dinero(col.presupuesto_asignado) })}</span>` : ''}
+          ${p.numero_sorteo ? P.html`<span class="etq acento">${P.t('Número en boleta: {n}', { n: p.numero_sorteo })}</span>` : ''}</div>
+      </article>`;
+    }) : P.html`<p class="vacio">${P.t(coloniaSel ? 'Todavía no hay proyectos registrados en esta colonia' : 'Todavía no hay proyectos registrados en tu alcaldía')}</p>`);
+  }
   function cargarUnidad() {
     var cont = P.$('#proyectos-unidad');
-    P.poner(cont, P.html`<div class="cargando-bloque">Cargando…</div>`);
-    return P.get('/api/proyectos/unidad').then(function (lista) {
-      P.poner(cont, lista.length ? lista.map(function (p) { return tarjetaProyecto(p, false); }) : P.html`<p class="vacio">Todavía no hay proyectos registrados en tu colonia</p>`);
-    }, function (e) { P.poner(cont, P.html`<p class="mensaje error">${e.message}</p>`); });
+    P.poner(cont, P.esqueleto(3));
+    return P.get('/api/proyectos/alcaldia').then(function (d) { datosAlcaldia = d; pintarAlcaldia(); },
+      function (e) { P.poner(cont, P.html`<p class="mensaje error">${e.message}</p>`); });
   }
+  document.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'sel-colonia') { coloniaSel = e.target.value; pintarAlcaldia(); }
+  });
 
   function iniciarMapa() {
     mapa = P.mapa(P.$('#mapa-form'), { centro: centroUnidad || undefined, zoom: centroUnidad ? 15 : 11 });
     if (!mapa) return;
-    mapa.on('click', function (e) { fijarPunto(e.latlng.lat, e.latlng.lng); });
+    mapa.on('click', function (e) { fijarPunto(e.latlng.lat, e.latlng.lng); if (asistente && punto) asistente.desdePunto(punto.latitud, punto.longitud); });
     P.simbologia(mapa, [{ titulo: '', filas: [{ color: '#E08E6D', glifo: 'punto', texto: 'Tu proyecto: toca el mapa o arrastra el punto' }] }], { abierta: true });
     if (punto) fijarPunto(punto.latitud, punto.longitud, true);
   }
@@ -81,6 +111,7 @@
   }
 
   function limpiarForm() {
+    if (asistente) asistente.limpiar();
     var f = P.$('#form-proyecto');
     f.reset();
     P.$$('input, textarea', f).forEach(function (x) { x.dispatchEvent(new Event('input')); });
@@ -101,7 +132,7 @@
     limpiarForm();
     editando = p;
     var f = P.$('#form-proyecto');
-    ['titulo', 'descripcion', 'rubro_id', 'costo_estimado', 'calle', 'numero', 'referencias'].forEach(function (k) {
+    ['titulo', 'descripcion', 'rubro_id', 'costo_estimado', 'calle', 'numero', 'codigo_postal', 'referencias'].forEach(function (k) {
       var el = f.querySelector('[name=' + k + ']');
       if (el) { el.value = p[k] === null || p[k] === undefined ? '' : p[k]; el.dispatchEvent(new Event('input')); }
     });
@@ -161,17 +192,8 @@
     P.$('#quitar-imagen').addEventListener('click', function () { imagenUuid = null; quitarImagen = true; pintarPrevia(null); });
     P.$('#quitar-punto').addEventListener('click', quitarPunto);
     P.$('#cancelar-edicion').addEventListener('click', function () { limpiarForm(); pestana('mios'); });
-    P.$('#buscar-dir').addEventListener('click', function (e) {
-      var f = P.datosForm(P.$('#form-proyecto'));
-      if (!f.calle) { P.aviso('Escribe primero la calle', 'error'); return; }
-      var dir = f.calle + (f.numero ? ' ' + f.numero : '') + ', ' + (ctx.usuario.unidad || '') + ', ' + (ctx.usuario.alcaldia || '');
-      P.accion(e.currentTarget, function () {
-        return P.post('/api/geocodificar', { direccion: dir }).then(function (r) {
-          if (r.encontrado) fijarPunto(r.latitud, r.longitud, true);
-          else P.aviso('No encontramos la dirección. Marca el punto en el mapa', 'error');
-        });
-      });
-    });
+    asistente = P.asistenteDireccion(P.$('#form-proyecto'), { alElegir: function (lat, lon) { fijarPunto(lat, lon, true); } });
+    P.$('#completar-dir').addEventListener('click', function (e) { asistente.completar(e.currentTarget); });
 
     var form = P.$('#form-proyecto');
     form.addEventListener('submit', function (e) {
@@ -183,10 +205,11 @@
       else if (!d.rubro_id) err = 'Elige el rubro';
       else if (!(Number(d.costo_estimado) > 0)) err = 'Indica el costo estimado';
       else if (Array.from(d.calle).length < 2) err = 'Escribe la calle';
+      else if (d.codigo_postal && !/^(0[1-9]|1[0-6])\d{3}$/.test(d.codigo_postal)) err = 'El código postal de la Ciudad de México tiene 5 dígitos y va del 01000 al 16999';
       if (err) { P.poner(P.$('#mensaje-proyecto'), P.html`<div class="mensaje error" role="alert">${P.t(err)}</div>`); return; }
       var cuerpo = {
         titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), categoria: d.categoria || undefined, costo_estimado: Number(d.costo_estimado),
-        calle: d.calle, numero: d.numero || null, referencias: d.referencias || null,
+        calle: d.calle, numero: d.numero || null, codigo_postal: d.codigo_postal || null, referencias: d.referencias || null,
         latitud: punto ? punto.latitud : null, longitud: punto ? punto.longitud : null,
       };
       if (imagenUuid) cuerpo.imagen_uuid = imagenUuid;
