@@ -33,7 +33,7 @@
       var lng = esSel && punto ? punto.longitud : p.longitud;
       if (lat === null || lat === undefined) return;
       var e = EST[p.estado_ubicacion] || EST.pendiente;
-      var m = window.L.marker([Number(lat), Number(lng)], { icon: P.iconoPin(P.colorCategoria(p), esSel, P.glifoCategoria(p)), title: p.titulo + ' · ' + P.t(e[0]), alt: p.titulo, zIndexOffset: esSel ? 1000 : 0, draggable: esSel && moviendo });
+      var m = window.L.marker([Number(lat), Number(lng)], { icon: P.iconoPin(P.colorRubro(p), esSel), title: p.titulo + ' · ' + P.t(e[0]), alt: p.titulo, zIndexOffset: esSel ? 1000 : 0, draggable: esSel && moviendo });
       m.on('click', function () { if (!moviendo) elegir(p.id); });
       if (esSel) m.on('dragend', function (ev) { var ll = ev.target.getLatLng(); colocar(ll.lat, ll.lng); });
       m.addTo(capa);
@@ -80,8 +80,6 @@
   function cargar() {
     return P.get('/api/func/ubicaciones').then(function (d) {
       lista = d;
-      var ubicados = lista.filter(function (x) { return x.latitud !== null; });
-      simbologia.poner([P.filasCategorias(ubicados.length ? ubicados : null)]);
       var antes = sel && sel.id;
       sel = null;
       if (antes) elegir(antes);
@@ -99,7 +97,7 @@
     mapa = P.mapa(P.$('#mapa-func'), { zoom: 13 });
     if (mapa) {
       capa = window.L.layerGroup().addTo(mapa);
-      simbologia = P.simbologia(mapa, [P.filasCategorias()]);
+      simbologia = P.simbologia(mapa, [P.filasRubros()]);
       mapa.on('click', function (e) { if (moviendo && sel) colocar(e.latlng.lat, e.latlng.lng); });
       var alc = ctx.usuario.alcaldiaId;
       P.catalogos().then(function (cat) {

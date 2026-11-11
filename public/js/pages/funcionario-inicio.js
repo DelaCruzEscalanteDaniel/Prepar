@@ -64,12 +64,6 @@
     var h = new Date().getHours();
     return h < 12 ? 'Buenos días, {n}' : (h < 19 ? 'Buenas tardes, {n}' : 'Buenas noches, {n}');
   }
-  function haceDias(s) {
-    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(s || '');
-    if (!m) return null;
-    var d = Math.floor((Date.now() - new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])).getTime()) / 86400000);
-    return Math.max(0, d);
-  }
   function cargarAvisos() {
     return P.get('/api/avisos').then(function (lista) {
       P.poner(P.$('#avisos'), lista.length ? lista.slice(0, 6).map(function (a) {
@@ -89,7 +83,6 @@
     P.$('#sub-inicio').textContent = P.t('Esto es lo que tienes pendiente en {a}. Empieza por lo marcado como prioridad.', { a: u.alcaldia });
     P.poner(P.$('#alcance'), P.html`<option value="mi_alcaldia">${u.alcaldia}</option><option value="todas">${P.t('Todas las alcaldías')}</option>`);
     P.$('#vigente').min = P.hoy();
-    P.$('#dir-enlace').textContent = P.t('Editar datos de {a}', { a: u.alcaldia });
     var form = P.$('#form-aviso');
     form.addEventListener('submit', function (e) {
       e.preventDefault();
@@ -115,10 +108,6 @@
     });
     cargarAvisos();
     return P.get('/api/func/panel').then(function (d) {
-      var dir = d.directorio;
-      var dias = dir && haceDias(dir.ultima);
-      P.$('#dir-fecha').textContent = dias === null || dias === undefined ? P.t('Aún no hay datos capturados')
-        : (dias === 0 ? P.t('Última actualización: hoy') : P.t('Última actualización: hace {n} días', { n: dias }));
       if (!d.ciclo) { P.poner(P.$('#tareas'), P.html`<div class="mensaje info" style="grid-column:1/-1">No hay un ciclo activo. Cuando el Administrador active uno verás aquí tus pendientes.</div>`); return; }
       var c = d.conteos || {};
       var fase = d.ciclo.fase;

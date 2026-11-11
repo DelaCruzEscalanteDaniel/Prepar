@@ -24,7 +24,26 @@ function sentenciaDelScript(inicio) {
   return null;
 }
 
+function bloqueDelScript(inicio) {
+  const sql = fs.readFileSync(path.join(__dirname, '..', '..', 'bd', 'prepar_bd_mysql.sql'), 'utf8');
+  const i = sql.indexOf(inicio);
+  if (i < 0) throw new Error(`No se encontró «${inicio}» en el script de la base`);
+  const j = sql.indexOf('END$$', i);
+  return sql.slice(i, j + 3);
+}
+
+const DEMO_IMG = `SELECT {sel} FROM archivos WHERE categoria = 'imagen_proyecto' AND eliminado_en IS NULL
+  AND nombre_original REGEXP '^proyecto-[0-9]+[.]png$' AND ancho_px = 480 AND alto_px = 300 AND tipo_mime = 'image/png'`;
+
 const PASOS = [
+  {
+    nombre: 'edición de ideas y comentarios del foro (ideas.editada_en, comentarios_idea.editado_en)',
+    falta: async (con) => !(await existeColumna(con, 'ideas', 'editada_en')) || !(await existeColumna(con, 'comentarios_idea', 'editado_en')),
+    aplicar: async (con) => {
+      if (!(await existeColumna(con, 'ideas', 'editada_en'))) await con.q('ALTER TABLE ideas ADD COLUMN editada_en DATETIME NULL AFTER creada_en');
+      if (!(await existeColumna(con, 'comentarios_idea', 'editado_en'))) await con.q('ALTER TABLE comentarios_idea ADD COLUMN editado_en DATETIME NULL AFTER creado_en');
+    },
+  },
   {
     nombre: 'modo del simulador (ciclos.tipo y ciclos.pausado_en)',
     falta: async (con) => !(await existeColumna(con, 'ciclos', 'tipo')),
@@ -139,32 +158,6 @@ const PASOS = [
     aplicar: (con) => con.q(sentenciaDelScript("INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUES\n  ('2.0'")),
   },
   {
-    nombre: 'ciclo oficial con el monto y el calendario publicados (Gaceta Oficial e IECM)',
-    falta: async (con) => {
-      const { PP_2026 } = require('./datosOficiales');
-      const c = await con.uno("SELECT id, presupuesto_total FROM ciclos WHERE tipo = 'oficial' AND nombre = ? AND estado <> 'cerrado' AND votacion_abierta = FALSE LIMIT 1", [PP_2026.nombre]);
-      if (!c) return false;
-      const fases = await con.q("SELECT f.clave, DATE_FORMAT(cf.fecha_inicio, '%Y-%m-%d') AS ini, DATE_FORMAT(cf.fecha_fin, '%Y-%m-%d') AS fin FROM ciclo_fases cf JOIN fases f ON f.id = cf.fase_id WHERE cf.ciclo_id = ?", [c.id]);
-      const distinta = Object.entries(PP_2026.fases).some(([k, [ini, fin]]) => !fases.some((f) => f.clave === k && f.ini === ini && f.fin === fin));
-      const suma = await con.uno('SELECT COALESCE(SUM(presupuesto_asignado), 0) AS s FROM ciclo_unidades WHERE ciclo_id = ?', [c.id]);
-      return distinta || Number(c.presupuesto_total) === 1500000000 || Math.abs(Number(suma.s) - Number(c.presupuesto_total)) > 1;
-    },
-    aplicar: async (con) => {
-      const { PP_2026, repartirOficial } = require('./datosOficiales');
-      const c = await con.uno("SELECT id FROM ciclos WHERE tipo = 'oficial' AND nombre = ? AND estado <> 'cerrado' AND votacion_abierta = FALSE LIMIT 1", [PP_2026.nombre]);
-      const catalogo = await con.q('SELECT id, clave FROM fases');
-      await con.transaccion(async () => {
-        for (const f of catalogo) {
-          const r = PP_2026.fases[f.clave];
-          if (!r) continue;
-          await con.q(`INSERT INTO ciclo_fases (ciclo_id, fase_id, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)
-            ON DUPLICATE KEY UPDATE fecha_inicio = VALUES(fecha_inicio), fecha_fin = VALUES(fecha_fin)`, [c.id, f.id, r[0], r[1]]);
-        }
-        await repartirOficial(con, c.id);
-      });
-    },
-  },
-  {
     nombre: 'avance de obra por etapas (tablas etapas_rubro y etapas_proyecto)',
     falta: async (con) => !(await existeTabla(con, 'etapas_proyecto')),
     aplicar: async (con) => {
@@ -175,6 +168,28 @@ const PASOS = [
       }
       await con.q(sentenciaDelScript('CREATE TABLE etapas_proyecto'));
       await require('./etapas').rellenarAnteriores(con);
+    },
+  },
+  {
+    nombre: 'solo ciclos de práctica (el ciclo oficial pasa a práctica)',
+    falta: async (con) => (await existeColumna(con, 'ciclos', 'tipo')) && !!(await con.uno("SELECT 1 AS si FROM ciclos WHERE tipo = 'oficial' LIMIT 1")),
+    aplicar: (con) => con.q("UPDATE ciclos SET tipo = 'practica' WHERE tipo = 'oficial'"),
+  },
+  {
+    nombre: 'quitar las imágenes de ejemplo de los proyectos de demostración',
+    falta: async (con) => !!(await con.uno(DEMO_IMG.replace('{sel}', '1 AS si') + ' LIMIT 1')),
+    aplicar: (con) => con.q(DEMO_IMG.replace('SELECT {sel} FROM', 'UPDATE').replace('WHERE', 'SET eliminado_en = NOW() WHERE')),
+  },
+  {
+    nombre: 'foro por alcaldía (apoyar y comentar ideas de otras colonias de la misma alcaldía)',
+    falta: async (con) => !(await con.uno(
+      "SELECT 1 AS si FROM information_schema.ROUTINES WHERE ROUTINE_SCHEMA = DATABASE() AND ROUTINE_NAME = 'sp_validar_ciudadano_alcaldia'")),
+    aplicar: async (con) => {
+      await con.q(bloqueDelScript('CREATE PROCEDURE sp_validar_ciudadano_alcaldia'));
+      await con.q('DROP TRIGGER IF EXISTS tg_comentarios_idea_bi');
+      await con.q(bloqueDelScript('CREATE TRIGGER tg_comentarios_idea_bi'));
+      await con.q('DROP TRIGGER IF EXISTS tg_apoyos_bi');
+      await con.q(bloqueDelScript('CREATE TRIGGER tg_apoyos_bi'));
     },
   },
 ];
@@ -189,17 +204,6 @@ async function migrar() {
     } catch (e) {
       log.error(`No se pudo actualizar la base (${p.nombre}): ${e.message}. Corre "npm run bd:instalar" para reinstalarla.`);
     }
-  }
-  try {
-    const categorias = require('./categorias');
-    await categorias.refrescar(true);
-    await db.conSistema(async (con) => {
-      const filas = await con.q(`SELECT p.id, p.titulo, p.descripcion FROM proyectos p JOIN ciclos c ON c.id = p.ciclo_id
-                                 WHERE c.estado = 'activo' AND p.categoria IS NULL`);
-      for (const p of filas) await con.q('UPDATE proyectos SET categoria = ? WHERE id = ?', [categorias.adivinar(p.titulo, p.descripcion), p.id]);
-    });
-  } catch (e) {
-    log.error(`No se pudo asignar el tipo a proyectos anteriores: ${e.message}`);
   }
   if (hechos.length) log.info(`Base de datos actualizada automáticamente: ${hechos.join(', ')}`);
   return hechos;

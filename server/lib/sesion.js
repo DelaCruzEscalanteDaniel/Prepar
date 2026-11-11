@@ -61,7 +61,7 @@ function normalizarPerfil(p) {
     fechaNacimiento: p.fecha_nacimiento || null,
     alcaldiaId: p.funcionario_alcaldia_id || p.ciudadano_alcaldia_id || null,
     alcaldia: p.alcaldia || null,
-    funciones: p.funciones ? String(p.funciones).split(',') : [],
+    funciones: p.funciones ? String(p.funciones).split(',').filter((f) => f !== 'directorio') : [],
     debeCambiarPassword: p.rol === 'funcionario' && !!p.debe_cambiar_password,
     debeAceptarTerminos: !!p.terminos_vigente && p.terminos_version !== p.terminos_vigente,
     terminosVigentes: p.terminos_vigente || null,
@@ -160,7 +160,7 @@ function requiereFuncion(funcion) {
 }
 
 const NOMBRES_FUNCION = {
-  directorio: 'Directorio', moderacion: 'Moderación', revision_registros: 'Revisión de registros',
+  moderacion: 'Moderación', revision_registros: 'Revisión de registros',
   dictaminacion: 'Dictaminación', consulta: 'Consulta', seguimiento: 'Seguimiento',
 };
 

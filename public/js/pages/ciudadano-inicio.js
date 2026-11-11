@@ -60,32 +60,13 @@
     }
   }
 
-  function recorrido(d, fases, fin) {
-    var c = d.ciclo;
-    var o = c ? c.fase_orden : 0;
-    var f = function (n) { return fases.find(function (x) { return x.orden === n; }) || {}; };
-    var idea = d.miIdea || { ideas: 0, apoyos: 0 };
-    var proy = d.misProyectos || [];
-    var cierra = fin ? P.t('Ahora · cierra el {f}', { f: P.fechaLarga(fin) }) : P.t('Ahora');
-    var pasos = [
-      { t: 'Crear tu cuenta', d: P.t('Listo'), s: 2 },
-      idea.ideas ? { t: 'Proponer una idea en el foro', d: P.t('Listo · {n} apoyos', { n: idea.apoyos }), s: 2 }
-        : { t: 'Proponer una idea en el foro', d: o === 2 ? cierra : (o > 2 ? P.t('No propusiste ideas') : P.t('Fase 2 · foro vecinal')), s: o === 2 ? 1 : 0 },
-      proy.length ? { t: 'Registrar tu proyecto', d: P.t('Listo · folio {f}', { f: proy[0].folio }), s: 2 }
-        : { t: 'Registrar tu proyecto', d: o === 2 ? cierra : (o > 2 ? P.t('No registraste proyecto') : P.t('Fase 2 · con su dirección y costo')), s: o === 2 ? 1 : 0 },
-      d.voto ? { t: 'Votar en la consulta', d: P.t('Listo · comprobante {f}', { f: d.voto.folio_comprobante }), s: 2 }
-        : { t: 'Votar en la consulta', d: o === 5 ? cierra : P.t('Fase 5 · {r}', { r: rango(f(5)) || P.t('Consulta') }), s: o === 5 ? 1 : 0 },
-      { t: 'Vigilar la obra ganadora', d: o >= 7 ? P.t('Ahora · sube fotos del avance') : P.t('Fase 7 · subir fotos del avance'), s: o >= 7 ? 1 : 0 },
-    ];
-    return pasos.map(function (p, i) {
-      return P.html`<div class="paso-rec s${p.s}"><span class="bola">${p.s === 2 ? '✓' : i + 1}</span>
-        <span class="columna" style="gap:0"><strong>${p.t}</strong><span class="tenue" style="font-size:12px">${p.d}</span></span></div>`;
-    });
-  }
-
   P.pagina(function (ctx) {
     var u = ctx.usuario;
-    P.$('#saludo').textContent = P.t('Hola, {n}', { n: u.nombre.split(' ')[0] });
+    var nombre = u.nombre.split(' ')[0];
+    var saludo = 'Bienvenida o bienvenido, ' + nombre;
+    if (u.genero === 'mujer') saludo = 'Bienvenida, ' + nombre;
+    if (u.genero === 'hombre') saludo = 'Bienvenido, ' + nombre;
+    P.$('#saludo').textContent = saludo;
     if (P.param('bienvenida') === '1') {
       P.poner(P.$('#bienvenida'), u.debeVerificarCorreo ? '' : P.html`<div class="mensaje ok" role="status">${P.t('¡Tu cuenta quedó lista! Ya puedes participar en el simulador.')}</div>`);
     }
@@ -101,7 +82,6 @@
         <div class="fila" style="gap:10px;margin-top:4px">${sp.a.map(function (a, i) {
           return i === 0 ? P.html`<a class="btn" href="${a[0]}">${a[1]}</a>` : P.html`<a href="${a[0]}" class="enlace-sp">${a[1]}</a>`;
         })}${sp.a.length < 2 && c ? P.html`<a href="#linea" class="enlace-sp">¿Qué sigue después?</a>` : ''}</div>`);
-      P.poner(P.$('#recorrido'), recorrido(d, fases, fin));
       var sel = activa || 1;
       var pintarLinea = function () {
         P.poner(P.$('#linea-fases'), fases.map(function (f) {

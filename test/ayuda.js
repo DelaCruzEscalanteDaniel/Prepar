@@ -3,7 +3,6 @@ process.env.DB_NAME = process.env.DB_NAME_PRUEBA || 'prepar_prueba';
 process.env.LOG_SILENCIO = 'true';
 process.env.GEOCODIFICACION = 'false';
 process.env.TAREAS_PROGRAMADAS = 'false';
-process.env.CAPTCHA = 'true';
 process.env.VERIFICAR_CORREO = 'true';
 process.env.LIMITES_FACTOR = process.env.LIMITES_FACTOR || '100';
 
@@ -34,10 +33,6 @@ function cliente() {
   async function pedir(metodo, ruta, cuerpo, opciones = {}) {
     if (!opciones.crudo && metodo === 'POST' && ruta === '/api/auth/registro' && cuerpo && typeof cuerpo === 'object' && !Buffer.isBuffer(cuerpo)) {
       cuerpo = { confirmar: cuerpo.password, acepta_terminos: true, ...cuerpo };
-    }
-    if (!opciones.crudo && metodo === 'POST' && ['/api/auth/registro', '/api/auth/login', '/api/auth/recuperar'].includes(ruta)
-      && cuerpo && typeof cuerpo === 'object' && !Buffer.isBuffer(cuerpo) && cuerpo.captcha_id === undefined) {
-      cuerpo = { ...(await captchaResuelto()), ...cuerpo };
     }
     const r = await pedirCrudo(metodo, ruta, cuerpo, opciones);
     if (!opciones.crudo && metodo === 'POST' && ruta === '/api/auth/login' && r.estado === 200 && r.datos && r.datos.debeAceptarTerminos) {
@@ -88,11 +83,6 @@ async function tokenVerificacion(correo) {
   return m ? m[1] : null;
 }
 
-async function captchaResuelto() {
-  const r = await fetch(`${base}/api/captcha`, { headers: { 'X-Prepar': '1' } });
-  const { id } = await r.json();
-  return { captcha_id: id, captcha: require('../server/lib/captcha')._respuesta(id) };
-}
 
 async function crearAdmin(correo = 'admin@prepar.mx', pass = 'Admin12345') {
   const hash = await bcrypt.hash(pass, 4);
@@ -141,4 +131,4 @@ function jpegFalso(ancho = 640, alto = 480) {
 
 const olvidarSesiones = () => require('../server/lib/sesion').olvidar();
 module.exports = {
-  captchaResuelto, tokenVerificacion, iniciar, detener, cliente, crearAdmin, png, jpegFalso, db, olvidarSesiones, get base() { return base; } };
+  tokenVerificacion, iniciar, detener, cliente, crearAdmin, png, jpegFalso, db, olvidarSesiones, get base() { return base; } };

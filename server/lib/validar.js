@@ -106,6 +106,17 @@ function fecha(valor, { campo = 'la fecha', requerido = true } = {}) {
   return valor;
 }
 
+function fechaCorta(f) {
+  const [a, m, d] = String(f).split('-');
+  return `${d}/${m}/${a}`;
+}
+
+function rangoFechas(desde, hasta, { inicial = 'la fecha inicial', final = 'la fecha final' } = {}) {
+  if (desde && hasta && hasta < desde) {
+    throw peticionInvalida(`${mayus(final)} (${fechaCorta(hasta)}) no puede ser anterior a ${inicial} (${fechaCorta(desde)})`);
+  }
+}
+
 function opcion(valor, lista, { campo = 'la opción', requerido = true } = {}) {
   if (valor === undefined || valor === null || valor === '') {
     if (requerido) throw peticionInvalida(`Elige ${campo}`);
@@ -259,6 +270,6 @@ function busqueda(valor) {
 }
 
 module.exports = {
-  LIMITES, texto, pareceCodigo, entero, id, decimal, fecha, opcion, booleano, correo, password, contrasenaSegura, nombrePersona,
+  LIMITES, texto, pareceCodigo, entero, id, decimal, fecha, fechaCorta, rangoFechas, opcion, booleano, correo, password, contrasenaSegura, nombrePersona,
   telefono, codigoPostal, url, listaIds, coordenadas, cuerpo, pagina, busqueda, limpiarTexto, largo,
 };

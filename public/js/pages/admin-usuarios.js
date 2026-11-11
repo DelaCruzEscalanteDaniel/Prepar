@@ -142,8 +142,7 @@
               ? P.html`<div role="status" class="caja-ok">${P.t('{n} quedó registrado. Se está enviando su contraseña temporal a su correo.', { n: d.nombre })}
                 <span class="texto-2" style="font-weight:400">${P.t('Si el correo no llega, entrégale esta contraseña temporal (solo se muestra una vez):')} <code data-sin-traducir style="user-select:all">${r.passwordTemporal}</code></span></div>`
               : P.html`<div role="status" class="mensaje alerta"><span><strong>${P.t('{n} quedó registrado, pero el correo no se envió', { n: d.nombre })}</strong>
-                ${P.t('porque el envío de correos aún no está configurado. Entrégale tú esta contraseña temporal (solo se muestra una vez):')} <code data-sin-traducir style="user-select:all;font-size:16px">${r.passwordTemporal}</code>
-                <br><a href="/admin/integraciones.html#correo">${P.t('Configurar el envío de correos')}</a></span></div>`);
+                ${P.t('porque el envío de correos aún no está configurado. Entrégale tú esta contraseña temporal (solo se muestra una vez):')} <code data-sin-traducir style="user-select:all;font-size:16px">${r.passwordTemporal}</code></span></div>`);
           } else P.poner(P.$('#ok-func'), P.html`<div role="status" class="caja-ok">${P.t('Los cambios de {n} se guardaron.', { n: f.nombre_completo })}</div>`);
           return null;
         });

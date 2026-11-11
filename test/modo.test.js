@@ -110,86 +110,9 @@ test('con la votación abierta no se puede cambiar de ciclo', async () => {
   ok(await e.admin.post(`/api/admin/ciclos/${e.a}/votacion`, { accion: 'cerrar' }));
 });
 
-test('modo oficial: se carga con el calendario del IECM y su fase sigue la fecha', async () => {
-  falla(await e.admin.post('/api/admin/modo', { modo: 'oficial' }), 409, 'sin ciclo oficial');
-  const r = await e.admin.post('/api/admin/modo/cargar-oficial');
-  ok(r, 'cargar oficial');
-  e.of = r.datos.id;
-  const otra = await e.admin.post('/api/admin/modo/cargar-oficial');
-  ok(otra);
-  assert.equal(otra.datos.id, e.of, 'no se duplica');
-  const n = await A.db.conSistema((con) => con.uno("SELECT COUNT(*) AS n FROM ciclos WHERE tipo = 'oficial'"));
-  assert.equal(n.n, 1);
-
-  const m = await e.admin.get('/api/admin/modo');
-  const modo = require('../server/lib/modo');
-  const esperada = await A.db.conSistema((con) => modo.faseSegunFecha(con, e.of));
-  assert.equal(m.datos.oficiales[0].fase_hoy, esperada);
-
-  ok(await e.admin.post('/api/admin/modo', { modo: 'oficial' }), 'activar oficial');
-  const of = await cicloEnBd(e.of);
-  assert.equal(of.estado, 'activo');
-  assert.equal(of.tipo, 'oficial');
-  assert.equal(of.fase, esperada);
-  falla(await e.admin.post(`/api/admin/ciclos/${e.of}/fase`, { fase: 'convocatoria' }), 409, 'el oficial no se mueve a mano');
-  const u = await A.db.conSistema((con) => con.uno('SELECT COUNT(*) AS n, SUM(presupuesto_asignado IS NULL) AS sin FROM ciclo_unidades WHERE ciclo_id = ?', [e.of]));
-  assert.ok(u.n > 0);
-  assert.equal(Number(u.sin), 0, 'todas las colonias con presupuesto');
-
-  ok(await e.admin.post('/api/admin/modo', { modo: 'practica', ciclo_id: e.a }), 'regresar a práctica');
-  assert.equal((await cicloEnBd(e.a)).fase, 'consulta');
-});
-
-test('ciclo oficial: monto del Decreto de Presupuesto repartido por alcaldía y calendario del IECM', async () => {
-  const { PP_2026 } = require('../server/lib/datosOficiales');
-  const porAlc = () => A.db.conSistema((con) => con.q(
-    `SELECT a.clave, SUM(cu.presupuesto_asignado) AS suma, COUNT(*) AS n, MIN(cu.presupuesto_asignado) AS minimo
-     FROM ciclo_unidades cu JOIN unidades_territoriales u ON u.id = cu.unidad_territorial_id JOIN alcaldias a ON a.id = u.alcaldia_id
-     WHERE cu.ciclo_id = ? GROUP BY a.clave`, [e.of]));
-  const revisar = async () => {
-    const filas = await porAlc();
-    assert.ok(filas.length > 0);
-    let esperado = 0;
-    for (const f of filas) {
-      assert.equal(Number(f.suma), PP_2026.porAlcaldia[f.clave], `suma exacta de ${f.clave}`);
-      assert.ok(Number(f.minimo) >= Math.floor(PP_2026.porAlcaldia[f.clave] * 0.5 / Number(f.n)), `50 % en partes iguales en ${f.clave}`);
-      esperado += PP_2026.porAlcaldia[f.clave];
-    }
-    const c = await A.db.conSistema((con) => con.uno('SELECT presupuesto_total, porcentaje_partes_iguales FROM ciclos WHERE id = ?', [e.of]));
-    assert.equal(Number(c.presupuesto_total), esperado, 'el total es la suma oficial de las alcaldías participantes');
-    assert.equal(Number(c.porcentaje_partes_iguales), 50);
-  };
-  await revisar();
-  const fases = await A.db.conSistema((con) => con.q(
-    "SELECT f.clave, DATE_FORMAT(cf.fecha_inicio, '%Y-%m-%d') AS ini, DATE_FORMAT(cf.fecha_fin, '%Y-%m-%d') AS fin FROM ciclo_fases cf JOIN fases f ON f.id = cf.fase_id WHERE cf.ciclo_id = ?", [e.of]));
-  for (const [k, [ini, fin]] of Object.entries(PP_2026.fases)) assert.ok(fases.some((f) => f.clave === k && f.ini === ini && f.fin === fin), k);
-  assert.equal(Object.values(PP_2026.porAlcaldia).reduce((x, y) => x + y, 0), PP_2026.monto, 'las 16 alcaldías suman el monto del artículo 17');
-
-  falla(await e.admin.put(`/api/admin/ciclos/${e.of}`, { nombre: 'Otro nombre', anio_simulado: 2026, presupuesto_total: 1 }), 409, 'nombre y monto oficiales no se editan');
-  const m = await e.admin.get('/api/admin/modo');
-  assert.equal(m.datos.montoOficial, PP_2026.monto);
-
-  await A.db.conSistema(async (con) => {
-    await con.q('UPDATE ciclos SET presupuesto_total = 1500000000 WHERE id = ?', [e.of]);
-    await con.q('UPDATE ciclo_unidades SET presupuesto_asignado = 1 WHERE ciclo_id = ?', [e.of]);
-    await con.q("UPDATE ciclo_fases cf JOIN fases f ON f.id = cf.fase_id SET cf.fecha_fin = '2026-02-26' WHERE cf.ciclo_id = ? AND f.clave = 'diagnostico_registro'", [e.of]);
-  });
-  const hechos = await require('../server/lib/migraciones').migrar();
-  assert.ok(hechos.some((h) => /ciclo oficial/.test(h)), 'la migración corrige un ciclo oficial creado con datos anteriores');
-  await revisar();
-  assert.deepEqual(await require('../server/lib/migraciones').migrar(), [], 'y no vuelve a aplicarse');
-});
-
-test('fase según la fecha y calendario de práctica', async () => {
+test('calendario de práctica', async () => {
   const modo = require('../server/lib/modo');
   const ini = require('../server/lib/ciclosIniciales');
-  const f = (fecha) => A.db.conSistema((con) => modo.faseSegunFecha(con, e.of, fecha));
-  assert.equal(await f('2025-12-01'), 'convocatoria', 'antes de empezar: la primera');
-  assert.equal(await f('2026-01-20'), 'convocatoria');
-  assert.equal(await f('2026-02-01'), 'diagnostico_registro');
-  assert.equal(await f('2026-04-25'), 'consulta');
-  assert.equal(await f('2030-01-01'), 'evaluacion', 'después de terminar: la última');
-  assert.equal(await A.db.conSistema((con) => modo.faseSegunFecha(con, 999999)), null);
   assert.match(modo.hoyLocal(), /^\d{4}-\d{2}-\d{2}$/);
 
   const hoy = new Date(2026, 9, 31);
@@ -207,17 +130,13 @@ test('fase según la fecha y calendario de práctica', async () => {
 test('ciclos iniciales: no se duplican y la limpieza no toca ciclos usados', async () => {
   const ini = require('../server/lib/ciclosIniciales');
   const roto = await A.db.conSistema((con) => con.q(
-    "INSERT INTO ciclos (nombre, anio_simulado, presupuesto_total, estado) VALUES (?, 2026, 1, 'borrador')", [ini.OFICIAL.nombre]));
+    "INSERT INTO ciclos (nombre, anio_simulado, presupuesto_total, estado) VALUES (?, 2026, 1, 'borrador')", [ini.PRACTICA.nombre]));
   await ini.asegurar();
   await ini.asegurar();
-  const q = await A.db.conSistema((con) => con.q('SELECT id, tipo FROM ciclos WHERE nombre = ?', [ini.OFICIAL.nombre]));
-  assert.equal(q.length, 1, 'se borró el borrador incompleto repetido');
-  assert.equal(q[0].id, e.of);
-  assert.ok(!q.some((c) => c.id === roto.insertId));
+  const q = await A.db.conSistema((con) => con.q('SELECT id, tipo FROM ciclos WHERE nombre = ?', [ini.PRACTICA.nombre]));
+  assert.ok(!q.some((c) => c.id === roto.insertId), 'se borró el borrador incompleto');
   assert.ok(await A.db.conSistema((con) => con.uno('SELECT id FROM ciclos WHERE id = ?', [e.a])), 'los ciclos del Administrador siguen ahí');
   assert.ok(await A.db.conSistema((con) => con.uno('SELECT id FROM ciclos WHERE id = ?', [e.b])));
-  assert.equal((await activos()).n, 1);
-  await require('../server/lib/modo').avanzarOficial();
   assert.equal((await activos()).n, 1);
 });
 
@@ -225,18 +144,16 @@ test('rutas del modo: solo el Administrador, y nunca 500 con datos basura', asyn
   const anon = A.cliente();
   falla(await anon.get('/api/admin/modo'), 401);
   falla(await anon.post('/api/admin/modo', { modo: 'oficial' }), 401);
-  falla(await anon.post('/api/admin/modo/cargar-oficial'), 401);
   const c = A.cliente();
   ok(await c.post('/api/auth/registro', {
     nombre: 'Vecina de Prueba', correo: 'vecina.modo@correo.mx', password: 'Prepar2026', fecha_nacimiento: '1990-01-01', genero: 'mujer', unidad_territorial_id: CLAVERIA, acepta_aviso: true,
   }));
   falla(await c.get('/api/admin/modo'), 403);
   falla(await c.post('/api/admin/modo', { modo: 'practica', ciclo_id: e.b }), 403);
-  falla(await c.post('/api/admin/modo/cargar-oficial'), 403);
 
   const basura = [
     {}, { modo: 'x' }, { modo: null }, { modo: ['oficial'] }, { modo: { $ne: 1 } }, { modo: 'practica' }, { modo: 'practica', ciclo_id: 'abc' },
-    { modo: 'practica', ciclo_id: -1 }, { modo: 'practica', ciclo_id: 1e30 }, { modo: 'practica', ciclo_id: e.of }, { modo: 'practica', ciclo_id: 999999 },
+    { modo: 'practica', ciclo_id: -1 }, { modo: 'practica', ciclo_id: 1e30 }, { modo: 'practica', ciclo_id: 999998 }, { modo: 'practica', ciclo_id: 999999 },
     { modo: 'oficial', ciclo_id: e.a }, { modo: 'oficial', ciclo_id: "1' OR '1'='1" }, { modo: 'practica', ciclo_id: { a: 1 } }, { modo: 'x'.repeat(100000) },
   ];
   for (const b of basura) {
@@ -268,7 +185,7 @@ test('cambios de ciclo simultáneos dejan un solo ciclo activo', async () => {
 test('la contraseña temporal no se guarda en la cola si no hay correo, y se oculta tras enviarse', async () => {
   const correo = require('../server/lib/correo');
   assert.equal(correo.configurado(), false);
-  const r = await e.admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Modo', correo: 'func.modo@prepar.mx', alcaldia_id: AZC, funciones: ['directorio'] });
+  const r = await e.admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Modo', correo: 'func.modo@prepar.mx', alcaldia_id: AZC, funciones: ['moderacion'] });
   ok(r);
   const fila = await A.db.conSistema((con) => con.uno("SELECT COUNT(*) AS n FROM correos_salida WHERE destinatario = 'func.modo@prepar.mx' AND plantilla = 'contrasena_temporal'"));
   assert.equal(fila.n, 0);

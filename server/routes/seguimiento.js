@@ -1,5 +1,4 @@
 'use strict';
-const { adivinar: adivinarCategoria } = require('../lib/categorias');
 const express = require('express');
 const db = require('../db');
 const v = require('../lib/validar');
@@ -43,7 +42,6 @@ router.get('/mapa/proyectos', conSesion, asincrono(async (req, res) => {
     if (!c) return { ciclo_id: null, proyectos: [] };
     const proyectos = await con.q(
       `SELECT id, folio, ciclo_id, alcaldia_id, alcaldia, unidad_territorial_id, unidad_territorial, titulo, rubro_id, rubro,
-              (SELECT pp.categoria FROM proyectos pp WHERE pp.id = v_ficha_proyecto.id) AS categoria,
               costo_estimado, presupuesto_asignado, latitud, longitud, estado_ubicacion, estatus, numero_sorteo,
               avance_porcentaje, monto_ejercido, total_fotos, calificacion_promedio, imagen_uuid, total_votos
        FROM v_ficha_proyecto
@@ -51,7 +49,6 @@ router.get('/mapa/proyectos', conSesion, asincrono(async (req, res) => {
          AND (? IS NULL OR rubro_id = ?) AND (? IS NULL OR estatus = ?)
        ORDER BY alcaldia, unidad_territorial, folio LIMIT 3000`,
       [c, alcaldia, alcaldia, ut, ut, rubro, rubro, estatus, estatus]);
-    proyectos.forEach((p) => { if (!p.categoria) p.categoria = adivinarCategoria(p.titulo, ''); });
     return { ciclo_id: c, proyectos };
   });
   res.json(datos);

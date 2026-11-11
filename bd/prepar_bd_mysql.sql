@@ -458,6 +458,7 @@ CREATE TABLE ideas (
   total_apoyos           INT          NOT NULL DEFAULT 0,
   estado                 VARCHAR(9) NOT NULL DEFAULT 'visible' CHECK (estado IN ('visible', 'oculto', 'eliminado')),
   creada_en              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editada_en             DATETIME     NULL,
   KEY ix_ideas_foro (ciclo_id, unidad_territorial_id, creada_en),
   CONSTRAINT fk_idea_cu     FOREIGN KEY (ciclo_id, unidad_territorial_id) REFERENCES ciclo_unidades(ciclo_id, unidad_territorial_id),
   CONSTRAINT fk_idea_autor  FOREIGN KEY (autor_id) REFERENCES ciudadanos(usuario_id),
@@ -472,6 +473,7 @@ CREATE TABLE comentarios_idea (
   contenido  VARCHAR(250) NOT NULL,
   estado     VARCHAR(9) NOT NULL DEFAULT 'visible' CHECK (estado IN ('visible', 'oculto', 'eliminado')),
   creado_en  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  editado_en DATETIME     NULL,
   CONSTRAINT fk_ci_idea  FOREIGN KEY (idea_id) REFERENCES ideas(id) ON DELETE CASCADE,
   CONSTRAINT fk_ci_autor FOREIGN KEY (autor_id) REFERENCES ciudadanos(usuario_id),
   CONSTRAINT ck_ci_texto CHECK (COALESCE(TRIM(contenido), '') <> '')
@@ -927,6 +929,18 @@ BEGIN
   END IF;
 END$$
 
+CREATE PROCEDURE sp_validar_ciudadano_alcaldia(IN p_ciclo INT, IN p_ut INT)
+BEGIN
+  CALL sp_validar_ciudadano(p_ciclo, NULL, NULL);
+  IF @usuario_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM ciudadanos ci
+       JOIN unidades_territoriales mia ON mia.id = ci.unidad_territorial_id
+       JOIN unidades_territoriales otra ON otra.id = p_ut
+       WHERE ci.usuario_id = @usuario_id AND mia.alcaldia_id = otra.alcaldia_id) THEN
+    CALL sp_error('Solo puedes participar en el foro de tu alcaldía');
+  END IF;
+END$$
+
 CREATE PROCEDURE sp_requiere_ciclo_activo(IN p_ciclo INT)
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM ciclos WHERE id = p_ciclo AND estado = 'activo') THEN
@@ -1117,7 +1131,7 @@ BEGIN
   SELECT ciclo_id, unidad_territorial_id, estado INTO v_ciclo, v_ut, v_estado FROM ideas WHERE id = NEW.idea_id;
   IF v_estado <> 'visible' THEN CALL sp_error('La idea no está disponible'); END IF;
   SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
-  CALL sp_validar_ciudadano(v_ciclo, v_ut, NULL);
+  CALL sp_validar_ciudadano_alcaldia(v_ciclo, v_ut);
   IF @usuario_id IS NOT NULL THEN SET NEW.estado = 'visible'; END IF;
 END$$
 
@@ -1129,7 +1143,7 @@ BEGIN
   SET NEW.ciudadano_id = COALESCE(NULLIF(NEW.ciudadano_id, 0), @usuario_id);
   IF v_estado <> 'visible' THEN CALL sp_error('La idea no está disponible'); END IF;
   IF v_autor = NEW.ciudadano_id THEN CALL sp_error('No puedes apoyar tu propia idea'); END IF;
-  CALL sp_validar_ciudadano(v_ciclo, v_ut, NULL);
+  CALL sp_validar_ciudadano_alcaldia(v_ciclo, v_ut);
 END$$
 
 CREATE TRIGGER tg_apoyos_ai AFTER INSERT ON apoyos_idea FOR EACH ROW
@@ -2702,14 +2716,30 @@ INSERT INTO directorio_ciudad (orden, institucion, cargo, nombre_titular, temas,
    'Atención ciudadana del Gobierno de la Ciudad', 'Plaza de la Constitución 2, Col. Centro, C.P. 06000, Cuauhtémoc (Antiguo Palacio del Ayuntamiento)',
    '5553458000', 'atencionciudadanajg@cdmx.gob.mx', 'https://www.jefaturadegobierno.cdmx.gob.mx',
    'Jefatura de Gobierno de la CDMX, directorio oficial', 'https://www.jefaturadegobierno.cdmx.gob.mx/dependencia/directorio', '2026-10-31'),
-  (20, 'Instituto Electoral de la Ciudad de México (IECM)', 'Oficinas centrales del IECM', NULL,
+  (20, 'Instituto Electoral de la Ciudad de México (IECM)', 'Oficinas centrales del IECM', 'Patricia Avendaño (consejera presidenta)',
    'Organiza la consulta de presupuesto participativo y la elección de las COPACO', 'Huizaches 25, Col. Rancho Los Colorines, C.P. 14386, Tlalpan',
    '5554833800', NULL, 'https://www.iecm.mx',
    'IECM, directorio institucional', 'https://www.iecm.mx/acerca-del-iecm/directorio/', '2026-10-31'),
   (30, 'Instituto Electoral de la Ciudad de México (IECM)', 'CITIECM: dudas sobre la consulta', NULL,
    'Línea gratuita 800 433 3222 · WhatsApp 56 6051 0709 · Participatel 55 2652 0989', NULL,
    '8004333222', NULL, 'https://www.iecm.mx',
-   'IECM, Convocatoria Única COPACO 2026 y Consulta de Presupuesto Participativo 2026 y 2027 (PDF)', 'https://siproe2026.iecm.mx/downloads/Convocatoria_Unica_2026_y_2027_Verion_IECM-ACU-CG-013-2026.pdf', '2026-10-31');
+   'IECM, Convocatoria Única COPACO 2026 y Consulta de Presupuesto Participativo 2026 y 2027 (PDF)', 'https://siproe2026.iecm.mx/downloads/Convocatoria_Unica_2026_y_2027_Verion_IECM-ACU-CG-013-2026.pdf', '2026-10-31'),
+  (40, 'Tribunal Electoral de la Ciudad de México (TECDMX)', 'Oficinas del Tribunal Electoral', NULL,
+   'Resuelve las inconformidades sobre la consulta de presupuesto participativo y la elección de las COPACO', 'Magdalena 21, Col. Del Valle Centro, C.P. 03100, Benito Juárez',
+   '5553404600', NULL, 'https://www.tecdmx.org.mx',
+   'TECDMX, página de contacto', 'https://www.tecdmx.org.mx/index.php/contacto/', '2026-11-10'),
+  (50, 'Congreso de la Ciudad de México', 'Palacio Legislativo de Donceles', NULL,
+   'Aprueba la Ley de Participación Ciudadana y el presupuesto de la Ciudad, del que sale el presupuesto participativo', 'Donceles esq. Allende s/n, Col. Centro Histórico, C.P. 06010, Cuauhtémoc',
+   '5551301980', NULL, 'https://www.congresocdmx.gob.mx',
+   'Portal turístico oficial de la CDMX, ficha del Palacio Legislativo de Donceles', 'https://mexicocity.cdmx.gob.mx/venues/legislative-palace-donceles/', '2026-11-10'),
+  (60, 'Secretaría de la Contraloría General de la CDMX', 'Quejas y denuncias sobre servidores públicos', NULL,
+   'Vigila el uso de los recursos públicos y recibe quejas sobre obras y servidores públicos', 'Av. Arcos de Belén 2, Col. Doctores, C.P. 06720, Cuauhtémoc',
+   '5556279700', NULL, 'https://contraloria.cdmx.gob.mx',
+   'Secretaría de la Contraloría General, documento oficial del 1 de septiembre de 2025', 'https://regulaciones.cdmx.gob.mx/mejora/public/regulacionPdf/1486', '2026-11-10'),
+  (70, 'Locatel (Gobierno de la Ciudad de México)', 'Atención ciudadana las 24 horas', NULL,
+   'Información de trámites y programas, reportes de servicios urbanos y orientación médica, legal y psicológica', NULL,
+   '5556581111', NULL, NULL,
+   'Portal oficial de la CDMX, ¿Qué es Locatel?', 'https://mexicocity.cdmx.gob.mx/e/emergency/about-locatel/', '2026-11-10');
 
 UPDATE directorio d JOIN alcaldias a ON a.id = d.alcaldia_id JOIN (
   SELECT 'AOB' clave, 'Calle Canario esq. Calle 10, Col. Tolteca, C.P. 01150' direccion, NULL telefono, NULL correo, 'https://aao.cdmx.gob.mx' web,

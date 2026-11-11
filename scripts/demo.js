@@ -53,7 +53,7 @@ async function principal() {
   const admin = await idDe('admin@prepar.mx');
   const azc = (await db.conSistema((c) => c.uno("SELECT id FROM alcaldias WHERE clave = 'AZC'"))).id;
   const coy = (await db.conSistema((c) => c.uno("SELECT id FROM alcaldias WHERE clave = 'COY'"))).id;
-  const todas = 'directorio,moderacion,revision_registros,dictaminacion,consulta,seguimiento';
+  const todas = 'moderacion,revision_registros,dictaminacion,consulta,seguimiento';
   await como(admin, (c) => c.call('sp_registrar_funcionario', ['Carlos Méndez Ruiz', 'carlos.mendez@prepar.mx', hFunc, azc, todas]));
   await como(admin, (c) => c.call('sp_registrar_funcionario', ['Lucía Torres Vega', 'lucia.torres@prepar.mx', hFunc, coy, todas]));
   await db.conSistema((c) => c.q("UPDATE funcionarios SET debe_cambiar_password = FALSE WHERE usuario_id IN (SELECT id FROM usuarios WHERE correo IN ('carlos.mendez@prepar.mx','lucia.torres@prepar.mx'))"));
@@ -118,11 +118,6 @@ async function principal() {
   await como(ciu['jose.ramirez'], (c) => c.q('INSERT INTO comentarios_idea (idea_id, contenido) VALUES (?, ?)', [idIdea['maria.lopez'], 'De acuerdo, por las noches está muy oscuro.']));
   await como(ciu['ana.gutierrez'], (c) => c.q('INSERT INTO comentarios_idea (idea_id, contenido) VALUES (?, ?)', [idIdea['maria.lopez'], 'También podrían poner un bebedero.']));
 
-  const subirImagen = async (quien, i) => {
-    const [a, b] = COLORES[i % COLORES.length];
-    const r = await como(ciu[quien], (c) => c.call('sp_guardar_archivo', ['imagen_proyecto', `proyecto-${i}.png`, 'image/png', imagen(480, 300, a, b), 480, 300, null]));
-    return r[0].archivo_id;
-  };
   const proyectos = [
     ['maria.lopez', 'AZC-001', 'Rehabilitación del parque Norte 45', 'Nuevas luminarias, juegos infantiles y áreas verdes en el parque de la calle Norte 45.', 1, 850000, 'Norte 45', '12', 'Frente al mercado', [0.0012, -0.0008], idIdea['maria.lopez']],
     ['jose.ramirez', 'AZC-001', 'Banquetas accesibles en Clavería', 'Reparación de banquetas y rampas para sillas de ruedas alrededor del mercado.', 2, 1200000, 'Calle Clavería', '45', null, [-0.0015, 0.0011], idIdea['jose.ramirez']],
@@ -138,10 +133,9 @@ async function principal() {
     const [quien, clave, titulo, desc, rubro, costo, calle, numero, refs, delta, idea] = proyectos[i];
     const lat = delta ? Number(ut[clave].latitud) + delta[0] : null;
     const lng = delta ? Number(ut[clave].longitud) + delta[1] : null;
-    const img = i < 6 ? await subirImagen(quien, i) : null;
     const r = await como(ciu[quien], (c) => c.q(
       `INSERT INTO proyectos (titulo, descripcion, rubro_id, costo_estimado, calle, numero, referencias, latitud, longitud, estado_ubicacion, imagen_archivo_id, idea_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [titulo, desc, rubro, costo, calle, numero, refs, lat, lng, lat === null ? 'no_ubicado' : 'ubicado', img, idea]));
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [titulo, desc, rubro, costo, calle, numero, refs, lat, lng, lat === null ? 'no_ubicado' : 'ubicado', null, idea]));
     idP.push(r.insertId);
   }
   if (!llega('dictaminacion')) return resumen();

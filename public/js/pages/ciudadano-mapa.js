@@ -66,7 +66,7 @@
     capa.clearLayers();
     visibles.forEach(function (p) {
       if (p.latitud === null || p.longitud === null) return;
-      window.L.marker([Number(p.latitud), Number(p.longitud)], { icon: P.iconoPin(P.colorCategoria(p), p.id === elegido, P.glifoCategoria(p)), title: p.titulo + ' · ' + P.t(P.CATEGORIAS[P.categoriaDe(p)][0]) + ' · ' + P.textoEstatus(p.estatus), alt: p.titulo, keyboard: true, zIndexOffset: p.id === elegido ? 1000 : 0 })
+      window.L.marker([Number(p.latitud), Number(p.longitud)], { icon: P.iconoPin(P.colorRubro(p), p.id === elegido), title: p.titulo + ' · ' + P.t(p.rubro || '') + ' · ' + P.textoEstatus(p.estatus), alt: p.titulo, keyboard: true, zIndexOffset: p.id === elegido ? 1000 : 0 })
         .on('click', function () { ficha(p.id); }).addTo(capa);
     });
   }
@@ -93,9 +93,7 @@
     else visibles = todos.filter(function (p) { return p.estatus === modo; });
     P.$('#titulo-mapa').textContent = P.t(modo === 'ganadores' && !aviso ? 'Mapa de proyectos ganadores' : 'Mapa de proyectos');
     P.poner(P.$('#aviso-mapa'), aviso ? P.html`<div class="mensaje info">${aviso}</div>` : '');
-    var estados = modo === 'ganadores' && !aviso ? ['ganador', 'en_ejecucion', 'concluido'] : Object.keys(P.COLOR_ESTATUS).filter(function (e) { return visibles.some(function (p) { return p.estatus === e; }); });
-    void estados;
-    simbologia.poner([P.filasCategorias(visibles.filter(function (p) { return p.latitud !== null; }))]);
+    simbologia.poner([P.filasRubros(cat)]);
     pintarMarcadores();
     encuadrar();
     P.$('#titulo-lista').textContent = P.t('Proyectos ({n})', { n: visibles.length });

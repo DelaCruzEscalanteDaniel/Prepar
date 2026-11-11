@@ -5,13 +5,11 @@
   var cat = null;
   var graficas = [];
   var ultimo = null;
-  var paginaBit = 1;
   var FILTROS = {
     participacion: ['ciclo', 'alcaldia', 'unidad', 'genero', 'rango', 'desde', 'hasta'],
     demograficas: ['ciclo', 'alcaldia', 'unidad', 'genero', 'rango'],
     proyectos: ['ciclo', 'alcaldia', 'unidad', 'rubro', 'desde', 'hasta'],
     seguimiento: ['ciclo', 'alcaldia', 'unidad', 'rubro'],
-    bitacora: ['ciclo', 'alcaldia', 'funcionario', 'accion', 'desde', 'hasta'],
   };
   var PALETA = ['#E08E6D', '#2A9D8F', '#76BDD7', '#F4C861', '#E55E54', '#94A3B8', '#B5532F', '#22C55E'];
 
@@ -64,7 +62,7 @@
       data: {
         labels: etiquetas,
         datasets: series.map(function (s, i) {
-          var color = s.color || PALETA[i % PALETA.length];
+          var color = s.colores || s.color || PALETA[i % PALETA.length];
           return {
             label: s.nombre, data: s.datos, formato: s.formato,
             backgroundColor: tipoG === 'pie' ? etiquetas.map(function (x, j) { return PALETA[j % PALETA.length]; }) : color,
@@ -96,7 +94,7 @@
 
   function caja(titulo, alto) { return P.html`<figure class="tarjeta figura-estad"><figcaption>${titulo}</figcaption><div class="grafica" style="height:${alto || 300}px"><canvas></canvas></div></figure>`; }
   function kpi(etq, valor, detalle) { return P.html`<div class="tarjeta kpi-maq"><span>${etq}</span><strong class="h">${valor}</strong>${detalle ? P.html`<small class="tenue">${detalle}</small>` : ''}</div>`; }
-  var NOMBRES = { participacion: 'participación', demograficas: 'demográficas', proyectos: 'proyectos', seguimiento: 'seguimiento', bitacora: 'bitácora' };
+  var NOMBRES = { participacion: 'participación', demograficas: 'demografía', proyectos: 'proyectos', seguimiento: 'seguimiento de obras' };
   function estado(d) { return P.html`<div role="status" class="ok-texto" style="font-size:14px">✓ ${P.t('Gráficas de {t} generadas · {c}', { t: P.t(NOMBRES[tipo]), c: d.ciclo_nombre || cicloNombre() })}</div>`; }
   function cicloNombre() { var s = P.$('#f-ciclo'); return s.selectedIndex >= 0 ? s.options[s.selectedIndex].text.split(' · ')[0] : ''; }
   function sinGenerar() {
@@ -129,30 +127,46 @@
       grafica(lienzos[1], 'pie', [P.t('Votaron'), P.t('No votaron')], [{ nombre: P.t('Ciudadanos'), datos: [Number(t.votantes), Math.max(0, Number(t.registrados) - Number(t.votantes))], formato: function (v) { return P.numero(v, 0); } }]);
       grafica(lienzos[2], 'line', d.porDia.map(function (x) { return P.fecha(x.dia); }), [{ nombre: P.t('Votos'), datos: d.porDia.map(function (x) { return Number(x.votantes); }), formato: function (v) { return P.numero(v, 0); } }]);
     } else if (d.tipo === 'demograficas') {
-      P.poner(res, P.html`${estado(d)}<div class="rejilla dos">${caja('Ciudadanos y votantes por género')}${caja('Registrados por género')}</div>
-        <div class="rejilla dos">${caja('Ciudadanos y votantes por rango de edad')}${caja('Ciudadanos y votantes por alcaldía')}</div>`);
-      lienzos = P.$$('canvas', res);
-      var serie = function (lista, campo) { return lista.map(function (x) { return Number(x[campo]); }); };
       var f0 = function (v) { return P.numero(v, 0); };
+      var serie = function (lista, campo) { return lista.map(function (x) { return Number(x[campo]); }); };
+      var rangos = [];
+      var generos = [];
+      d.porEdadGenero.forEach(function (x) {
+        if (rangos.indexOf(x.etiqueta) < 0) rangos.push(x.etiqueta);
+        if (generos.indexOf(x.genero) < 0) generos.push(x.genero);
+      });
+      rangos.sort();
+      generos = ['mujer', 'hombre', 'no_binario', 'prefiero_no_decir'].filter(function (g) { return generos.indexOf(g) >= 0; });
+      P.poner(res, P.html`${estado(d)}<div class="rejilla dos">${caja('Registrados y votantes por género')}${caja('Votantes por edad, separados por género')}</div>`);
+      lienzos = P.$$('canvas', res);
       grafica(lienzos[0], 'bar', d.porGenero.map(function (x) { return nomGenero(x.etiqueta); }), [{ nombre: P.t('Registrados'), datos: serie(d.porGenero, 'registrados'), formato: f0 }, { nombre: P.t('Votantes'), datos: serie(d.porGenero, 'votantes'), formato: f0 }]);
-      grafica(lienzos[1], 'pie', d.porGenero.map(function (x) { return nomGenero(x.etiqueta); }), [{ nombre: P.t('Registrados'), datos: serie(d.porGenero, 'registrados'), formato: f0 }]);
-      grafica(lienzos[2], 'bar', d.porEdad.map(function (x) { return x.etiqueta; }), [{ nombre: P.t('Registrados'), datos: serie(d.porEdad, 'registrados'), formato: f0 }, { nombre: P.t('Votantes'), datos: serie(d.porEdad, 'votantes'), formato: f0 }]);
-      grafica(lienzos[3], 'bar', d.porAlcaldia.map(function (x) { return x.etiqueta; }), [{ nombre: P.t('Registrados'), datos: serie(d.porAlcaldia, 'registrados'), formato: f0 }, { nombre: P.t('Votantes'), datos: serie(d.porAlcaldia, 'votantes'), formato: f0 }]);
+      grafica(lienzos[1], 'bar', rangos.map(function (r) { return r === '60+' ? P.t('60 o más') : r.replace('-', ' a ') + P.t(' años'); }), generos.map(function (g) {
+        return { nombre: nomGenero(g), formato: f0, datos: rangos.map(function (r) {
+          var x = d.porEdadGenero.find(function (y) { return y.etiqueta === r && y.genero === g; });
+          return x ? Number(x.votantes) : 0;
+        }) };
+      }));
     } else if (d.tipo === 'proyectos') {
       var tt = d.total;
-      var cuatro = function (lista) {
-        var f0b = function (v) { return P.numero(v, 0); };
-        return [['registrados', 'Registrados'], ['viables', 'Viables'], ['no_viables', 'No viables'], ['ganadores', 'Ganadores']].map(function (k) {
-          return { nombre: P.t(k[1]), datos: lista.map(function (x) { return Number(x[k[0]] || 0); }), formato: f0b };
-        });
-      };
-      P.poner(res, P.html`${estado(d)}<div class="kpis-admin">${[['registrados', 'Registrados'], ['viables', 'Viables'], ['no_viables', 'No viables'], ['ganadores', 'Ganadores']].map(function (k) {
-        return P.html`${kpi(P.t(k[1]), P.numero(tt[k[0]] || 0, 0))}`;
-      })}</div>${caja('Proyectos por rubro')}<div class="rejilla dos">${caja('Proyectos por alcaldía')}${caja('Proyectos por estatus')}</div>`);
+      var f0b = function (v) { return P.numero(v, 0); };
+      var pasos = [['Ideas en el foro', d.ideas], ['Proyectos registrados', tt.registrados], ['Viables', tt.viables], ['Ganadores', tt.ganadores]];
+      var vt = d.votacion;
+      var votos = !vt ? P.html`<figure class="tarjeta figura-estad"><figcaption>Resultados de votación por colonia</figcaption><p class="vacio">${P.t('Elige una unidad territorial (colonia) en los filtros y presiona «Generar gráficas» para ver cuántos votos tuvo cada proyecto.')}</p></figure>`
+        : (!vt.proyectos.length ? P.html`<figure class="tarjeta figura-estad"><figcaption>${P.t('Resultados de votación · {c}', { c: vt.colonia })}</figcaption><p class="vacio">${P.t('Todavía no hay resultados en esta colonia. Aparecen cuando se publican, al terminar la Consulta.')}</p></figure>`
+          : caja(P.t('Resultados de votación · {c}', { c: vt.colonia }), 320));
+      P.poner(res, P.html`${estado(d)}<div class="kpis-admin">${pasos.map(function (k) { return P.html`${kpi(P.t(k[0]), P.numero(k[1] || 0, 0))}`; })}</div>
+        <div class="rejilla dos">${caja('Del foro al proyecto ganador')}${caja('Proyectos por rubro')}</div>${votos}`);
       lienzos = P.$$('canvas', res);
-      grafica(lienzos[0], 'bar', d.porRubro.map(function (x) { return x.etiqueta; }), cuatro(d.porRubro));
-      grafica(lienzos[1], 'bar', d.porAlcaldia.map(function (x) { return x.etiqueta; }), cuatro(d.porAlcaldia));
-      grafica(lienzos[2], 'pie', d.porEstatus.map(function (x) { return P.textoEstatus(x.etiqueta); }), [{ nombre: P.t('Proyectos'), datos: d.porEstatus.map(function (x) { return Number(x.n); }), formato: function (v) { return P.numero(v, 0); } }]);
+      grafica(lienzos[0], 'bar', pasos.map(function (k) { return P.t(k[0]); }), [{ nombre: P.t('Cantidad'), datos: pasos.map(function (k) { return Number(k[1] || 0); }), formato: f0b,
+        colores: ['#94A3B8', '#1F5FD1', '#2A9D8F', '#F4C861'] }]);
+      grafica(lienzos[1], 'bar', d.porRubro.map(function (x) { return x.etiqueta; }), [['registrados', 'Registrados'], ['viables', 'Viables'], ['ganadores', 'Ganadores']].map(function (k) {
+        return { nombre: P.t(k[1]), datos: d.porRubro.map(function (x) { return Number(x[k[0]] || 0); }), formato: f0b };
+      }));
+      if (vt && vt.proyectos.length) {
+        grafica(lienzos[2], 'bar', vt.proyectos.map(function (x) { return x.numero_sorteo + '. ' + (x.titulo.length > 28 ? x.titulo.slice(0, 27) + '…' : x.titulo); }),
+          [{ nombre: P.t('Votos'), datos: vt.proyectos.map(function (x) { return x.total_votos; }), formato: f0b,
+            colores: vt.proyectos.map(function (x) { return x.ganador ? '#2A9D8F' : '#94A3B8'; }) }]);
+      }
     } else {
       var s = d.total;
       P.poner(res, P.html`${estado(d)}<div class="kpis-admin">
@@ -173,30 +187,7 @@
     }
   }
 
-  function bitacora() {
-    var f = P.datosForm(P.$('#filtros'));
-    var q = { ciclo: f.ciclo, alcaldia: f.alcaldia, funcionario: f.funcionario, accion: f.accion, desde: f.desde, hasta: f.hasta, pagina: paginaBit, limite: 50 };
-    return P.get('/api/admin/bitacora' + P.qs(q)).then(function (d) {
-      var selF = P.$('#f-funcionario');
-      if (selF.options.length <= 1) {
-        P.poner(selF, P.html`<option value="">Todos</option>${d.responsables.map(function (r) { return P.html`<option value="${r.id}">${r.nombre_completo} (${P.t(r.rol === 'administrador' ? 'Administrador' : 'Funcionario')})</option>`; })}`);
-        P.poner(P.$('#f-accion'), P.html`<option value="">Todas</option>${d.acciones.map(function (a) { return P.html`<option value="${a}">${a.replace(/_/g, ' ')}</option>`; })}`);
-        selF.value = f.funcionario || '';
-        P.$('#f-accion').value = f.accion || '';
-      }
-      var paginas = Math.max(1, Math.ceil(d.total / 50));
-      P.poner(P.$('#resultado'), P.html`<section class="tarjeta"><div class="fila entre"><h2 style="margin:0">Bitácora</h2><span class="tenue pequeno">${P.t('{n} registro(s)', { n: d.total })}</span></div>
-        <div style="margin-top:12px">${tabla([{ t: 'Fecha', v: function (r) { return P.fechaHora(r.realizada_en); } }, { t: 'Responsable', v: function (r) { return r.responsable || '—'; } },
-          { t: 'Alcaldía', v: function (r) { return r.alcaldia || '—'; } }, { t: 'Acción', v: function (r) { return r.accion.replace(/_/g, ' '); } },
-          { t: 'Sobre', v: function (r) { return r.entidad + (r.entidad_id ? ' #' + r.entidad_id : ''); } },
-          { t: 'Detalle', v: function (r) { return r.detalle ? (typeof r.detalle === 'string' ? r.detalle : JSON.stringify(r.detalle)).slice(0, 120) : ''; } }], d.registros)}</div>
-        <div class="fila" style="justify-content:center;margin-top:12px"><button class="btn2 chico" data-pag="-1" ${paginaBit <= 1 ? P.seguro('disabled') : ''}>← Anterior</button>
-          <span class="tenue">${P.t('Página {p} de {t}', { p: paginaBit, t: paginas })}</span><button class="btn2 chico" data-pag="1" ${paginaBit >= paginas ? P.seguro('disabled') : ''}>Siguiente →</button></div></section>`);
-    });
-  }
-
   function generar() {
-    if (tipo === 'bitacora') { limpiarGraficas(); return bitacora(); }
     var f = P.datosForm(P.$('#filtros'));
     var q = { tipo: tipo };
     FILTROS[tipo].forEach(function (k) { q[k] = f[k]; });
@@ -210,33 +201,39 @@
 
   function elegirTipo(t) {
     tipo = t;
-    paginaBit = 1;
     P.$$('[data-tipo]').forEach(function (b) { b.setAttribute('aria-selected', b.getAttribute('data-tipo') === t ? 'true' : 'false'); });
     P.$$('[data-f]').forEach(function (l) { l.hidden = FILTROS[t].indexOf(l.getAttribute('data-f')) < 0; });
-    P.$('#csv-bitacora').hidden = t !== 'bitacora';
-    P.$('#generar').textContent = P.t(t === 'bitacora' ? 'Ver bitácora' : 'Generar gráficas');
     sinGenerar();
   }
 
   P.pagina(function () {
-    document.addEventListener('prepar:tema', function () { if (ultimo && tipo !== 'bitacora') pintar(ultimo); });
+    document.addEventListener('prepar:tema', function () { if (ultimo) pintar(ultimo); });
     P.$$('[data-tipo]').forEach(function (b) { b.addEventListener('click', function () { elegirTipo(b.getAttribute('data-tipo')); }); });
-    P.$('#filtros').addEventListener('submit', function (e) { e.preventDefault(); paginaBit = 1; generar(); });
+    var fechasBien = function () {
+      var de = P.$('#filtros [name=desde]');
+      var ha = P.$('#filtros [name=hasta]');
+      de.max = ha.value || '';
+      ha.min = de.value || '';
+      var mal = !!(de.value && ha.value && ha.value < de.value);
+      ha.classList.toggle('fecha-mal', mal);
+      if (mal) ha.setAttribute('aria-invalid', 'true'); else ha.removeAttribute('aria-invalid');
+      return !mal;
+    };
+    ['desde', 'hasta'].forEach(function (n) {
+      ['input', 'change'].forEach(function (ev) { P.$('#filtros [name=' + n + ']').addEventListener(ev, fechasBien); });
+    });
+    P.$('#filtros').addEventListener('submit', function (e) {
+      e.preventDefault();
+      if (!fechasBien()) { P.aviso('La fecha «Hasta» no puede ser anterior a la fecha «Desde»', 'error'); P.$('#filtros [name=hasta]').focus(); return; }
+        generar();
+    });
     P.$('#limpiar').addEventListener('click', function () {
       var ciclo = P.$('#f-ciclo').value;
       P.$('#filtros').reset();
+      fechasBien();
       P.$('#f-alcaldia').dispatchEvent(new Event('change'));
       P.$('#f-ciclo').value = ciclo;
-      paginaBit = 1;
-      sinGenerar();
-    });
-    P.$('#csv-bitacora').addEventListener('click', function (e) {
-      var f = P.datosForm(P.$('#filtros'));
-      P.descargar('/api/admin/bitacora.csv' + P.qs({ ciclo: f.ciclo, alcaldia: f.alcaldia, funcionario: f.funcionario, accion: f.accion, desde: f.desde, hasta: f.hasta }), e.currentTarget);
-    });
-    P.$('#resultado').addEventListener('click', function (e) {
-      var b = e.target.closest('[data-pag]');
-      if (b) { paginaBit = Math.max(1, paginaBit + Number(b.getAttribute('data-pag'))); bitacora(); }
+        sinGenerar();
     });
     return Promise.all([P.catalogos(), P.get('/api/ciclos')]).then(function (r) {
       cat = r[0];
@@ -244,8 +241,6 @@
       var activo = r[1].find(function (c) { return c.estado === 'activo'; });
       if (activo) P.$('#f-ciclo').value = String(activo.id);
       P.poner(P.$('#f-rubro'), P.html`<option value="">Todos</option>${cat.rubros.map(function (x) { return P.html`<option value="${x.id}">${P.nombre(x)}</option>`; })}`);
-      P.poner(P.$('#f-funcionario'), P.html`<option value="">Todos</option>`);
-      P.poner(P.$('#f-accion'), P.html`<option value="">Todas</option>`);
       P.selectoresUbicacion(P.$('#f-alcaldia'), P.$('#f-unidad'), cat, { textoAlcaldia: P.t('Todas'), textoUnidad: P.t('Todas'), sinMarcas: true });
       elegirTipo('participacion');
     });

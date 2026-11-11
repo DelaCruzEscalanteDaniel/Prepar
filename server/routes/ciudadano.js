@@ -1,13 +1,13 @@
 'use strict';
-const categorias = require('../lib/categorias');
 const express = require('express');
 const db = require('../db');
 const v = require('../lib/validar');
 const { asincrono, limitador } = require('../lib/seguridad');
 const { requiere } = require('../lib/sesion');
 const { cicloActivo, cicloPorId } = require('../lib/comun');
-const { peticionInvalida, noEncontrado, conflicto, ErrorApp } = require('../lib/errores');
+const { peticionInvalida, noEncontrado, conflicto, prohibido, ErrorApp } = require('../lib/errores');
 const { geocodificar } = require('../lib/geocodificar');
+const territorio = require('../lib/territorio');
 const { tipoReal, dimensiones, acotar } = require('../lib/archivos');
 const pdf = require('../lib/pdf');
 
@@ -89,25 +89,33 @@ router.get('/foro', soloCiudadano, asincrono(async (req, res) => {
   const desde = v.fecha(req.query.desde, { campo: 'la fecha inicial', requerido: false });
   const hasta = v.fecha(req.query.hasta, { campo: 'la fecha final', requerido: false });
   const minApoyos = v.entero(req.query.min_apoyos, { campo: 'el número de apoyos', min: 0, max: 1000000, requerido: false });
+  const colonia = v.id(req.query.colonia, 'la colonia', false);
   const orden = req.query.orden === 'apoyos' ? 'f.total_apoyos DESC, f.creada_en DESC' : 'f.creada_en DESC';
   const { limite, desplazamiento } = v.pagina(req.query, 30, 100);
   const datos = await db.conUsuario(u.id, async (con) => {
     const ctx = await contexto(con, u);
-    if (!ctx.ciclo) return { ...ctx, ideas: [], total: 0 };
-    const where = `f.ciclo_id = ? AND f.unidad_territorial_id = ?
+    if (!ctx.ciclo) return { ...ctx, ideas: [], total: 0, colonias: [] };
+    const colonias = await con.q(
+      `SELECT ut.id, ut.nombre, (ut.id = ?) AS mia FROM unidades_territoriales ut
+       WHERE ut.alcaldia_id = ? AND EXISTS (SELECT 1 FROM ideas i WHERE i.unidad_territorial_id = ut.id AND i.ciclo_id = ? AND i.estado = 'visible')
+       ORDER BY ut.nombre`, [u.unidadId, u.alcaldiaId, ctx.ciclo.id]);
+    const where = `f.ciclo_id = ? AND f.unidad_territorial_id IN (SELECT id FROM unidades_territoriales WHERE alcaldia_id = ?)
+        AND (? IS NULL OR f.unidad_territorial_id = ?)
         AND (? IS NULL OR f.contenido LIKE ?) AND (? IS NULL OR f.rubro_id = ?)
         AND (? IS NULL OR f.creada_en >= ?) AND (? IS NULL OR f.creada_en < DATE_ADD(?, INTERVAL 1 DAY))
         AND (? IS NULL OR f.total_apoyos >= ?)`;
-    const params = [ctx.ciclo.id, u.unidadId, q, q, rubro, rubro, desde, desde, hasta, hasta, minApoyos, minApoyos];
+    const params = [ctx.ciclo.id, u.alcaldiaId, colonia, colonia, q, q, rubro, rubro, desde, desde, hasta, hasta, minApoyos, minApoyos];
     const total = await con.uno(`SELECT COUNT(*) AS n FROM v_foro f WHERE ${where}`, params);
     const ideas = await con.q(
       `SELECT f.id, f.contenido, f.rubro_id, f.rubro, f.total_apoyos, f.total_comentarios, f.creada_en, f.autor,
-              (f.autor_id = ?) AS es_mia,
+              f.unidad_territorial_id, (SELECT ut.nombre FROM unidades_territoriales ut WHERE ut.id = f.unidad_territorial_id) AS colonia,
+              (f.unidad_territorial_id = ?) AS de_mi_colonia,
+              (f.autor_id = ?) AS es_mia, (SELECT i2.editada_en FROM ideas i2 WHERE i2.id = f.id) AS editada_en,
               EXISTS (SELECT 1 FROM apoyos_idea ap WHERE ap.idea_id = f.id AND ap.ciudadano_id = ?) AS apoyada,
               (SELECT a.uuid FROM usuarios x JOIN archivos a ON a.id = x.foto_archivo_id AND a.eliminado_en IS NULL WHERE x.id = f.autor_id) AS autor_foto
        FROM v_foro f WHERE ${where} ORDER BY ${orden} LIMIT ? OFFSET ?`,
-      [u.id, u.id, ...params, limite, desplazamiento]);
-    return { ...ctx, ideas, total: total.n };
+      [u.unidadId, u.id, u.id, ...params, limite, desplazamiento]);
+    return { ...ctx, ideas, total: total.n, colonias, alcaldia: ctx.unidad ? ctx.unidad.alcaldia : null };
   });
   res.json(datos);
 }));
@@ -125,8 +133,10 @@ router.post('/foro/ideas', soloCiudadano, limiteEscritura, asincrono(async (req,
 }));
 
 async function ideaDeMiForo(con, u, ideaId) {
-  const idea = await con.uno("SELECT id, ciclo_id, unidad_territorial_id, autor_id, estado FROM ideas WHERE id = ?", [ideaId]);
-  if (!idea || idea.estado !== 'visible' || idea.unidad_territorial_id !== u.unidadId) throw noEncontrado('La idea no existe o ya no está disponible');
+  const idea = await con.uno(
+    `SELECT i.id, i.ciclo_id, i.unidad_territorial_id, i.autor_id, i.estado, ut.alcaldia_id
+     FROM ideas i JOIN unidades_territoriales ut ON ut.id = i.unidad_territorial_id WHERE i.id = ?`, [ideaId]);
+  if (!idea || idea.estado !== 'visible' || idea.alcaldia_id !== u.alcaldiaId) throw noEncontrado('La idea no existe o ya no está disponible');
   return idea;
 }
 
@@ -135,7 +145,7 @@ router.get('/foro/ideas/:id/comentarios', soloCiudadano, asincrono(async (req, r
   const filas = await db.conUsuario(req.usuario.id, async (con) => {
     await ideaDeMiForo(con, req.usuario, ideaId);
     return con.q(
-      `SELECT c.id, c.contenido, c.creado_en, u.nombre_completo AS autor, (c.autor_id = ?) AS es_mio,
+      `SELECT c.id, c.contenido, c.creado_en, c.editado_en, u.nombre_completo AS autor, (c.autor_id = ?) AS es_mio,
               (SELECT a.uuid FROM archivos a WHERE a.id = u.foto_archivo_id AND a.eliminado_en IS NULL) AS autor_foto
        FROM comentarios_idea c JOIN usuarios u ON u.id = c.autor_id
        WHERE c.idea_id = ? AND c.estado = 'visible' ORDER BY c.creado_en LIMIT 500`, [req.usuario.id, ideaId]);
@@ -151,6 +161,78 @@ router.post('/foro/ideas/:id/comentarios', soloCiudadano, limiteEscritura, asinc
     await con.q('INSERT INTO comentarios_idea (idea_id, contenido) VALUES (?, ?)', [ideaId, contenido]);
   });
   res.status(201).json({ ok: true, mensaje: 'Comentario publicado' });
+}));
+
+async function miIdea(con, u, ideaId) {
+  const ctx = await contexto(con, u);
+  exigirParticipacion(ctx, null);
+  const idea = await ideaDeMiForo(con, u, ideaId);
+  if (idea.autor_id !== u.id) throw prohibido('Solo puedes cambiar las ideas que tú publicaste');
+  if (idea.ciclo_id !== ctx.ciclo.id) throw conflicto('Esta idea es de un ciclo que ya terminó');
+  return idea;
+}
+
+async function comoInterno(con, fn) {
+  await con.q('SET @interno = 1');
+  try {
+    return await fn();
+  } finally {
+    await con.q('SET @interno = 0');
+  }
+}
+
+router.put('/foro/ideas/:id', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
+  const ideaId = v.id(req.params.id, 'la idea');
+  const b = v.cuerpo(req);
+  const contenido = v.texto(b.contenido, { campo: 'tu idea', max: L.idea, min: 5, letras: 4, multilinea: true });
+  const rubro = b.rubro_id === undefined || b.rubro_id === null || b.rubro_id === '' ? null : v.id(b.rubro_id, 'el rubro');
+  await db.conUsuario(req.usuario.id, async (con) => {
+    await miIdea(con, req.usuario, ideaId);
+    if (rubro && !(await con.uno('SELECT 1 AS si FROM rubros WHERE id = ?', [rubro]))) throw peticionInvalida('El rubro no existe');
+    await comoInterno(con, () => con.q(
+      'UPDATE ideas SET contenido = ?, rubro_id = COALESCE(?, rubro_id), editada_en = NOW() WHERE id = ? AND autor_id = ?',
+      [contenido, rubro, ideaId, req.usuario.id]));
+  });
+  res.json({ ok: true, mensaje: 'Tu idea se actualizó' });
+}));
+
+router.delete('/foro/ideas/:id', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
+  const ideaId = v.id(req.params.id, 'la idea');
+  await db.conUsuario(req.usuario.id, async (con) => {
+    await miIdea(con, req.usuario, ideaId);
+    const proyecto = await con.uno("SELECT folio FROM proyectos WHERE idea_id = ? AND estatus <> 'retirado' LIMIT 1", [ideaId]);
+    if (proyecto) throw conflicto(`Esta idea ya se convirtió en el proyecto ${proyecto.folio}. Si ya no quieres seguir, retira el proyecto desde Mis proyectos`);
+    await comoInterno(con, () => con.q("UPDATE ideas SET estado = 'eliminado' WHERE id = ? AND autor_id = ?", [ideaId, req.usuario.id]));
+  });
+  res.json({ ok: true, mensaje: 'Borraste tu idea del foro' });
+}));
+
+async function miComentario(con, u, comentarioId) {
+  const c = await con.uno("SELECT id, idea_id, autor_id, estado FROM comentarios_idea WHERE id = ?", [comentarioId]);
+  if (!c || c.estado !== 'visible') throw noEncontrado('El comentario no existe o ya no está disponible');
+  await ideaDeMiForo(con, u, c.idea_id);
+  if (c.autor_id !== u.id) throw prohibido('Solo puedes cambiar los comentarios que tú escribiste');
+  exigirParticipacion(await contexto(con, u), null);
+  return c;
+}
+
+router.put('/foro/comentarios/:id', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el comentario');
+  const contenido = v.texto(v.cuerpo(req).contenido, { campo: 'tu comentario', max: L.comentario, letras: 2, multilinea: true });
+  await db.conUsuario(req.usuario.id, async (con) => {
+    await miComentario(con, req.usuario, id);
+    await con.q('UPDATE comentarios_idea SET contenido = ?, editado_en = NOW() WHERE id = ? AND autor_id = ?', [contenido, id, req.usuario.id]);
+  });
+  res.json({ ok: true, mensaje: 'Tu comentario se actualizó' });
+}));
+
+router.delete('/foro/comentarios/:id', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
+  const id = v.id(req.params.id, 'el comentario');
+  await db.conUsuario(req.usuario.id, async (con) => {
+    await miComentario(con, req.usuario, id);
+    await con.q("UPDATE comentarios_idea SET estado = 'eliminado' WHERE id = ? AND autor_id = ?", [id, req.usuario.id]);
+  });
+  res.json({ ok: true, mensaje: 'Borraste tu comentario' });
 }));
 
 router.post('/foro/ideas/:id/apoyo', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
@@ -214,16 +296,13 @@ function revisarCosto(ctx, costo) {
 }
 
 function datosProyecto(b) {
-  const d = datosProyectoBase(b);
-  if (!d.categoria) d.categoria = categorias.adivinar(d.titulo, d.descripcion);
-  return d;
+  return datosProyectoBase(b);
 }
 function datosProyectoBase(b) {
   return {
     titulo: v.texto(b.titulo, { campo: 'el título', max: L.titulo, min: 5, letras: 4, revisar: true }),
     descripcion: v.texto(b.descripcion, { campo: 'la descripción', max: L.descripcion, min: 10, letras: 6, multilinea: true }),
     rubro: v.id(b.rubro_id, 'el rubro'),
-    categoria: v.opcion(b.categoria, categorias.claves(), { campo: 'el tipo de proyecto', requerido: false }),
     costo: v.decimal(b.costo_estimado, { campo: 'el costo estimado', min: 1000, max: 999999999.99 }),
     calle: v.texto(b.calle, { campo: 'la calle', max: L.calle, min: 2, letras: 2 }),
     numero: numeroExterior(b.numero),
@@ -234,17 +313,25 @@ function datosProyectoBase(b) {
 }
 
 async function ubicar(u, d) {
-  if (d.coords) return { id: null, latitud: d.coords.latitud, longitud: d.coords.longitud, estado: 'ubicado' };
+  if (d.coords) {
+    const r = await territorio.verificar(u.unidadId, d.coords.latitud, d.coords.longitud);
+    if (!r.ok) throw peticionInvalida(r.mensaje);
+    return { id: null, latitud: d.coords.latitud, longitud: d.coords.longitud, estado: 'ubicado' };
+  }
   const lugar = await db.conSistema((con) => con.uno(
     'SELECT ut.nombre, a.nombre AS alcaldia FROM unidades_territoriales ut JOIN alcaldias a ON a.id = ut.alcaldia_id WHERE ut.id = ?', [u.unidadId]));
   const consulta = `${d.calle}${d.numero && !/^s\/?n$/i.test(d.numero) ? ` ${d.numero}` : ''}, ${d.cp ? `${d.cp}, ` : ''}${lugar ? `${lugar.nombre}, ${lugar.alcaldia}, ` : ''}Ciudad de México`;
   const g = await geocodificar(consulta);
+  if (g) {
+    const r = await territorio.verificar(u.unidadId, g.latitud, g.longitud, { consultarDireccion: false });
+    if (!r.ok && r.nivel === 'alcaldia') throw peticionInvalida(r.mensaje.replace('La ubicación que marcaste', 'La dirección que escribiste'));
+    if (!r.ok) return { id: null, latitud: null, longitud: null, estado: 'no_ubicado' };
+  }
   return g ? { id: g.id, latitud: g.latitud, longitud: g.longitud, estado: 'ubicado' } : { id: null, latitud: null, longitud: null, estado: 'no_ubicado' };
 }
 
 router.post('/proyectos', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  await categorias.refrescar();
   const d = datosProyecto(b);
   const ideaId = v.id(b.idea_id, 'la idea de origen', false);
   const u = req.usuario;
@@ -259,10 +346,10 @@ router.post('/proyectos', soloCiudadano, limiteEscritura, asincrono(async (req, 
   const ubic = await ubicar(u, d);
   const proyecto = await db.conUsuario(u.id, async (con) => {
     const r = await con.q(
-      `INSERT INTO proyectos (titulo, descripcion, rubro_id, categoria, costo_estimado, calle, numero, referencias, codigo_postal,
+      `INSERT INTO proyectos (titulo, descripcion, rubro_id, costo_estimado, calle, numero, referencias, codigo_postal,
                               latitud, longitud, estado_ubicacion, geocodificacion_id, imagen_archivo_id, idea_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias, d.cp,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [d.titulo, d.descripcion, d.rubro, d.costo, d.calle, d.numero, d.referencias, d.cp,
         ubic.latitud, ubic.longitud, ubic.estado, ubic.id, imagenId, ideaId]);
     return con.uno('SELECT id, folio, estado_ubicacion, latitud, longitud FROM proyectos WHERE id = ?', [r.insertId]);
   });
@@ -277,7 +364,6 @@ router.post('/proyectos', soloCiudadano, limiteEscritura, asincrono(async (req, 
 router.put('/proyectos/:id', soloCiudadano, limiteEscritura, asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
-  await categorias.refrescar();
   const d = datosProyecto(b);
   const u = req.usuario;
   const previo = await db.conUsuario(u.id, async (con) => {
@@ -295,10 +381,10 @@ router.put('/proyectos/:id', soloCiudadano, limiteEscritura, asincrono(async (re
   let ubic = { id: previo.p.geocodificacion_id, latitud: previo.p.latitud, longitud: previo.p.longitud, estado: previo.p.estado_ubicacion };
   if (d.coords || cambioDireccion) ubic = await ubicar(u, d);
   await db.conUsuario(u.id, (con) => con.q(
-    `UPDATE proyectos SET titulo = ?, descripcion = ?, rubro_id = ?, categoria = ?, costo_estimado = ?, calle = ?, numero = ?, referencias = ?, codigo_postal = ?,
+    `UPDATE proyectos SET titulo = ?, descripcion = ?, rubro_id = ?, costo_estimado = ?, calle = ?, numero = ?, referencias = ?, codigo_postal = ?,
                           latitud = ?, longitud = ?, estado_ubicacion = ?, geocodificacion_id = ?, imagen_archivo_id = ?
      WHERE id = ?`,
-    [d.titulo, d.descripcion, d.rubro, d.categoria, d.costo, d.calle, d.numero, d.referencias, d.cp,
+    [d.titulo, d.descripcion, d.rubro, d.costo, d.calle, d.numero, d.referencias, d.cp,
       ubic.latitud, ubic.longitud, ubic.estado, ubic.id, previo.imagen, id]));
   res.json({ ok: true, mensaje: 'Los cambios de tu proyecto se guardaron' });
 }));
@@ -316,7 +402,7 @@ router.post('/proyectos/:id/retirar', soloCiudadano, limiteEscritura, asincrono(
 
 router.get('/proyectos/mios', soloCiudadano, asincrono(async (req, res) => {
   const filas = await db.conUsuario(req.usuario.id, (con) => con.q(
-    `SELECT p.id, p.folio, p.ciclo_id, c.nombre AS ciclo, c.estado AS ciclo_estado, p.titulo, p.descripcion, p.rubro_id, p.categoria, r.nombre_es AS rubro,
+    `SELECT p.id, p.folio, p.ciclo_id, c.nombre AS ciclo, c.estado AS ciclo_estado, p.titulo, p.descripcion, p.rubro_id, r.nombre_es AS rubro,
             p.costo_estimado, p.calle, p.numero, p.referencias, p.codigo_postal, p.latitud, p.longitud, p.estado_ubicacion, p.estatus,
             p.numero_sorteo, p.avance_porcentaje, p.monto_ejercido, p.estado_moderacion, p.creado_en,
             (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid,

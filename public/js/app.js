@@ -69,133 +69,25 @@
       : P.html`<span class="avatar ${clase || ''}" aria-hidden="true">${P.iniciales(nombre)}</span>`;
   };
 
-  var idioma = doc.documentElement.getAttribute('lang') === 'en' ? 'en' : 'es';
+  var idioma = 'es';
   P.idioma = function () { return idioma; };
-  var ATRIBUTOS = ['placeholder', 'title', 'aria-label', 'alt'];
   P.i18n = {
     t: function (texto, vars) {
       var s = String(texto);
-      if (idioma === 'en' && window.PREPAR_EN && Object.prototype.hasOwnProperty.call(window.PREPAR_EN, s)) s = window.PREPAR_EN[s];
       if (vars) s = s.replace(/\{(\w+)\}/g, function (m, k) { return vars[k] !== undefined && vars[k] !== null ? String(vars[k]) : m; });
       return s;
     },
-    aplicar: function (raiz) {
-      if (idioma !== 'en' || !window.PREPAR_EN || !raiz) return;
-      var dic = window.PREPAR_EN;
-      var w = doc.createTreeWalker(raiz, NodeFilter.SHOW_TEXT, null);
-      var n;
-      var lista = [];
-      while ((n = w.nextNode())) lista.push(n);
-      lista.forEach(function (nodo) {
-        var p = nodo.parentNode;
-        if (!p || p.nodeName === 'SCRIPT' || p.nodeName === 'STYLE' || (p.closest && p.closest('[data-sin-traducir]'))) return;
-        var original = nodo.nodeValue;
-        var limpio = original.trim();
-        if (limpio && Object.prototype.hasOwnProperty.call(dic, limpio)) nodo.nodeValue = original.replace(limpio, dic[limpio]);
-      });
-      var els = raiz.querySelectorAll ? raiz.querySelectorAll('[placeholder],[title],[aria-label],[alt]') : [];
-      Array.prototype.forEach.call(els, function (el) {
-        ATRIBUTOS.forEach(function (a) {
-          var v = el.getAttribute(a);
-          if (v && Object.prototype.hasOwnProperty.call(dic, v.trim())) el.setAttribute(a, dic[v.trim()]);
-        });
-      });
-    },
+    aplicar: function () { },
   };
   P.t = P.i18n.t;
-  var dicEn = function () { return window.PREPAR_EN || {}; };
-  function campoEn(c) {
-    var d = dicEn();
-    var k = 'campo:' + c.charAt(0).toLowerCase() + c.slice(1);
-    var v = Object.prototype.hasOwnProperty.call(d, k) ? d[k] : null;
-    return v;
-  }
-  var mayusEn = function (t) { return t.charAt(0).toUpperCase() + t.slice(1); };
-  var PATRONES_EN = [
-    [/^Escribe (.+)$/, function (m, c) { return 'Enter ' + c(m[1]); }],
-    [/^Indica (.+)$/, function (m, c) { return 'Enter ' + c(m[1]); }],
-    [/^(?:Elige|Selecciona) (.+)$/, function (m, c) { return 'Choose ' + c(m[1]); }],
-    [/^(.+) admite hasta (\d+) caracteres \(escribiste (\d+)\)$/, function (m, c) { return mayusEn(c(m[1])) + ' allows up to ' + m[2] + ' characters (you typed ' + m[3] + ')'; }],
-    [/^(.+) admite hasta (\d+) caracteres$/, function (m, c) { return mayusEn(c(m[1])) + ' allows up to ' + m[2] + ' characters'; }],
-    [/^(.+) debe tener al menos (\d+) caracteres$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least ' + m[2] + ' characters'; }],
-    [/^(.+) debe tener de (\d+) a (\d+) caracteres$/, function (m, c) { return mayusEn(c(m[1])) + ' must have ' + m[2] + ' to ' + m[3] + ' characters'; }],
-    [/^(.+) debe ser un número$/, function (m, c) { return mayusEn(c(m[1])) + ' must be a number'; }],
-    [/^(.+) debe estar entre (.+) y (.+)$/, function (m, c) { return mayusEn(c(m[1])) + ' must be between ' + m[2] + ' and ' + m[3]; }],
-    [/^(.+) no es válid[oa] \(usa AAAA-MM-DD\)$/, function (m, c) { return mayusEn(c(m[1])) + ' is not valid (use YYYY-MM-DD)'; }],
-    [/^(.+) no es una dirección válida$/, function (m, c) { return mayusEn(c(m[1])) + ' is not a valid address'; }],
-    [/^(.+) no es válid[oa]$/, function (m, c) { return mayusEn(c(m[1])) + ' is not valid'; }],
-    [/^(.+) no existe$/, function (m, c) { return mayusEn(c(m[1])) + ' does not exist'; }],
-    [/^(.+) debe tener palabras, no solo números o símbolos$/, function (m, c) { return mayusEn(c(m[1])) + ' must contain words, not just numbers or symbols'; }],
-    [/^(.+) no parece un texto válido$/, function (m, c) { return mayusEn(c(m[1])) + " doesn't look like valid text"; }],
-    [/^El costo estimado no puede ser mayor al presupuesto de tu colonia \((.+)\)$/, function (m) { return 'The estimated cost cannot exceed your neighborhood budget (' + m[1] + ')'; }],
-    [/^(.+) solo puede tener letras, números y estos símbolos: (.+)$/, function (m, c) { return mayusEn(c(m[1])) + ' can only contain letters, numbers and these symbols: ' + m[2]; }],
-    [/^(.+) no puede tener espacios$/, function (m, c) { return mayusEn(c(m[1])) + ' cannot contain spaces'; }],
-    [/^(.+) debe tener al menos una letra mayúscula$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least one uppercase letter'; }],
-    [/^(.+) debe tener al menos un número$/, function (m, c) { return mayusEn(c(m[1])) + ' must have at least one number'; }],
-    [/^(.+) es demasiado larga: usa menos acentos o símbolos especiales$/, function (m, c) { return mayusEn(c(m[1])) + ' is too long: use fewer accents or special symbols'; }],
-    [/^(.+) contiene caracteres no permitidos$/, function (m, c) { return mayusEn(c(m[1])) + ' contains characters that are not allowed'; }],
-    [/^(.+) tiene demasiados elementos$/, function (m, c) { return mayusEn(c(m[1])) + ' has too many items'; }],
-    [/^No tienes asignada la función "(.+)"$/, function (m) { return 'You have not been assigned the "' + P.t(m[1]) + '" function'; }],
-    [/^Esta acción solo está disponible en la fase (.+)$/, function (m) { return 'This action is only available in the ' + m[1].replace(/"([^"]+)"/g, function (x, f) { return '"' + P.t(f) + '"'; }).replace(/ o /g, ' or ') + ' phase'; }],
-    [/^Se agregó «(.+)»\. Ya aparece en los formularios, los mapas y la simbología\.$/, function (m) { return '“' + m[1] + '” was added. It now appears in forms, maps and the legend.'; }],
-    [/^Hay (\d+) proyecto\(s\) con este tipo\. Desactívalo en lugar de borrarlo: los proyectos conservan su color\.$/, function (m) { return 'There are ' + m[1] + ' project(s) with this type. Deactivate it instead of deleting it: projects keep their color.'; }],
-    [/^No se pudo enviar el correo de prueba: (.+)$/, function (m) { return 'The test email could not be sent: ' + m[1]; }],
-    [/^Se envió un correo de prueba a (.+)\. Revisa la bandeja de entrada \(y la de spam\)\.$/, function (m) { return 'A test email was sent to ' + m[1] + '. Check the inbox (and spam).'; }],
-    [/^Se asignó un tipo a (\d+) de (\d+) proyecto\(s\) que estaban como «Otro»\.$/, function (m) { return 'A type was assigned to ' + m[1] + ' of ' + m[2] + ' project(s) marked as “Other”.'; }],
-    [/^Te enviamos un nuevo enlace a (.+)\. Revisa también la carpeta de spam\.$/, function (m) { return 'We sent a new link to ' + m[1] + '. Check your spam folder too.'; }],
-    [/^Te enviamos un enlace a (.+) para confirmar tu correo\. Ábrelo para poder participar\.$/, function (m) { return 'We sent a link to ' + m[1] + ' to confirm your email. Open it to take part.'; }],
-    [/^El ciclo se activó; «(.+)» quedó pausado$/, function (m) { return 'The cycle was activated; “' + m[1] + '” was paused'; }],
-    [/^Modo (oficial|práctica): «(.+?)» está activo y «(.+)» quedó pausado$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active and “' + m[3] + '” was paused'; }],
-    [/^Modo (oficial|práctica): «(.+)» está activo$/, function (m) { return (m[1] === 'oficial' ? 'Official' : 'Practice') + ' mode: “' + m[2] + '” is active'; }],
-    [/^Cierra la votación de «(.+)» antes de cambiar de ciclo$/, function (m) { return 'Close voting in “' + m[1] + '” before switching cycles'; }],
-    [/^Las etapas se cumplen en orden: primero marca «(.+)»$/, function (m) { return 'Stages are completed in order: first mark “' + m[1] + '”'; }],
-    [/^Solo se puede corregir la última etapa cumplida \(«(.+)»\)$/, function (m) { return 'Only the last completed stage can be corrected (“' + m[1] + '”)'; }],
-    [/^(.+) tiene palabras ofensivas o groserías\. Escribe de forma respetuosa$/, function (m, c) { return mayusEn(c(m[1])) + ' contains offensive words or profanity. Please write respectfully'; }],
-    [/^(.+) tiene demasiadas letras o signos repetidos$/, function (m, c) { return mayusEn(c(m[1])) + ' has too many repeated letters or symbols'; }],
-    [/^(.+) tiene palabras que no se entienden\. Revisa lo que escribiste$/, function (m, c) { return mayusEn(c(m[1])) + ' has words that don’t make sense. Check what you wrote'; }],
-    [/^(.+) no puede llevar etiquetas HTML ni código \(por ejemplo < > con letras, «javascript:» o «onclick=»\)$/, function (m, c) { return mayusEn(c(m[1])) + ' cannot contain HTML tags or code (for example < > with letters, “javascript:” or “onclick=”)'; }],
-  ];
-  P.tMensaje = function (msg) {
-    var t = P.t(msg);
-    if (idioma !== 'en' || t !== msg || !msg) return t;
-    var s = String(msg);
-    for (var i = 0; i < PATRONES_EN.length; i += 1) {
-      var m = PATRONES_EN[i][0].exec(s);
-      if (!m) continue;
-      var todos = true;
-      var c = function (x) { var v = campoEn(x); if (v === null) { todos = false; return x; } return v; };
-      var r = PATRONES_EN[i][1](m, c);
-      if (todos) return r;
-    }
-    return t;
-  };
-  P.cambiarIdioma = function () {
-    var nuevo = idioma === 'es' ? 'en' : 'es';
-    try { localStorage.setItem('prepar_idioma', nuevo); } catch (e) { }
-    var fin = function () { location.reload(); };
-    if (P.usuario) P.put('/api/perfil/idioma', { idioma: nuevo }, { silencioso: true }).then(fin, fin);
-    else fin();
-  };
+  P.tMensaje = function (msg) { return P.t(msg); };
   P.nombre = function (o, campo) {
     if (!o) return '';
     var c = campo || 'nombre';
     return (idioma === 'en' && o[c + '_en']) ? o[c + '_en'] : (o[c + '_es'] || o[c] || '');
   };
 
-  P.cambiarTema = function () {
-    var actual = doc.documentElement.getAttribute('data-tema') === 'claro' ? 'claro' : 'oscuro';
-    var nuevo = actual === 'claro' ? 'oscuro' : 'claro';
-    doc.documentElement.setAttribute('data-tema', nuevo);
-    try { localStorage.setItem('prepar_tema', nuevo); } catch (e) { }
-    P.$$('[data-accion="tema"]').forEach(pintarBotonTema);
-    doc.dispatchEvent(new CustomEvent('prepar:tema', { detail: nuevo }));
-  };
-  P.temaActual = function () { return doc.documentElement.getAttribute('data-tema') === 'claro' ? 'claro' : 'oscuro'; };
-  function pintarBotonTema(b) {
-    var claro = P.temaActual() === 'claro';
-    P.poner(b, P.html`${P.seguro(ICONOS[claro ? 'luna' : 'sol'])}<span>${claro ? 'Modo oscuro' : 'Modo claro'}</span>`);
-    b.setAttribute('aria-label', P.t(claro ? 'Cambiar a modo oscuro' : 'Cambiar a modo claro'));
-  }
+  P.temaActual = function () { return 'claro'; };
 
   var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
   var MESES_EN = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -252,7 +144,7 @@
   };
   P.GENEROS = { mujer: 'Mujer', hombre: 'Hombre', no_binario: 'No binario', prefiero_no_decir: 'Prefiero no decir' };
   P.FUNCIONES = {
-    directorio: 'Directorio', moderacion: 'Moderación', revision_registros: 'Revisión de registros',
+    moderacion: 'Moderación', revision_registros: 'Revisión de registros',
     dictaminacion: 'Dictaminación', consulta: 'Consulta', seguimiento: 'Seguimiento',
   };
 
@@ -269,7 +161,6 @@
     t.setAttribute('role', tipo === 'error' ? 'alert' : 'status');
     t.textContent = P.tMensaje(mensaje);
     cont.appendChild(t);
-    if (P.mascota) { try { P.mascota.aviso(mensaje, tipo || 'ok'); } catch (e) { } }
     setTimeout(function () { if (t.parentNode) t.parentNode.removeChild(t); }, tipo === 'error' ? 7000 : 4500);
   };
 
@@ -291,9 +182,7 @@
     if (opciones.nombreArchivo) headers['X-Nombre-Archivo'] = encodeURIComponent(String(opciones.nombreArchivo).slice(0, 150));
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var limite = setTimeout(function () { if (ctrl) ctrl.abort(); }, opciones.tiempo || 30000);
-    var lento = false;
-    var relojLento = opciones.sinRedirigir ? null : setTimeout(function () { lento = true; if (P.mascota) P.mascota.ocupado(1); }, 700);
-    var listo = function () { clearTimeout(relojLento); if (lento && P.mascota) P.mascota.ocupado(-1); lento = false; };
+    var listo = function () { };
     return fetch(url, { method: metodo, headers: headers, body: body, credentials: 'same-origin', signal: ctrl ? ctrl.signal : undefined })
       .then(function (r) {
         clearTimeout(limite);
@@ -369,15 +258,9 @@
   };
 
   P.sinMovimiento = function () {
-    try { return window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) { return false; }
+    return true;
   };
-  P.sacudir = function (el) {
-    if (!el || P.sinMovimiento()) return;
-    el.classList.remove('sacudir');
-    void el.offsetWidth;
-    el.classList.add('sacudir');
-    setTimeout(function () { el.classList.remove('sacudir'); }, 500);
-  };
+  P.sacudir = function () { };
   P.animarNumeros = function (raiz) {
     P.$$('[data-contar]', raiz || doc).forEach(function (el) {
       var fin = Number(el.getAttribute('data-contar'));
@@ -405,17 +288,7 @@
     return P.html`<div class="columna" style="gap:12px" role="status" aria-label="${P.t('Cargando…')}">${piezas}</div>`;
   };
   P.celebrarVoto = function (texto) {
-    var capa = doc.createElement('div');
-    capa.className = 'voto-listo';
-    capa.setAttribute('role', 'status');
-    P.poner(capa, P.html`<div class="voto-listo-caja">
-      <svg viewBox="0 0 52 52" aria-hidden="true"><circle cx="26" cy="26" r="24"></circle><path d="M15 27 l8 8 l15 -17"></path></svg>
-      <strong>${texto || P.t('¡Tu voto quedó registrado!')}</strong></div>`);
-    doc.body.appendChild(capa);
-    if (P.mascota) { try { P.mascota.celebrar(); } catch (e) { } }
-    var quitar = function () { if (capa.parentNode) { capa.classList.add('saliendo'); setTimeout(function () { if (capa.parentNode) capa.parentNode.removeChild(capa); }, 250); } };
-    capa.addEventListener('click', quitar);
-    setTimeout(quitar, 2200);
+    P.aviso(texto || P.t('¡Tu voto quedó registrado!'), 'ok');
   };
   P.correoValido = function (c) {
     return /^(?!\.)(?!.*\.\.)[A-Za-z0-9._%+-]{1,64}(?<!\.)@(?:[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?\.)+[A-Za-z]{2,24}$/.test(String(c || '').trim());
@@ -606,6 +479,10 @@
     };
     var desdePunto = function (lat, lon) {
       return P.post('/api/direcciones/punto', { latitud: lat, longitud: lon }, { silencioso: true }).then(function (r) {
+        if (r && r.fuera) {
+          P.poner(caja, P.html`<div class="mensaje error" role="alert">${P.t(r.fuera)}</div>`);
+          return;
+        }
         if (!r || !r.encontrado || !r.calle) return;
         var cambios = [];
         if (!calle.value.trim()) { calle.value = r.calle; cambios.push('calle'); }
@@ -767,26 +644,8 @@
     { id: 'inicio', url: '/admin/inicio.html', icono: 'ciclo', texto: 'Inicio y ciclo', sub: 'Fases y acciones del ciclo' },
     { id: 'estadisticas', url: '/admin/estadisticas.html', icono: 'grafica', texto: 'Estadísticas', sub: 'Gráficas y reportes' },
     { id: 'usuarios', url: '/admin/usuarios.html', icono: 'usuarios', texto: 'Funcionarios y ciudadanos', sub: 'Altas y cuentas' },
-    { id: 'mapa', url: '/admin/mapa.html', icono: 'mapa', texto: 'Mapa y tipos de proyecto', sub: 'Colores y simbología' },
-    { id: 'integraciones', url: '/admin/integraciones.html', icono: 'nube', texto: 'Datos abiertos', sub: 'APIs y sincronización' },
     { id: 'perfil', url: '/admin/perfil.html', icono: 'perfil', texto: 'Mi perfil', sub: 'Foto, datos y contraseña' },
   ];
-  var CONSEJOS = {
-    'funcionario/inicio': 'Empieza por la tarjeta marcada como prioridad. Cada tarjeta te lleva directo a la tarea.',
-    'funcionario/registros': 'Si al proyecto le falta algo, pide corrección (solo una vez). Si no se encontró su dirección, corrígela en la tercera pestaña.',
-    'funcionario/dictaminacion': 'Si un solo criterio no se cumple, el proyecto queda como no viable. Explica siempre el motivo.',
-    'funcionario/sorteo': 'El sorteo es al azar: nadie elige el número. En un caso especial siempre explica por qué elegiste ese proyecto.',
-    'funcionario/mapa': 'Elige un proyecto, presiona «Cambiar ubicación» y toca el mapa. Los vecinos verán el punto nuevo al guardar.',
-    'funcionario/seguimiento': 'Mueve la barra para indicar el avance. Los vecinos lo ven al instante en el mapa.',
-    'funcionario/directorio': 'Captura los datos solo de fuentes públicas oficiales y revisa que el teléfono tenga 10 dígitos.',
-    'funcionario/perfil': 'Si el administrador te dio una contraseña temporal, cámbiala aquí la primera vez que entres.',
-    'administrador/inicio': 'Haz las acciones de la lista antes de avanzar de fase. Los funcionarios se encargan de lo demás.',
-    'administrador/estadisticas': 'Elige un tipo de estadística arriba y usa los filtros para comparar grupos.',
-    'administrador/usuarios': 'Al registrar un funcionario, elige solo las funciones que necesita.',
-    'administrador/mapa': 'Al agregar un tipo nuevo, escribe palabras clave: el sistema lo sugiere solo cuando un vecino las use en su título.',
-    'administrador/integraciones': 'Las fuentes se actualizan solas. Usa «Sincronizar ahora» solo si necesitas los datos de inmediato.',
-    'administrador/perfil': 'Si el administrador te dio una contraseña temporal, cámbiala aquí la primera vez que entres.',
-  };
   var PANEL = { ciudadano: '/ciudadano/inicio.html', funcionario: '/funcionario/inicio.html', administrador: '/admin/inicio.html' };
   P.panelDe = function (rol) { return PANEL[rol] || '/'; };
 
@@ -814,8 +673,7 @@
   };
 
   function botonesHerramientas() {
-    return P.html`<button type="button" class="herr" data-accion="tema"></button>
-      <button type="button" class="herr" data-accion="idioma" aria-label="${idioma === 'es' ? 'Switch to English' : 'Cambiar a español'}">${P.seguro(ICONOS.globo)}<span>${idioma === 'es' ? 'EN' : 'ES'}</span></button>`;
+    return '';
   }
 
   function encabezadoPublico(estado, usuario) {
@@ -823,7 +681,7 @@
       ? P.html`<a class="btn chico" href="${P.panelDe(usuario.rol)}">Ir a mi panel</a>`
       : P.html`<a class="btn2 chico" href="/login.html">Iniciar sesión</a><a class="btn chico" href="/registro.html">Crear cuenta</a>`;
     return P.html`<header class="encabezado"><div class="fila">
-      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar"><span>Prepar</span></a>
+      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
       <div class="acciones">${botonesHerramientas()}${acceso}</div>
     </div></header>`;
   }
@@ -833,13 +691,12 @@
     var f = P.faseActiva(estado);
     var activa = pagina === 'proyectos' ? 'foro' : pagina;
     return P.html`<div class="cabecera-fija"><header class="encabezado"><div class="fila">
-      <a class="marca" href="/ciudadano/inicio.html"><img src="/img/logo.png" alt="Logo de Prepar"><span>Prepar</span></a>
+      <a class="marca" href="/ciudadano/inicio.html"><img src="/img/logo.png" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
       <div class="acciones">
         <div class="campana-c" style="position:relative"><button type="button" class="herr" data-accion="notificaciones" aria-label="Notificaciones" aria-expanded="false">${P.seguro(ICONOS.campana)}<span class="globo" hidden></span></button></div>
         <button type="button" class="herr boton-menu-c" data-accion="menu-c" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-c">${P.seguro(ICONOS.menu)}</button>
         <div class="acciones-menu" id="menu-c">
           <a class="usuario-mini" href="/ciudadano/perfil.html" title="Editar mi perfil">${P.avatar(u.nombre, u.fotoUuid)}<span class="datos"><strong>${u.nombre}</strong><br><span>${u.unidad || ''}${u.alcaldia ? ', ' + u.alcaldia : ''}</span></span></a>
-          <button type="button" class="herr" data-accion="ayuda" title="Ver otra vez la bienvenida">${P.seguro(ICONOS.ayuda)}<span>Ayuda</span></button>
           ${botonesHerramientas()}
           <button type="button" class="herr salir" data-accion="salir">Cerrar sesión</button>
         </div>
@@ -854,7 +711,6 @@
   }
 
   function lateral(estado, u, pagina, menu, rolTexto) {
-    var consejo = CONSEJOS[u.rol + '/' + pagina] ? P.t(CONSEJOS[u.rol + '/' + pagina]) : '';
     var perfil = u.rol === 'administrador' ? '/admin/perfil.html' : '/funcionario/perfil.html';
     var items = menu.map(function (m) {
       var permitido = !m.funciones || u.rol === 'administrador' || m.funciones.some(function (f) { return u.funciones.indexOf(f) >= 0; });
@@ -866,16 +722,13 @@
     return P.html`<aside class="lateral" aria-label="Menú">
       <div class="fila entre">
         <a class="marca" href="${P.panelDe(u.rol)}"><img src="/img/logo.png" alt="Logo de Prepar"><span style="display:flex;flex-direction:column;line-height:1">
-          <span>Prepar</span><span class="rol">${rolTexto}</span></span></a>
+          <span>Pre<span class="par">par</span></span><span class="rol">${rolTexto}</span></span></a>
         <button type="button" class="herr boton-menu" data-accion="menu" aria-label="Abrir menú" aria-expanded="false">${P.seguro(ICONOS.menu)}</button>
       </div>
       <a class="tarjeta-usuario" href="${perfil}" title="Editar mi perfil">${P.avatar(u.nombre, u.fotoUuid)}
         <span style="line-height:1.3;min-width:0"><strong>${u.nombre}</strong><br><span>${u.rol === 'administrador' ? P.t('Administración del simulador') : P.t('Alcaldía {a}', { a: u.alcaldia || '' })}</span></span></a>
       <nav class="menu">${items}</nav>
-      ${consejo && !GUIAS[u.rol + '/' + pagina] ? P.html`<div class="consejo"><strong>Consejo</strong>${consejo}</div>` : ''}
-      <div class="pie-lateral"><button type="button" class="btn2 ancho" data-accion="ayuda">${P.seguro(ICONOS.ayuda)} Ayuda: ¿cómo funciona?</button>
-        <div class="fila-herr">${botonesHerramientas()}</div>
-        <button type="button" class="btn2 ancho" data-accion="salir">Cerrar sesión</button></div>
+      <div class="pie-lateral"><button type="button" class="btn2 ancho" data-accion="salir">Cerrar sesión</button></div>
     </aside>`;
   }
 
@@ -892,201 +745,9 @@
     return P.html`<div class="aviso-sim" role="note">${texto}</div>`;
   }
 
-  P.refrescarHerramientas = function () {
-    P.$$('[data-accion="tema"]').forEach(pintarBotonTema);
-    P.$$('[data-accion="idioma"]').forEach(function (b) {
-      P.poner(b, P.html`${P.seguro(ICONOS.globo)}<span data-largo="${idioma === 'es' ? 'English' : 'Español'}">${idioma === 'es' ? 'EN' : 'ES'}</span>`);
-      b.setAttribute('aria-label', idioma === 'es' ? 'Switch to English' : 'Cambiar a español');
-    });
-  };
+  P.refrescarHerramientas = function () { };
 
-  var BIENVENIDA = {
-    ciudadano: [
-      ['👋', '¡Bienvenida o bienvenido a Prepar!', 'Prepar es un simulador: aquí practicas, paso a paso, cómo se decide en qué se gasta el dinero de tu colonia. Nada de lo que hagas aquí es oficial.'],
-      ['🗓️', 'Todo avanza por fases', 'La simulación tiene 8 fases, de la convocatoria a la evaluación. Arriba siempre ves la fase activa y hasta cuándo dura. En cada fase se pueden hacer cosas distintas.'],
-      ['🧭', 'Lo que puedes hacer', 'Foro: propones ideas y registras tu proyecto (fase 2). Votación: eliges un proyecto (fase 5). Mapa y Foto denuncia: vigilas las obras (fase 7) y las calificas (fase 8).'],
-      ['✅', 'Empieza por aquí', 'En Inicio, «Tu siguiente paso» siempre te dice qué hacer hoy. Cada página tiene un recuadro azul «¿Cómo se usa esta página?». Si te pierdes, toca «Ayuda».'],
-    ],
-    funcionario: [
-      ['👋', 'Bienvenida o bienvenido, funcionario', 'Revisas y acompañas los proyectos de los vecinos de tu alcaldía durante la simulación.'],
-      ['📋', 'Tus tareas están a la izquierda', 'Cada opción del menú es una tarea. El número junto a ella son los pendientes. Las opciones en gris son funciones que el administrador no te asignó.'],
-      ['🏠', 'Inicio te dice por dónde empezar', 'En Inicio ves tarjetas con tus pendientes; empieza por la marcada como «Prioridad». Cada tarjeta te lleva directo a la tarea.'],
-      ['📝', 'Todo queda registrado', 'Dictámenes, sorteos, moderación y cambios quedan en la bitácora. Cada página tiene un recuadro azul con sus pasos y el botón «Ayuda» te trae aquí de nuevo.'],
-    ],
-    administrador: [
-      ['👋', 'Bienvenida o bienvenido, administrador', 'Tú controlas la simulación: el ciclo, las fases, las cuentas de funcionarios y las estadísticas.'],
-      ['🗓️', 'Inicio y ciclo', 'Ahí ves la barra de fases, lo que falta hacer en la fase actual (abrir o cerrar la votación, publicar ganadores) y el botón para avanzar de fase.'],
-      ['👥', 'Funcionarios y ciudadanos', 'Da de alta a los funcionarios con su alcaldía y lo que podrán hacer. También puedes suspender o reactivar cuentas de ciudadanos.'],
-      ['📊', 'Estadísticas y datos abiertos', 'Genera gráficas y exporta la bitácora. En «Datos abiertos» revisas las fuentes que se actualizan solas y la configuración del correo.'],
-    ],
-  };
-  var POSE_TOUR = { '👋': 'celebra', '🗓️': 'plano', '🧭': 'lupa', '✅': 'ok', '📋': 'revisa', '🏠': 'tablero', '📝': 'aviso', '👥': 'revisa', '📊': 'tablero' };
-  P.bienvenida = function (forzar) {
-    var u = P.usuario;
-    if (!u || !BIENVENIDA[u.rol]) return;
-    var clave = 'prepar_bienvenida_' + u.id;
-    if (!forzar) {
-      var vista = false;
-      try { vista = localStorage.getItem(clave) === 'vista' || localStorage.getItem('prepar_bienvenida_todas') === 'vista'; } catch (e) { vista = true; }
-      if (vista) return;
-    }
-    var pasos = BIENVENIDA[u.rol];
-    var i = 0;
-    var m = P.modal({ titulo: P.t('Recorrido rápido'), contenido: P.html`<div id="tour"></div>`, botones: [], alCerrar: function () {
-      try { localStorage.setItem(clave, 'vista'); } catch (e) { }
-    } });
-    var caja = m.el ? m.el.querySelector('#tour') : doc.querySelector('#tour');
-    function pintar() {
-      var p = pasos[i];
-      P.poner(caja, P.html`<div class="tour">
-        <div class="tour-icono" aria-hidden="true">${POSE_TOUR[p[0]] ? P.seguro('<img src="/img/mascota/' + POSE_TOUR[p[0]] + '.webp?v=4" alt="" width="150" height="120">') : p[0]}</div>
-        <h3 class="h tour-titulo">${P.t(p[1])}</h3>
-        <p class="tour-texto">${P.t(p[2])}</p>
-        <div class="tour-puntos" aria-label="${P.t('Paso {n} de {t}', { n: i + 1, t: pasos.length })}">${pasos.map(function (x, j) { return P.html`<span class="${j === i ? 'activo' : ''}"></span>`; })}</div>
-        <div class="fila entre" style="gap:10px">
-          <button type="button" class="enlace-boton" data-tour="saltar">${P.t('Saltar')}</button>
-          <span class="fila" style="gap:8px">
-            ${i > 0 ? P.html`<button type="button" class="btn2" data-tour="atras">${P.t('Anterior')}</button>` : ''}
-            <button type="button" class="btn" data-tour="sig">${P.t(i === pasos.length - 1 ? '¡Empezar!' : 'Siguiente')}</button>
-          </span>
-        </div></div>`);
-      setTimeout(function () { var b = caja.querySelector('[data-tour="sig"]'); if (b) b.focus(); }, 60);
-    }
-    caja.addEventListener('click', function (e) {
-      var b = e.target.closest('[data-tour]');
-      if (!b) return;
-      var a = b.getAttribute('data-tour');
-      if (a === 'atras') { i = Math.max(0, i - 1); pintar(); }
-      else if (a === 'sig' && i < pasos.length - 1) { i += 1; pintar(); }
-      else m.cerrar();
-    });
-    pintar();
-  };
-
-  var GUIAS = {
-    'ciudadano/inicio': ['Aquí ves en qué fase va la simulación y qué te toca hacer.', [
-      'Lee «Tu siguiente paso»: es lo que puedes hacer hoy. Su botón te lleva directo.',
-      '«Tu recorrido» marca con ✓ lo que ya hiciste en este ciclo.',
-      'Toca cualquier fase de la línea de tiempo para ver qué pasa en ella y cuándo.']],
-    'ciudadano/foro': ['El foro es para platicar las necesidades de tu colonia y convertirlas en proyectos.', [
-      'Escribe una necesidad, elige su rubro y presiona «Publicar».',
-      'Apoya las ideas que te gusten y deja comentarios. Los apoyos no son votos.',
-      'Cuando tengas una propuesta concreta, llena «Registrar proyecto» (a la derecha): costo y dirección. El sistema te da tu folio.'],
-      'Ideas y proyectos solo se publican en la fase 2 · Diagnóstico y registro.'],
-    'ciudadano/proyectos': ['Aquí están los proyectos que registraste.', [
-      'Cada proyecto muestra su folio y su estatus (registrado, en dictaminación, viable…).',
-      'Mientras siga la fase 2 puedes editarlo o retirarlo.',
-      'Si un funcionario pidió una corrección, aparece en el proyecto: corrígelo y guarda.']],
-    'ciudadano/votacion': ['Vota por un solo proyecto de la boleta de tu colonia.', [
-      'Toca la tarjeta del proyecto que prefieras.',
-      'Presiona «Continuar» y revisa tu elección.',
-      'Presiona «Confirmar voto» y descarga tu comprobante.'],
-      'Solo se puede votar una vez y el voto es secreto.'],
-    'ciudadano/mapa': ['Ubica los proyectos y revisa cómo van.', [
-      'Arriba elige qué ver: ganadores o todos, y la alcaldía.',
-      'Toca un punto del mapa para ver su ficha: avance, presupuesto y fotos.',
-      'Usa + y − para acercar o alejar, y las flechas para moverte.']],
-    'ciudadano/seguimiento': ['Vigila las obras ganadoras y avisa si algo va mal.', [
-      'En «Subir foto» elige la obra y si es un avance o una irregularidad.',
-      'Agrega de 1 a 5 fotos JPG o PNG (otros archivos se rechazan) y describe lo que se ve.',
-      'En la fase de Evaluación califica con estrellas el proyecto de tu colonia.']],
-    'ciudadano/directorio': ['Datos de contacto de las alcaldías.', [
-      'Escribe una palabra (por ejemplo «participación») o elige una alcaldía.',
-      'Toca el teléfono o el correo para comunicarte.']],
-    'ciudadano/perfil': ['Tus datos personales y tu contraseña.', [
-      'Cambia tu foto, tu nombre o tu colonia (la colonia solo antes de la Consulta).',
-      'La contraseña es opcional: llena esos campos solo si quieres cambiarla.',
-      'Presiona «Guardar cambios».']],
-    'funcionario/inicio': ['Tus pendientes del día en tu alcaldía.', [
-      'Cada tarjeta es una tarea con su número de pendientes. Empieza por la marcada como prioridad.',
-      'Publica avisos para los vecinos; puedes ponerles fecha de vigencia.',
-      '«Herramientas por fase» te dice qué se usa en la fase actual.']],
-    'funcionario/registros': ['Revisa proyectos, modera el foro y corrige ubicaciones.', [
-      'Pestaña 1: si el proyecto está completo, «Enviar a dictaminación»; si le falta algo, «Pedir corrección» (solo una vez).',
-      'Pestaña 2: oculta o elimina publicaciones que no respeten las reglas. Siempre escribe el motivo.',
-      'Pestaña 3: coloca en el mapa los proyectos cuya dirección no se encontró.']],
-    'funcionario/dictaminacion': ['Decide si cada proyecto es viable.', [
-      'Elige un proyecto de la lista de la izquierda.',
-      'Toca cada criterio para marcar si se cumple. Si uno no se cumple, el resultado es «No viable».',
-      'Escribe la justificación y presiona «Emitir dictamen». Es definitivo.'],
-      '«Guardar borrador» te deja terminarlo después.'],
-    'funcionario/sorteo': ['Asigna los números de la boleta y resuelve los casos especiales.', [
-      'Elige una colonia de la lista.',
-      'Presiona «Realizar sorteo»: el sistema asigna los números al azar y publica la boleta.',
-      'Después del conteo, en «Casos especiales» resuelve empates o colonias sin votos.']],
-    'funcionario/mapa': ['Corrige dónde aparece cada proyecto en el mapa.', [
-      'Elige un proyecto de la lista (los marcados en rojo necesitan atención).',
-      'Presiona «Cambiar ubicación en el mapa» y toca el lugar correcto, o corrige la dirección.',
-      'Presiona «Guardar cambios». Queda registrado en la bitácora.']],
-    'funcionario/seguimiento': ['Informa el avance de las obras ganadoras.', [
-      'Elige una obra y mueve la barra para marcar el porcentaje de avance.',
-      'Escribe el monto ejercido, el estatus y, si quieres, una nota para los vecinos. Guarda.',
-      'En «Reportes de vecinos» escribe una respuesta y márcalo como atendido.']],
-    'funcionario/directorio': ['Los datos de contacto que ven los ciudadanos.', [
-      'Toca «Editar» en un registro o «+ Agregar registro» para uno nuevo.',
-      'Revisa que el teléfono tenga 10 dígitos.',
-      'Presiona «Guardar»: se publica de inmediato en el Directorio.']],
-    'funcionario/perfil': ['Tu foto, tus datos de contacto y tu contraseña.', [
-      'Actualiza tu foto, tu nombre y tu teléfono de oficina.',
-      'Para cambiar la contraseña escribe la actual y la nueva dos veces.',
-      'Presiona «Guardar cambios».']],
-    'administrador/inicio': ['Desde aquí se controla todo el ciclo.', [
-      'La barra de arriba muestra en qué fase va el ciclo.',
-      'Haz las acciones de «Qué hacer en esta fase» (por ejemplo abrir y cerrar la votación).',
-      'Cuando termines, presiona «Avanzar a la siguiente fase». El sistema pide confirmación.'],
-      'Más abajo están las fechas de cada fase, el presupuesto de las colonias y los avisos.'],
-    'administrador/estadisticas': ['Gráficas de la participación y del avance.', [
-      'Elige arriba qué quieres analizar.',
-      'Ajusta los filtros (alcaldía, género, edad, rubro…).',
-      'Presiona «Generar gráficas». En «Bitácora» puedes exportar a CSV.']],
-    'administrador/usuarios': ['Cuentas de funcionarios y ciudadanos.', [
-      '«+ Registrar funcionario»: nombre, correo, alcaldía y qué podrá hacer.',
-      'Si el correo no llega, entrégale la contraseña temporal que aparece en pantalla.',
-      'En «Ciudadanos» busca una cuenta para suspenderla (con motivo) o reactivarla.']],
-    'administrador/mapa': ['Los tipos de proyecto dan el color y el dibujo de cada punto del mapa.', [
-      'Para un tipo nuevo (por ejemplo «Pozos y drenaje» en azul) escribe el nombre, elige el color y el dibujo.',
-      'Agrega palabras clave separadas por comas: si un vecino las usa en su título, el sistema sugiere ese tipo.',
-      'Presiona «Agregar tipo». Aparece de inmediato en los formularios, los mapas y la simbología.',
-      'Si un tipo ya no se usa, desactívalo: los proyectos que ya lo tienen conservan su color.'],
-      'Después de agregar un tipo, «Clasificar proyectos» revisa los proyectos marcados como «Otro».'],
-    'administrador/integraciones': ['El correo del sistema y las fuentes de datos abiertos.', [
-      'Correo: si dice «Sin configurar», sigue los pasos de Gmail y luego envía un correo de prueba.',
-      'Las fuentes de datos se actualizan solas; «Sincronizar ahora» trae los datos al momento.',
-      '«Configurar» cambia la frecuencia o desactiva una fuente.']],
-    'administrador/perfil': ['Tu foto, tus datos de contacto y tu contraseña.', [
-      'Actualiza tu foto, tu nombre y tu teléfono.',
-      'Para cambiar la contraseña escribe la actual y la nueva dos veces.',
-      'Presiona «Guardar cambios».']],
-  };
-  function guiaDe(rol, pagina) {
-    var g = GUIAS[rol + '/' + pagina];
-    if (!g) return null;
-    var el = doc.createElement('details');
-    var titulo = P.t('¿Cómo se usa esta página?');
-    P.poner(el, P.html`<summary title="${titulo}"><span class="guia-icono" aria-hidden="true">?</span><strong class="guia-titulo">${titulo}</strong><span class="tenue guia-resumen">${P.t(g[0])}</span></summary>
-      <ol class="guia-pasos">${g[1].map(function (x) { return P.html`<li>${P.t(x)}</li>`; })}</ol>
-      ${g[2] ? P.html`<p class="guia-nota">💡 ${P.t(g[2])}</p>` : ''}
-      <button type="button" class="btn2 chico" data-cerrar-guia>${P.t('Entendido, ocultar')}</button>`);
-    var compactar = function (si) { el.className = si ? 'guia compacta' : 'guia'; };
-    compactar(true);
-    el.open = false;
-    el.addEventListener('toggle', function () { compactar(!el.open); });
-    el.querySelector('[data-cerrar-guia]').addEventListener('click', function () {
-      el.open = false; compactar(true);
-      var s = el.querySelector('summary'); if (s) s.focus();
-    });
-    return el;
-  }
-
-  P.abrirGuia = function (soloComprobar) {
-    var g = doc.querySelector('details.guia');
-    if (!g) return false;
-    if (soloComprobar) return true;
-    g.open = true;
-    g.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    var s = g.querySelector('summary'); if (s) s.focus({ preventScroll: true });
-    return true;
-  };
+  P.bienvenida = function () { };
 
   P.reiniciarAyuda = function () {
     try {
@@ -1130,7 +791,7 @@
       body.appendChild(p.firstElementChild);
       body.classList.add('con-pie');
     }
-    var guia = rol !== 'invitado' && usuario ? guiaDe(rol, pagina) : null;
+    var guia = null;
     if (guia) {
       var primero = main.firstElementChild;
       if (primero && primero.nextSibling) main.insertBefore(guia, primero.nextSibling); else main.appendChild(guia);
@@ -1234,13 +895,10 @@
       return;
     }
     var a = b.getAttribute('data-accion');
-    if (a === 'tema') P.cambiarTema();
-    else if (a === 'idioma') P.cambiarIdioma();
-    else if (a === 'salir') {
+    if (a === 'salir') {
       P.confirmar(P.t('¿Cerrar sesión?'), P.t('¿Seguro que quieres salir? Tendrás que volver a iniciar sesión para entrar.'), { si: 'Cerrar sesión' })
         .then(function (ok) { if (ok) P.salir(); });
     }
-    else if (a === 'ayuda') P.bienvenida(true);
     else if (a === 'menu-c') {
       var mc = P.$('#menu-c');
       var menuAbierto = mc.classList.toggle('abierto');
@@ -1286,7 +944,6 @@
     P.get('/api/notificaciones', { sinRedirigir: true }).then(function (r) {
       b.hidden = !r.no_leidas;
       b.textContent = r.no_leidas > 99 ? '99+' : String(r.no_leidas);
-      if (P.mascota && r.no_leidas) P.mascota.avisosNuevos(r.no_leidas, function () { var bt = P.$('[data-accion="notificaciones"]'); if (bt) bt.click(); });
     }, function () { });
   }
   function abrirNotificaciones(boton) {
@@ -1359,8 +1016,7 @@
     var montado = false;
     var previo = leerMarco();
     var huellaPrevia = previo ? JSON.stringify(previo) : '';
-    if (previo && previo.usuario && previo.usuario.rol === rol && !previo.usuario.debeAceptarTerminos && !previo.usuario.debeCambiarPassword
-      && !(previo.usuario.idioma && previo.usuario.idioma !== idioma)) {
+    if (previo && previo.usuario && previo.usuario.rol === rol && !previo.usuario.debeAceptarTerminos && !previo.usuario.debeCambiarPassword) {
       try {
         P.estado = previo.estado;
         P.usuario = previo.usuario;
@@ -1380,17 +1036,6 @@
       if (rol === 'invitado' && usuario && doc.body.hasAttribute('data-redirigir-sesion')) { location.replace(P.panelDe(usuario.rol)); return; }
       if (usuario && usuario.debeAceptarTerminos && pagina !== 'terminos') { location.replace('/terminos.html?aceptar=1&volver=' + encodeURIComponent(location.pathname + location.search)); return; }
       if (usuario && usuario.debeCambiarPassword && pagina !== 'perfil' && pagina !== 'terminos') { location.replace('/funcionario/perfil.html?temporal=1'); return; }
-      if (usuario && usuario.idioma && usuario.idioma !== idioma) {
-        var guardado = null;
-        var yaIntentado = false;
-        try {
-          yaIntentado = sessionStorage.getItem('prepar_idioma_sync') === usuario.idioma;
-          sessionStorage.setItem('prepar_idioma_sync', usuario.idioma);
-          localStorage.setItem('prepar_idioma', usuario.idioma);
-          guardado = localStorage.getItem('prepar_idioma');
-        } catch (e) { guardado = null; }
-        if (guardado === usuario.idioma && !yaIntentado) { location.reload(); return; }
-      }
       if (!montado) montarMarco(rol, pagina, estado, usuario);
       else if (JSON.stringify({ estado: estado, usuario: usuario }) !== huellaPrevia) refrescarMarco(rol, pagina, estado, usuario);
       franjaVerificacion(usuario);
@@ -1399,13 +1044,6 @@
         var filaNav = navActiva.parentNode;
         filaNav.scrollLeft = Math.max(0, navActiva.offsetLeft - (filaNav.clientWidth - navActiva.offsetWidth) / 2);
       }
-      if (!doc.querySelector('script[src="/js/mascota.js"]')) {
-        var sm = doc.createElement('script');
-        sm.src = '/js/mascota.js';
-        sm.defer = true;
-        doc.body.appendChild(sm);
-      }
-      if (usuario && pagina === 'inicio' && !usuario.debeCambiarPassword && !usuario.debeAceptarTerminos) setTimeout(function () { P.bienvenida(false); }, 500);
       doc.title = P.t(doc.title);
       if (usuario) { vigilarInactividad(); contarNotificaciones(); }
       if (rol === 'funcionario') P.actualizarCuentas();
@@ -1422,8 +1060,7 @@
           }
         });
       };
-      P.cargarCategorias().then(correr, correr);
-      setTimeout(correr, 2500);
+      correr();
       doc.body.classList.add('listo');
     });
   }
@@ -1488,134 +1125,29 @@
     corazon: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>',
     persona: '<circle cx="12" cy="7" r="3.5"/><path d="M5 20.5c.5-4 3.3-6.5 7-6.5s6.5 2.5 7 6.5"/>',
   };
-  P.GLIFOS_PIN = Object.keys(GLIFOS);
-  var GLIFO_RUBRO = { 1: 'arbol', 2: 'obra', 3: 'estrella' };
-  P.CATEGORIAS = {
-    areas_verdes: ['Parques, huertos y áreas verdes', '#3FA34D', 'arbol'],
-    vialidad: ['Calles, bacheo y banquetas', '#8A94A6', 'cono'],
-    alumbrado: ['Alumbrado público', '#C9A227', 'foco'],
-    recreacion: ['Centros recreativos, deporte y cultura', '#A78BFA', 'estrella'],
-    seguridad: ['Cámaras y seguridad', '#E55E54', 'escudo'],
-    agua: ['Agua, pozos y drenaje', '#3B9EDB', 'gota'],
-    mobiliario: ['Plazas y mobiliario urbano', '#C07F4E', 'banca'],
-    otro: ['Otro', '#5F7387', 'proyecto'],
-  };
-  var CAT_ACTIVAS = Object.keys(P.CATEGORIAS);
-  var PALABRAS_CAT = {
-    areas_verdes: 'parque, jardin, huerto, arbol, arbolado, area verde, areas verdes, reforest, pasto, vivero, composta, camellon',
-    vialidad: 'bache, bacheo, banqueta, pavimen, calle, vialidad, rampa, guarnici, asfalto, paso peatonal, ciclovia, tope',
-    alumbrado: 'alumbrad, luminari, lampara, ilumina, foco, poste de luz, luz',
-    recreacion: 'deportiv, cancha, gimnasio, juegos, recreativ, cultural, taller, musica, pintura, teatro, biblioteca, centro comunitario, skate, alberca, ludoteca',
-    seguridad: 'camara, videovigil, seguridad, alarma, vigilancia',
-    agua: 'agua, drenaje, pozo, bebedero, coladera, cisterna, tinaco, potable, fuga, inundaci, alcantarill',
-    mobiliario: 'plaza, mobiliario, banca, bote de basura, botes de basura, jardinera, kiosco, techumbre, senaletica, parada',
+  var COLOR_RUBRO = { 1: '#16A34A', 2: '#EA580C', 3: '#7C3AED' };
+  P.colorRubro = function (p) {
+    var id = typeof p === 'object' && p ? Number(p.rubro_id) : Number(p);
+    return COLOR_RUBRO[id] || '#64748B';
   };
   P.normalizar = function (t) {
     return String(t || '').toLowerCase().replace(/ñ/g, '\u0001').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\u0001/g, 'ñ');
   };
-  var RE_CAT = {};
-  function compilarPalabras() {
-    RE_CAT = {};
-    Object.keys(PALABRAS_CAT).forEach(function (k) {
-      RE_CAT[k] = String(PALABRAS_CAT[k] || '').split(',').map(function (p) { return P.normalizar(p).trim().replace(/\s+/g, ' '); })
-        .filter(Boolean).map(function (p) { return new RegExp('(^|[^a-z0-9ñ])' + p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')); });
-    });
-  }
-  compilarPalabras();
-  P.usarCategorias = function (lista) {
-    if (!Array.isArray(lista) || !lista.length) return;
-    var en = idioma === 'en';
-    var nuevas = {};
-    var activas = [];
-    PALABRAS_CAT = {};
-    lista.forEach(function (c) {
-      if (!c || !/^#[0-9a-fA-F]{6}$/.test(c.color || '')) return;
-      nuevas[c.clave] = [(en && c.nombre_en) || c.nombre_es, c.color, GLIFOS[c.icono] ? c.icono : 'proyecto'];
-      if (Number(c.activa)) { activas.push(c.clave); PALABRAS_CAT[c.clave] = c.palabras || ''; }
-    });
-    if (!nuevas.otro) nuevas.otro = ['Otro', '#5F7387', 'proyecto'];
-    if (activas.indexOf('otro') < 0) activas.push('otro');
-    P.CATEGORIAS = nuevas;
-    CAT_ACTIVAS = activas;
-    compilarPalabras();
-  };
-  var cacheTipos = null;
-  P.cargarCategorias = function (forzar) {
-    if (!cacheTipos || forzar) {
-      cacheTipos = P.get('/api/categorias', { sinRedirigir: true }).then(function (l) { P.usarCategorias(l); return l; })
-        .catch(function () { cacheTipos = null; return null; });
-    }
-    return cacheTipos;
-  };
-  function buscarCategoria(texto) {
-    var gana = null;
-    var pos = -1;
-    CAT_ACTIVAS.forEach(function (k) {
-      (RE_CAT[k] || []).forEach(function (re) {
-        var m = re.exec(texto);
-        if (!m) return;
-        var p = m.index + m[1].length;
-        if (pos < 0 || p < pos) { gana = k; pos = p; }
-      });
-    });
-    return gana;
-  }
-  P.adivinarCategoria = function (titulo, descripcion) {
-    return buscarCategoria(P.normalizar(titulo)) || buscarCategoria(P.normalizar((titulo || '') + ' ' + (descripcion || ''))) || 'otro';
-  };
-  P.categoriaDe = function (p) { var c = p && p.categoria; return P.CATEGORIAS[c] ? c : P.adivinarCategoria(p && p.titulo, p && p.descripcion); };
-  P.colorCategoria = function (p) { return P.CATEGORIAS[P.categoriaDe(p)][1]; };
-  P.glifoCategoria = function (p) { return P.CATEGORIAS[P.categoriaDe(p)][2]; };
-  P.filasCategorias = function (lista) {
-    var usadas = {};
-    (lista || []).forEach(function (p) { usadas[P.categoriaDe(p)] = true; });
-    var filtrar = lista && lista.length > 0;
-    var claves = Object.keys(P.CATEGORIAS).filter(function (k) { return !filtrar || usadas[k]; });
-    return { titulo: 'Tipo de proyecto', filas: claves.map(function (k) { return { color: P.CATEGORIAS[k][1], glifo: P.CATEGORIAS[k][2], texto: P.CATEGORIAS[k][0] }; }) };
-  };
-  P.selectorCategoria = function (form) {
-    var sel = form.querySelector('[name=categoria]');
-    if (!sel) return;
-    P.poner(sel, CAT_ACTIVAS.map(function (k) { return P.html`<option value="${k}">${P.t(P.CATEGORIAS[k][0])}</option>`; }));
-    var tocado = false;
-    var muestra = form.querySelector('.muestra-categoria');
-    var pintar = function () {
-      if (!muestra) return;
-      var c = P.CATEGORIAS[sel.value] || P.CATEGORIAS.otro;
-      P.poner(muestra, P.html`${P.seguro('<span class="simbolo-pin">' + svgPin(c[1], c[2], false) + '</span>')}<span>${P.t('Así se verá en el mapa')}</span>`);
-    };
-    sel.addEventListener('change', function () { tocado = true; pintar(); });
-    var sugerir = function () {
-      if (tocado) return;
-      sel.value = P.adivinarCategoria(form.titulo && form.titulo.value, form.descripcion && form.descripcion.value);
-      pintar();
-    };
-    ['titulo', 'descripcion'].forEach(function (n) { var el = form.querySelector('[name=' + n + ']'); if (el) el.addEventListener('input', sugerir); });
-    form.addEventListener('reset', function () { tocado = false; setTimeout(sugerir, 0); });
-    sugerir();
-    return { fijar: function (v) {
-      if (!P.CATEGORIAS[v]) return;
-      if (!sel.querySelector('option[value="' + v + '"]')) { var o = doc.createElement('option'); o.value = v; o.textContent = P.t(P.CATEGORIAS[v][0]); sel.appendChild(o); }
-      sel.value = v; tocado = true; pintar();
-    } };
-  };
-  P.glifoRubro = function (rubroId) { return GLIFO_RUBRO[rubroId] || 'proyecto'; };
   P.glifo = function (clave, color, tam) {
     return '<svg viewBox="0 0 24 24" width="' + (tam || 16) + '" height="' + (tam || 16) + '" fill="none" stroke="' + P.esc(color || 'currentColor') +
       '" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + (GLIFOS[clave] || GLIFOS.proyecto) + '</svg>';
   };
   function svgPin(color, glifo, elegido) {
-    var c = P.esc(color || '#E08E6D');
-    return '<svg viewBox="0 0 36 46" width="36" height="46" aria-hidden="true">' +
-      '<path d="M18 44.5C11 35.6 3 27.4 3 18A15 15 0 0 1 33 18c0 9.4-8 17.6-15 26.5z" fill="' + c + '" stroke="' + (elegido ? 'var(--texto)' : 'rgba(15,23,42,.65)') + '" stroke-width="' + (elegido ? 2.5 : 1.5) + '"/>' +
-      '<circle cx="18" cy="17.5" r="10.5" fill="#fff"/>' +
-      '<g transform="translate(9.6 9.1) scale(.7)" fill="none" stroke="' + c + '" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">' + (GLIFOS[glifo] || GLIFOS.proyecto) + '</g></svg>';
+    var c = P.esc(color || '#64748B');
+    return '<svg viewBox="0 0 36 46" width="100%" height="100%" aria-hidden="true">' +
+      '<path d="M18 44.5C11 35.6 3 27.4 3 18A15 15 0 0 1 33 18c0 9.4-8 17.6-15 26.5z" fill="' + c + '" stroke="' + (elegido ? '#142033' : '#FFFFFF') + '" stroke-width="' + (elegido ? 3 : 2) + '"/>' +
+      '<circle cx="18" cy="18" r="5" fill="#FFFFFF"/></svg>';
   }
   P.svgPin = function (color, glifo, elegido) { return svgPin(color, glifo, elegido); };
   P.iconoPin = function (color, elegido, glifo) {
     return window.L.divIcon({
       className: 'pin-maq' + (elegido ? ' elegido' : ''),
-      html: svgPin(color, glifo || 'proyecto', elegido), iconSize: [36, 46], iconAnchor: [18, 45], popupAnchor: [0, -38],
+      html: svgPin(color, glifo, elegido), iconSize: elegido ? [44, 56] : [32, 41], iconAnchor: elegido ? [22, 55] : [16, 40], popupAnchor: [0, -36],
     });
   };
   P.marcador = function (lat, lng, color, opciones) {
@@ -1634,8 +1166,7 @@
         <div class="simbologia-cuerpo" ${abierta ? '' : P.seguro('hidden')}>${secs.map(function (sec) {
           return P.html`<div class="simbologia-seccion">${sec.titulo ? P.html`<strong>${P.t(sec.titulo)}</strong>` : ''}
             <ul>${sec.filas.map(function (f) {
-              return P.html`<li>${f.glifo && f.color ? P.seguro('<span class="simbolo-pin">' + svgPin(f.color, f.glifo, false) + '</span>')
-                : (f.glifo ? P.seguro('<span class="simbolo-glifo">' + P.glifo(f.glifo, 'currentColor', 16) + '</span>') : P.html`<i style="background:${f.color}"></i>`)}<span>${P.t(f.texto)}</span></li>`;
+              return P.html`<li><i style="background:${f.color}"></i><span>${P.t(f.texto)}</span></li>`;
             })}</ul></div>`;
         })}</div>`);
     };
@@ -1657,7 +1188,7 @@
   };
   P.filasRubros = function (cat) {
     var rubros = (cat && cat.rubros) || [{ id: 1, nombre_es: 'Mejoramiento de espacios públicos' }, { id: 2, nombre_es: 'Infraestructura urbana, obras y servicios' }, { id: 3, nombre_es: 'Actividades recreativas, deportivas y culturales' }];
-    return { titulo: 'Rubro (dibujo dentro del punto)', filas: rubros.map(function (r) { return { glifo: P.glifoRubro(r.id), texto: P.nombre ? P.nombre(r) : r.nombre_es }; }) };
+    return { titulo: 'Color del punto = rubro', filas: rubros.map(function (r) { return { color: P.colorRubro(r.id), texto: P.nombre ? P.nombre(r) : r.nombre_es }; }) };
   };
 
   P.selectoresUbicacion = function (selAlc, selUt, cat, op) {
@@ -1827,7 +1358,6 @@
         titulo: P.t('Eliminar mi cuenta'),
         contenido: P.html`<div class="columna" style="gap:12px">
           <p class="texto-2" style="margin:0">${P.t('Esta acción no se puede deshacer. Se borrarán tus datos personales y cerrarás sesión en todos tus dispositivos.')}</p>
-          <p class="tenue pequeno" style="margin:0">${P.t('¿Entraste con Google y no tienes contraseña? Crea una con «¿Olvidaste tu contraseña?» en la página de inicio de sesión.')}</p>
           <label>${P.t('Tu contraseña')}<span class="campo-pass"><input type="password" id="el-pass" maxlength="72" autocomplete="current-password"><button type="button">Ver</button></span></label>
           <label>${P.t('Escribe ELIMINAR para confirmar')}<input type="text" id="el-confirmar" autocomplete="off" autocapitalize="characters" spellcheck="false"></label>
           <div id="msg-eliminar" aria-live="polite"></div></div>`,
@@ -1963,8 +1493,7 @@
     temas: '<path d="M20.6 13.4 13.4 20.6a2 2 0 0 1-2.8 0L2 12V2h10l8.6 8.6a2 2 0 0 1 0 2.8zM7 7h.01"/>',
     ruta: '<path d="M3 11l19-9-9 19-2-8z"/>',
   };
-  var COLORES_ALCALDIA = ['#E08E6D', '#2A9D8F', '#76BDD7', '#A78BFA', '#F4C861', '#5FA8E8', '#E5739B', '#7BC67E'];
-  P.colorAlcaldia = function (id) { return COLORES_ALCALDIA[(Number(id) || 0) % COLORES_ALCALDIA.length]; };
+  P.colorAlcaldia = function () { return '#1F5FD1'; };
   function iconoDir(clave, tam) {
     return '<svg viewBox="0 0 24 24" width="' + (tam || 16) + '" height="' + (tam || 16) + '" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' + ICONOS_DIR[clave] + '</svg>';
   }
@@ -2062,43 +1591,6 @@
     cerrarBurbujas();
     var bt = abierto.querySelector('.dir-chip-boton'); if (bt) bt.focus();
   });
-
-  var opcionesAcceso = null;
-  P.opcionesAcceso = function () {
-    if (!opcionesAcceso) opcionesAcceso = P.get('/api/auth/opciones', { sinRedirigir: true }).catch(function () { opcionesAcceso = null; return { captcha: true, google: false }; });
-    return opcionesAcceso;
-  };
-  P.captcha = function (cont) {
-    if (!cont) return null;
-    var id = null;
-    P.poner(cont, P.html`<div class="captcha" role="group" aria-labelledby="captcha-tit">
-      <span class="captcha-titulo" id="captcha-tit">${P.t('Verificación: escribe el código de la imagen')}</span>
-      <div class="captcha-fila"><span class="captcha-marco"><img class="captcha-img" alt="${P.t('Código de verificación de 5 letras y números')}" width="210" height="72"></span>
-        <button type="button" class="btn2 chico captcha-otro">↻ ${P.t('Otro código')}</button></div>
-      <input type="text" name="captcha" class="captcha-entrada" maxlength="8" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="${P.t('Ej.: K7M2P')}" aria-describedby="captcha-tit">
-      <span class="ayuda">${P.t('No importan mayúsculas ni minúsculas.')}</span></div>`);
-    var img = cont.querySelector('.captcha-img');
-    var entrada = cont.querySelector('.captcha-entrada');
-    var cargar = function () {
-      entrada.value = '';
-      return P.opcionesAcceso().then(function (o) {
-        if (!o.captcha) { cont.hidden = true; return null; }
-        cont.hidden = false;
-        return P.get('/api/captcha', { sinRedirigir: true }).then(function (r) { id = r.id; img.src = r.imagen; }, function (e) { P.aviso(e.message, 'error'); });
-      });
-    };
-    cont.querySelector('.captcha-otro').addEventListener('click', function () { cargar().then(function () { entrada.focus(); }); });
-    var api = {
-      cargar: cargar,
-      mostrar: function () { return cargar(); },
-      visible: function () { return !cont.hidden; },
-      datos: function () { return api.visible() && id ? { captcha_id: id, captcha: entrada.value.trim() } : {}; },
-      vacio: function () { return api.visible() && !entrada.value.trim(); },
-      enfocar: function () { entrada.focus(); },
-    };
-    return api;
-  };
-  P.LOGO_GOOGLE = '<svg class="logo-google" viewBox="0 0 48 48" width="20" height="20" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/><path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/><path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/><path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.15 1.45-4.92 2.3-8.16 2.3-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/></svg>';
 
   P.descargar = function (url, boton) {
     return P.accion(boton, function () {

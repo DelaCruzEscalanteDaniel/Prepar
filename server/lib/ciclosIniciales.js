@@ -2,18 +2,10 @@
 const db = require('../db');
 const log = require('./log');
 const { indicesDesdeApis } = require('./modo');
-const { PP_2026 } = require('./datosOficiales');
 
 const PARAMETRO = 'ciclos_iniciales_creados';
 const ESPERA_SIN_COLONIAS_MS = 30 * 60 * 1000;
 const inicio = Date.now();
-
-const OFICIAL = {
-  nombre: PP_2026.nombre,
-  anio: PP_2026.anio,
-  presupuesto: PP_2026.monto,
-  fases: PP_2026.fases,
-};
 
 const PRACTICA = {
   nombre: 'Ciclo de práctica (simulación)',
@@ -61,20 +53,17 @@ async function limpiarDuplicados() {
               (SELECT COUNT(*) FROM ciclo_unidades cu WHERE cu.ciclo_id = c.id AND cu.presupuesto_asignado IS NULL) AS sin_presupuesto,
               (SELECT COUNT(*) FROM proyectos p WHERE p.ciclo_id = c.id) AS np,
               (SELECT COUNT(*) FROM participaciones pa WHERE pa.ciclo_id = c.id) AS nv
-       FROM ciclos c WHERE c.nombre IN (?, ?) ORDER BY c.id`, [OFICIAL.nombre, PRACTICA.nombre]);
+       FROM ciclos c WHERE c.nombre = ? ORDER BY c.id`, [PRACTICA.nombre]);
     let borrados = 0;
-    for (const nombre of [OFICIAL.nombre, PRACTICA.nombre]) {
+    for (const nombre of [PRACTICA.nombre]) {
       const grupo = filas.filter((f) => f.nombre === nombre);
       const completo = (f) => Number(f.nf) >= 8 && Number(f.nu) > 0 && !Number(f.sin_presupuesto);
       const usado = (f) => f.estado !== 'borrador' || f.pausado_en || Number(f.np) || Number(f.nv);
-      const conservar = grupo.find(usado) || grupo.find((f) => completo(f) && (nombre !== OFICIAL.nombre || f.tipo === 'oficial')) || grupo.find(completo);
+      const conservar = grupo.find(usado) || grupo.find(completo);
       for (const f of grupo) {
         if (f === conservar || usado(f)) continue;
         await con.q("DELETE FROM ciclos WHERE id = ? AND estado = 'borrador' AND pausado_en IS NULL", [f.id]);
         borrados += 1;
-      }
-      if (conservar && nombre === OFICIAL.nombre && conservar.tipo !== 'oficial' && conservar.estado !== 'cerrado') {
-        await con.q("UPDATE ciclos SET tipo = 'oficial' WHERE id = ?", [conservar.id]);
       }
     }
     if (borrados) log.info(`Se eliminaron ${borrados} borrador(es) incompletos o repetidos de los ciclos iniciales`);
@@ -82,7 +71,6 @@ async function limpiarDuplicados() {
   });
 }
 
-const PARAMETRO_OFICIAL = 'ciclo_oficial_creado';
 const marcar = (clave, desc) => db.conSistema((con) => con.q(
   "INSERT IGNORE INTO parametros_sistema (clave, valor, tipo, descripcion) VALUES (?, 'true', 'booleano', ?)", [clave, desc]));
 const marcado = async (clave) => !!(await db.conSistema((con) => con.uno('SELECT valor FROM parametros_sistema WHERE clave = ?', [clave])));
@@ -99,20 +87,8 @@ async function datosBase({ forzar }) {
   return { admin, alcaldias: alc.map((a) => a.id).join(',') };
 }
 
-async function crearOficial({ forzar = false } = {}) {
-  await limpiarDuplicados();
-  const existe = await db.conSistema((con) => con.uno("SELECT id FROM ciclos WHERE tipo = 'oficial' AND nombre = ? LIMIT 1", [OFICIAL.nombre]));
-  if (existe) { await marcar(PARAMETRO_OFICIAL, 'Se creó el ciclo oficial del IECM'); return { id: existe.id, yaExistia: true }; }
-  const base = await datosBase({ forzar });
-  if (!base.admin) return { motivo: base.motivo };
-  const id = await crearCiclo(base.admin.id, { ...OFICIAL, alcaldias: base.alcaldias, tipo: 'oficial' });
-  await marcar(PARAMETRO_OFICIAL, 'Se creó el ciclo oficial del IECM');
-  log.info(`Se creó el ciclo oficial «${OFICIAL.nombre}» con el calendario del IECM`);
-  return { id };
-}
-
 async function crearPracticaInicial() {
-  const hay = await db.conSistema((con) => con.uno("SELECT COUNT(*) AS n FROM ciclos WHERE tipo = 'practica' AND nombre <> ?", [OFICIAL.nombre]));
+  const hay = await db.conSistema((con) => con.uno("SELECT COUNT(*) AS n FROM ciclos"));
   if (hay.n > 0) { await marcar(PARAMETRO, 'Se crearon los ciclos iniciales'); return; }
   const base = await datosBase({ forzar: false });
   if (!base.admin) return;
@@ -132,7 +108,6 @@ async function asegurar() {
   ocupado = true;
   try {
     await limpiarDuplicados();
-    if (!(await marcado(PARAMETRO_OFICIAL))) await crearOficial();
     if (!(await marcado(PARAMETRO))) await crearPracticaInicial();
   } catch (e) {
     log.tarea('No se pudieron crear los ciclos iniciales:', e);
@@ -141,4 +116,4 @@ async function asegurar() {
   }
 }
 
-module.exports = { asegurar, crearOficial, limpiarDuplicados, calendarioPractica, OFICIAL, PRACTICA };
+module.exports = { asegurar, limpiarDuplicados, calendarioPractica, PRACTICA };

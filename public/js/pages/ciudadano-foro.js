@@ -32,15 +32,50 @@
   }
   function dineroCorto(n) { return P.dinero(n).replace(/\.00$/, ''); }
 
+  var ICO_EDITAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z"></path></svg>';
+  var ICO_BORRAR = '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14M10 11v6M14 11v6"></path></svg>';
+
+  function editarTexto(op) {
+    var max = op.max;
+    var m = P.modal({
+      titulo: P.t(op.titulo),
+      contenido: P.html`<label>${P.t(op.etiqueta)}<textarea name="texto" maxlength="${max}" rows="${op.filas || 4}" required>${op.valor}</textarea></label>
+        ${op.extra || ''}<div class="destino"></div>`,
+      botones: [
+        { texto: 'Cancelar', clase: 'btn2' },
+        {
+          texto: 'Guardar cambios', clase: 'btn',
+          accion: function (cerrar, el, btn) {
+            var v = el.querySelector('textarea').value.trim();
+            var destino = el.querySelector('.destino');
+            if (Array.from(v).length < op.min) {
+              P.poner(destino, P.html`<div class="mensaje error" role="alert">${P.t('Escribe al menos {n} caracteres', { n: op.min })}</div>`);
+              return;
+            }
+            P.accion(btn, function () { return op.guardar(v, el); }, { destino: destino, sinSacudir: true }).then(function (r) {
+              if (r) { cerrar(); if (op.listo) op.listo(r); }
+            });
+          },
+        },
+      ],
+    });
+    var ta = m.el.querySelector('textarea');
+    setTimeout(function () { ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }, 40);
+    return m;
+  }
+
   function tarjetaIdea(i) {
     var titulo = Array.from(i.contenido).length <= 90 && i.contenido.indexOf('\n') < 0;
     return P.html`<article class="tarjeta idea" data-idea="${i.id}">
-      <div class="fila entre"><span class="tenue" style="font-size:13px">${corto(i.autor)}${i.es_mia ? P.html` <span class="etq acento">Tu idea</span>` : ''} · ${hace(i.creada_en)}</span><span class="etq ok">${P.t(i.rubro)}</span></div>
+      <div class="fila entre"><span class="tenue" style="font-size:13px">${corto(i.autor)}${i.es_mia ? P.html` <span class="etq acento">Tu idea</span>` : ''} · <span class="${i.de_mi_colonia ? 'colonia-mia' : ''}">${i.colonia}${i.de_mi_colonia ? P.t(' (tu colonia)') : ''}</span> · ${hace(i.creada_en)}${i.editada_en ? P.html` · <span title="${P.t('Editada')} ${hace(i.editada_en)}">${P.t('editada')}</span>` : ''}</span><span class="etq ok">${P.t(i.rubro)}</span></div>
       ${titulo ? P.html`<strong class="titulo-idea">${i.contenido}</strong>` : P.html`<span class="texto texto-2">${i.contenido}</span>`}
       <div class="fila" style="gap:8px">
         <button type="button" class="btn2 chico ${i.apoyada ? 'apoyada' : ''}" data-apoyar="${i.id}" ${i.es_mia ? P.seguro('disabled title="No puedes apoyar tu propia idea"') : ''} aria-pressed="${i.apoyada ? 'true' : 'false'}">
           ${P.seguro(ICO_APOYO)}<span data-texto>${i.apoyada ? P.t('Apoyada') : P.t('Apoyar')}</span> · <span data-total>${i.total_apoyos}</span></button>
         <button type="button" class="btn2 chico" data-comentarios="${i.id}" aria-expanded="false">${P.seguro(ICO_COMENTAR)}<span data-texto>${P.t('Comentar')}</span> · <span data-ncom>${i.total_comentarios}</span></button>
+        ${i.es_mia ? P.html`<span class="foro-propias">
+          <button type="button" class="enlace-boton chico" data-editar-idea="${i.id}">${P.seguro(ICO_EDITAR)}<span>${P.t('Editar')}</span></button>
+          <button type="button" class="enlace-boton chico peligro" data-borrar-idea="${i.id}">${P.seguro(ICO_BORRAR)}<span>${P.t('Borrar')}</span></button></span>` : ''}
       </div>
       <div class="hilo" data-hilo="${i.id}" hidden></div>
     </article>`;
@@ -48,7 +83,7 @@
 
   function filtros() {
     var d = P.datosForm(P.$('#form-filtros'));
-    return { q: d.q, rubro: d.rubro, desde: d.desde, hasta: d.hasta, min_apoyos: d.min_apoyos, orden: d.orden };
+    return { q: d.q, colonia: d.colonia, rubro: d.rubro, desde: d.desde, hasta: d.hasta, min_apoyos: d.min_apoyos, orden: d.orden };
   }
 
   function cargar(reiniciar) {
@@ -62,10 +97,20 @@
       cargadas = cargadas.concat(d.ideas);
       faseRegistro = !!(d.ciclo && d.ciclo.fase === 'diagnostico_registro' && d.participa);
       pintarEstado(d);
+      pintarColonias(d.colonias || []);
       P.poner(cont, cargadas.length ? cargadas.map(tarjetaIdea) : P.html`<p class="vacio">No hay ideas que coincidan con la búsqueda</p>`);
       P.$('#total-ideas').textContent = P.t('{n} idea(s) encontrada(s)', { n: total });
       P.$('#mas').hidden = cargadas.length >= total;
     }, function (e) { P.poner(cont, P.html`<p class="mensaje error">${e.message}</p>`); });
+  }
+
+  function pintarColonias(lista) {
+    var sel = P.$('#f-colonia');
+    var actual = sel.value;
+    P.poner(sel, P.html`<option value="">Todas</option>${lista.map(function (c) {
+      return P.html`<option value="${c.id}">${c.nombre}${c.mia ? P.t(' (tu colonia)') : ''}</option>`;
+    })}`);
+    sel.value = actual;
   }
 
   function pintarEstado(d) {
@@ -96,7 +141,11 @@
     P.get('/api/foro/ideas/' + id + '/comentarios').then(function (lista) {
       boton.querySelector('[data-ncom]').textContent = lista.length;
       P.poner(hilo, P.html`${lista.map(function (c) {
-        return P.html`<div class="comentario-maq"><strong>${corto(c.autor)}</strong> <span class="tenue">· ${hace(c.creado_en)}</span><br><span style="white-space:pre-wrap;overflow-wrap:anywhere">${c.contenido}</span></div>`;
+        return P.html`<div class="comentario-maq" data-comentario="${c.id}"><strong>${corto(c.autor)}</strong> <span class="tenue">· ${hace(c.creado_en)}${c.editado_en ? P.html` · ${P.t('editado')}` : ''}</span>
+          ${c.es_mio ? P.html`<span class="foro-propias">
+            <button type="button" class="enlace-boton chico" data-editar-com="${c.id}" data-idea-de="${id}" aria-label="${P.t('Editar tu comentario')}">${P.seguro(ICO_EDITAR)}<span>${P.t('Editar')}</span></button>
+            <button type="button" class="enlace-boton chico peligro" data-borrar-com="${c.id}" data-idea-de="${id}" aria-label="${P.t('Borrar tu comentario')}">${P.seguro(ICO_BORRAR)}<span>${P.t('Borrar')}</span></button></span>` : ''}
+          <br><span style="white-space:pre-wrap;overflow-wrap:anywhere" data-texto-com>${c.contenido}</span></div>`;
       })}${!lista.length ? P.html`<p class="tenue pequeno" style="margin:0">Aún no hay comentarios. ¡Sé la primera persona en opinar!</p>` : ''}
         <form class="fila arriba" data-comentar="${id}" style="gap:8px;flex-wrap:nowrap" novalidate>
           <label style="flex:1;font-weight:500;gap:4px"><input type="text" name="contenido" maxlength="250" required placeholder="Escribe un comentario" aria-label="Comentario">
@@ -133,9 +182,7 @@
     if (ub) {
       var m = P.mapa(P.$('#mapa-registrado'), { centro: [Number(r.latitud), Number(r.longitud)], zoom: 16, zoomRueda: false });
       if (m) {
-        var cp = { categoria: d.categoria, titulo: d.titulo };
-        P.marcador(Number(r.latitud), Number(r.longitud), P.colorCategoria(cp), { glifo: P.glifoCategoria(cp), title: d.titulo }).addTo(m);
-        P.simbologia(m, [{ titulo: '', filas: [{ color: P.colorCategoria(cp), glifo: P.glifoCategoria(cp), texto: P.t('Tu proyecto · {c}', { c: P.t(P.CATEGORIAS[P.categoriaDe(cp)][0]) }) }] }], { abierta: false });
+        P.marcador(Number(r.latitud), Number(r.longitud), P.colorRubro(d.rubro_id), { title: d.titulo }).addTo(m);
       }
     }
     P.$('#otro-proyecto').addEventListener('click', function () {
@@ -152,7 +199,7 @@
 
   P.pagina(function (ctx) {
     var u = ctx.usuario;
-    P.$('#titulo-foro').textContent = P.t('Foro vecinal · {u}', { u: u.unidad || '' });
+    P.$('#titulo-foro').textContent = P.t('Foro vecinal · {u}', { u: u.alcaldia || u.unidad || '' });
     P.catalogos().then(function (cat) {
       var ops = cat.rubros.map(function (r) { return P.html`<option value="${r.id}">${P.nombre(r)}</option>`; });
       P.$$('.sel-rubro').forEach(function (s) { P.poner(s, P.html`<option value="">Elige un rubro</option>${ops}`); });
@@ -172,7 +219,7 @@
     var ff = P.$('#form-filtros');
     ff.addEventListener('submit', function (e) { e.preventDefault(); cargar(true); });
     ff.addEventListener('input', function (e) { if (e.target.name === 'q') recargar(); });
-    ff.addEventListener('change', function (e) { if (['rubro', 'orden'].indexOf(e.target.name) >= 0) cargar(true); });
+    ff.addEventListener('change', function (e) { if (['colonia', 'rubro', 'orden'].indexOf(e.target.name) >= 0) cargar(true); });
     P.$('#limpiar').addEventListener('click', function () { ff.reset(); cargar(true); });
     P.$('#mas').addEventListener('click', function () { pagina += 1; cargar(false); });
 
@@ -210,7 +257,49 @@
         return;
       }
       var com = e.target.closest('[data-comentarios]');
-      if (com) abrirHilo(com.getAttribute('data-comentarios'), com);
+      if (com) { abrirHilo(com.getAttribute('data-comentarios'), com); return; }
+      var ei = e.target.closest('[data-editar-idea]');
+      if (ei) {
+        var idea = cargadas.filter(function (x) { return String(x.id) === ei.getAttribute('data-editar-idea'); })[0];
+        if (!idea) return;
+        editarTexto({
+          titulo: 'Editar tu idea', etiqueta: 'Tu idea', valor: idea.contenido, max: 500, min: 5, filas: 5,
+          extra: P.html`<p class="tenue pequeno" style="margin:6px 0 0">${P.t('Los apoyos y comentarios se conservan. La idea mostrará que fue editada.')}</p>`,
+          guardar: function (v) { return P.put('/api/foro/ideas/' + idea.id, { contenido: v }); },
+          listo: function () { cargar(true); },
+        });
+        return;
+      }
+      var bi = e.target.closest('[data-borrar-idea]');
+      if (bi) {
+        var idBorrar = bi.getAttribute('data-borrar-idea');
+        P.confirmar(P.t('¿Borrar tu idea?'), P.t('Se quitará del foro junto con sus apoyos y comentarios. No se puede deshacer.'), { si: 'Borrar idea', peligro: true }).then(function (si) {
+          if (!si) return;
+          P.accion(bi, function () { return P.del('/api/foro/ideas/' + idBorrar); }).then(function (r) { if (r) cargar(true); });
+        });
+        return;
+      }
+      var ec = e.target.closest('[data-editar-com]');
+      if (ec) {
+        var caja = ec.closest('[data-comentario]');
+        var ideaDe = ec.getAttribute('data-idea-de');
+        editarTexto({
+          titulo: 'Editar tu comentario', etiqueta: 'Tu comentario', valor: caja.querySelector('[data-texto-com]').textContent, max: 250, min: 1, filas: 3,
+          guardar: function (v) { return P.put('/api/foro/comentarios/' + ec.getAttribute('data-editar-com'), { contenido: v }); },
+          listo: function () { abrirHilo(ideaDe, P.$('[data-comentarios="' + ideaDe + '"]'), true); },
+        });
+        return;
+      }
+      var bc = e.target.closest('[data-borrar-com]');
+      if (bc) {
+        var ideaDeB = bc.getAttribute('data-idea-de');
+        P.confirmar(P.t('¿Borrar tu comentario?'), P.t('Se quitará de la conversación. No se puede deshacer.'), { si: 'Borrar comentario', peligro: true }).then(function (si) {
+          if (!si) return;
+          P.accion(bc, function () { return P.del('/api/foro/comentarios/' + bc.getAttribute('data-borrar-com')); }).then(function (r) {
+            if (r) abrirHilo(ideaDeB, P.$('[data-comentarios="' + ideaDeB + '"]'), true);
+          });
+        });
+      }
     });
     ideas.addEventListener('input', function (e) {
       var f = e.target.closest('[data-comentar]');
@@ -234,7 +323,6 @@
     });
 
     var form = P.$('#form-proyecto');
-    P.selectorCategoria(form);
     P.$('#archivo-imagen').addEventListener('change', function (e) {
       var a = e.target.files && e.target.files[0];
       if (!a) return;
@@ -275,7 +363,7 @@
       if (err) { P.poner(P.$('#mensaje-proyecto'), P.html`<div class="mensaje error" role="alert">${P.t(err)}</div>`); return; }
       P.poner(P.$('#mensaje-proyecto'), '');
       var cuerpo = {
-        titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), categoria: d.categoria || undefined, costo_estimado: costo,
+        titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), costo_estimado: costo,
         calle: d.calle, numero: d.numero || null, codigo_postal: d.codigo_postal || null, referencias: d.referencias || null,
       };
       if (form.dataset.lat) { cuerpo.latitud = Number(form.dataset.lat); cuerpo.longitud = Number(form.dataset.lon); }

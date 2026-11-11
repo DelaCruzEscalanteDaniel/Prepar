@@ -2,7 +2,6 @@
   'use strict';
   var P = window.Prepar;
   var mapa = null;
-  var selCategoria = null;
   var marcador = null;
   var punto = null;
   var imagenUuid = null;
@@ -87,7 +86,7 @@
     mapa = P.mapa(P.$('#mapa-form'), { centro: centroUnidad || undefined, zoom: centroUnidad ? 15 : 11 });
     if (!mapa) return;
     mapa.on('click', function (e) { fijarPunto(e.latlng.lat, e.latlng.lng); if (asistente && punto) asistente.desdePunto(punto.latitud, punto.longitud); });
-    P.simbologia(mapa, [{ titulo: '', filas: [{ color: '#E08E6D', glifo: 'punto', texto: 'Tu proyecto: toca el mapa o arrastra el punto' }] }], { abierta: true });
+    P.simbologia(mapa, [{ titulo: '', filas: [{ color: '#1F5FD1', texto: 'Tu proyecto: toca el mapa o arrastra el punto' }] }], { abierta: true });
     if (punto) fijarPunto(punto.latitud, punto.longitud, true);
   }
   function fijarPunto(lat, lng, centrar) {
@@ -96,7 +95,7 @@
     P.$('#coords-texto').textContent = P.t('Punto marcado: {la}, {lo}', { la: punto.latitud, lo: punto.longitud });
     if (!mapa) return;
     if (marcador) marcador.setLatLng([lat, lng]);
-    else marcador = P.marcador(lat, lng, '#E08E6D', { draggable: true, glifo: 'punto', title: P.t('Tu proyecto (arrástralo para moverlo)') }).addTo(mapa).on('dragend', function (ev) { var ll = ev.target.getLatLng(); fijarPunto(ll.lat, ll.lng); });
+    else marcador = P.marcador(lat, lng, '#1F5FD1', { draggable: true, title: P.t('Tu proyecto (arrástralo para moverlo)') }).addTo(mapa).on('dragend', function (ev) { var ll = ev.target.getLatLng(); fijarPunto(ll.lat, ll.lng); });
     if (centrar) mapa.setView([lat, lng], 17);
   }
   function quitarPunto() {
@@ -136,7 +135,6 @@
       var el = f.querySelector('[name=' + k + ']');
       if (el) { el.value = p[k] === null || p[k] === undefined ? '' : p[k]; el.dispatchEvent(new Event('input')); }
     });
-    if (selCategoria) selCategoria.fijar(p.categoria || P.adivinarCategoria(p.titulo, p.descripcion));
     P.$('#titulo-form').textContent = P.t('Editar proyecto {f}', { f: p.folio });
     P.$('#guardar-proyecto').textContent = P.t('Guardar cambios');
     P.$('#cancelar-edicion').hidden = false;
@@ -147,7 +145,6 @@
   }
 
   P.pagina(function (ctx) {
-    selCategoria = P.selectorCategoria(P.$('#form-proyecto'));
     P.$$('[data-pestana]').forEach(function (b) { b.addEventListener('click', function () { pestana(b.getAttribute('data-pestana')); }); });
     doc_click();
     var c = ctx.estado && ctx.estado.ciclo;
@@ -208,7 +205,7 @@
       else if (d.codigo_postal && !/^(0[1-9]|1[0-6])\d{3}$/.test(d.codigo_postal)) err = 'El código postal de la Ciudad de México tiene 5 dígitos y va del 01000 al 16999';
       if (err) { P.poner(P.$('#mensaje-proyecto'), P.html`<div class="mensaje error" role="alert">${P.t(err)}</div>`); return; }
       var cuerpo = {
-        titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), categoria: d.categoria || undefined, costo_estimado: Number(d.costo_estimado),
+        titulo: d.titulo, descripcion: d.descripcion, rubro_id: Number(d.rubro_id), costo_estimado: Number(d.costo_estimado),
         calle: d.calle, numero: d.numero || null, codigo_postal: d.codigo_postal || null, referencias: d.referencias || null,
         latitud: punto ? punto.latitud : null, longitud: punto ? punto.longitud : null,
       };

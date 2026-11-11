@@ -291,18 +291,3 @@ test('datos abiertos: nombres, alcaldías, geometría y cliente del portal', asy
   }
 });
 
-test('tipo de proyecto: se deduce del título para el color del mapa', () => {
-  const { adivinar, claves, normalizar, compilar } = require('../server/lib/categorias');
-  const casos = { 'Rehabilitación del parque Norte 45': 'areas_verdes', 'Huerto comunitario': 'areas_verdes', 'Bacheo de la calle 5': 'vialidad',
-    'Alumbrado LED en tres calles': 'alumbrado', 'Centro recreativo para jóvenes': 'recreacion', 'Cámaras de vigilancia': 'seguridad',
-    'Bebederos en el parque': 'agua', 'Plaza con mobiliario urbano': 'mobiliario', 'Algo distinto': 'otro' };
-  for (const [t, c] of Object.entries(casos)) assert.equal(adivinar(t, ''), c, t);
-  assert.ok(claves().includes('otro'));
-  assert.equal(adivinar('Luminarias en el parque', ''), 'alumbrado');
-  assert.equal(adivinar('PARQUE con luminarias', ''), 'areas_verdes');
-  assert.equal(adivinar('Desazolve de POZOS', ''), 'agua');
-  assert.equal(adivinar('Proyecto vecinal', 'Iluminación de la calle'), 'alumbrado');
-  assert.equal(normalizar('Ñandú Árbol'), 'ñandu arbol');
-  const [re] = compilar('luz');
-  assert.ok(re.test('poste de luz') && !re.test('trasluz'));
-});

@@ -1,30 +1,27 @@
 <!doctype html>
-<html lang="es" data-tema="oscuro">
+<html lang="es" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#F3F6FA">
 <title>Prepar · Simulador del Presupuesto Participativo</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
-<script src="/js/tema.js"></script>
 </head>
 <body data-rol="invitado" data-pagina="portada" class="lp">
 <div class="lp-marco">
   <div class="cabecera-fija">
   <header class="lp-cabecera">
     <div class="lp-cab-fila">
-      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar" class="lp-logo"><span class="lp-marca">Prepar</span></a>
+      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar" class="lp-logo"><span class="lp-marca">Pre<span class="par">par</span></span></a>
       <div class="acciones lp-acciones-cab">
         <a class="btn lp-btn lp-solo-movil" id="lp-principal-movil" href="/registro.html">Crear cuenta</a>
         <button type="button" class="herr boton-menu-c" data-accion="menu-c" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-c"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12h18M3 6h18M3 18h18"></path></svg></button>
         <div class="acciones-menu" id="menu-c">
           <div class="acciones" id="lp-acciones">
-            <button type="button" class="herr" data-accion="tema"></button>
-            <button type="button" class="herr" data-accion="idioma"></button>
             <a class="btn2 lp-btn2" href="/login.html">Iniciar sesión</a>
             <a class="btn lp-btn" href="/registro.html">Crear cuenta</a>
           </div>
@@ -33,7 +30,7 @@
     </div>
   </header>
   <nav class="lp-nav" aria-label="Secciones">
-    <a href="#objetivo">Nuestro objetivo</a><a href="#funciones">¿Qué puedes hacer?</a><a href="#fases">¿Cómo funciona?</a><a href="#nosotros">Quiénes somos</a><a href="#contacto">Contacto</a>
+    <a href="#objetivo">Nuestro objetivo</a><a href="#que-es">¿Qué es el Presupuesto Participativo?</a><a href="#funciones">¿Qué puedes hacer?</a><a href="#fases">¿Cómo funciona?</a><a href="#nosotros">Quiénes somos</a><a href="#contacto">Contacto</a>
   </nav>
   </div>
 
@@ -64,8 +61,34 @@
       </div>
     </section>
 
+    <section id="que-es" class="lp-seccion">
+      <h2 class="lp-titulo">¿Qué es el Presupuesto Participativo?</h2>
+      <p class="lp-subtitulo">Una parte del dinero público que las y los vecinos deciden directamente en qué se usa.</p>
+      <div class="lp-pp">
+        <div class="lp-vidrio lp-pp-intro">
+          <p>Cada año, en la Ciudad de México, el <strong>4&nbsp;% del presupuesto de cada alcaldía</strong> se reserva para que la ciudadanía decida en qué se gasta. Ese dinero se reparte entre las 1,764 unidades territoriales (colonias, pueblos y barrios), y en cada una las personas que viven ahí proponen y votan qué obra o servicio necesita su comunidad.</p>
+          <p>El proceso lo organiza el <strong>Instituto Electoral de la Ciudad de México (IECM)</strong> y lo marca la Ley de Participación Ciudadana. La alcaldía no elige el proyecto: lo eligen las y los vecinos con su voto, y después la alcaldía tiene que hacerlo con ese dinero.</p>
+        </div>
+        <div class="lp-pp-ejemplo lp-vidrio">
+          <span class="lp-antetitulo">UN EJEMPLO</span>
+          <p>A tu colonia le tocan, por ejemplo, <strong>$1,200,000</strong>. Una vecina propone poner luminarias en el parque; otro vecino, arreglar las banquetas. Se revisa que ambos proyectos se puedan hacer, se votan, y el que reciba más votos se construye. Luego los mismos vecinos vigilan que la obra se termine y que el dinero se use bien.</p>
+        </div>
+      </div>
+      <h3 class="lp-pp-titulo">¿Cómo funciona en la vida real?</h3>
+      <ol class="lp-pp-pasos">
+        <li class="lp-tarjeta"><span class="lp-circulo a h">1</span><strong class="h">Propones</strong><span class="lp-desc">Cualquier persona de la colonia puede registrar un proyecto: qué se hará, dónde y cuánto costará aproximadamente.</span></li>
+        <li class="lp-tarjeta"><span class="lp-circulo a h">2</span><strong class="h">Se revisa</strong><span class="lp-desc">Un órgano dictaminador de la alcaldía revisa si el proyecto es viable: si es legal, si cabe en el presupuesto y si se puede construir en ese lugar.</span></li>
+        <li class="lp-tarjeta"><span class="lp-circulo b h">3</span><strong class="h">Votas</strong><span class="lp-desc">En la consulta eliges un proyecto de tu unidad territorial, en una mesa receptora o por internet con la aplicación del IECM. Gana el más votado.</span></li>
+        <li class="lp-tarjeta"><span class="lp-circulo c h">4</span><strong class="h">Se construye y se vigila</strong><span class="lp-desc">La alcaldía ejecuta la obra y vecinos voluntarios forman comités de ejecución y de vigilancia para revisar el avance y el uso del dinero.</span></li>
+      </ol>
+      <div class="lp-vidrio lp-pp-prepar">
+        <strong class="h">¿Y qué hace Prepar?</strong>
+        <p>Prepar no es el proceso oficial y no reparte dinero real. Es un simulador: aquí practicas cada paso con las mismas reglas, para que cuando llegue la consulta de verdad sepas cómo proponer, votar y vigilar los proyectos de tu colonia.</p>
+      </div>
+    </section>
+
     <section id="funciones" class="lp-seccion">
-      <h2 class="lp-titulo">¿Qué puedes hacer en Prepar?</h2>
+      <h2 class="lp-titulo">¿Qué puedes hacer en Pre<span class="par">par</span>?</h2>
       <p class="lp-subtitulo">Todo lo que harías en el proceso real, en un entorno seguro para practicar.</p>
       <div class="lp-tarjetas" id="lp-funciones"></div>
     </section>
@@ -89,7 +112,7 @@
   <footer id="nosotros" class="lp-pie">
     <div class="lp-pie-rejilla">
       <div class="columna" style="gap:12px">
-        <div class="fila" style="gap:10px"><img src="/img/logo.png" alt="" class="lp-logo chico"><span class="lp-marca chica">Prepar</span></div>
+        <div class="fila" style="gap:10px"><img src="/img/logo.png" alt="" class="lp-logo chico"><span class="lp-marca chica">Pre<span class="par">par</span></span></div>
         <h3>¿Quiénes somos?</h3>
         <p>Una iniciativa de jóvenes estudiantes interesados en la tecnología cívica, que busca acercar el Presupuesto Participativo a todas las personas de la Ciudad de México.</p>
       </div>
@@ -110,7 +133,6 @@
     <div class="lp-pie-final">© 2026 Prepar · Simulador del Presupuesto Participativo · Proyecto escolar del Equipo 04</div>
   </footer>
 </div>
-<script src="/js/i18n-en.js" defer></script>
 <script src="/js/app.js" defer></script>
 <script src="/js/pages/index.js" defer></script>
 </body>

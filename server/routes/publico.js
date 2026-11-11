@@ -1,6 +1,5 @@
 'use strict';
 const express = require('express');
-const categorias = require('../lib/categorias');
 const db = require('../db');
 const v = require('../lib/validar');
 const { asincrono } = require('../lib/seguridad');
@@ -76,11 +75,6 @@ router.get('/catalogos', asincrono(async (req, res) => {
   res.set('Cache-Control', 'private, max-age=60').json(cacheCatalogos);
 }));
 
-router.get('/categorias', asincrono(async (req, res) => {
-  await categorias.refrescar();
-  res.set('Cache-Control', 'public, max-age=60').json(categorias.publicas());
-}));
-
 router.get('/publico/privacidad', asincrono(async (req, res) => {
   const aviso = await db.conSistema((con) => con.uno(
     'SELECT version, texto_es, texto_en, vigente_desde FROM avisos_privacidad WHERE vigente_desde <= CURDATE() ORDER BY vigente_desde DESC LIMIT 1'));
@@ -106,14 +100,6 @@ router.get('/directorio', asincrono(async (req, res) => {
      ORDER BY a.nombre, FIELD(d.tipo, 'alcaldia', 'titular', 'sede_atencion'), d.cargo
      LIMIT 500`, [alcaldia, alcaldia, q, q]));
   res.json(filas);
-}));
-
-router.get('/directorio/ciudad', asincrono(async (req, res) => {
-  const filas = await db.conSistema((con) => con.q(
-    `SELECT id, institucion, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web, fuente_nombre, fuente_url,
-            DATE_FORMAT(consultado_en, '%Y-%m-%d') AS consultado_en
-     FROM directorio_ciudad ORDER BY orden, id`));
-  res.set('Cache-Control', 'public, max-age=300').json(filas);
 }));
 
 const RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

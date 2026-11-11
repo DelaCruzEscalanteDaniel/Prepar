@@ -7,7 +7,6 @@ const { crearApp } = require('./app');
 const correo = require('./lib/correo');
 const sincronizar = require('./lib/sincronizar');
 const ciclosIniciales = require('./lib/ciclosIniciales');
-const modo = require('./lib/modo');
 
 process.on('unhandledRejection', (e) => log.error('Promesa rechazada sin atrapar:', e && (e.stack || e)));
 process.on('uncaughtException', (e) => log.error('Excepción sin atrapar:', e && (e.stack || e)));
@@ -29,7 +28,7 @@ const tareas = [];
 function iniciarTareas() {
   if (!config.tareasProgramadas) return;
   tareas.push(setInterval(() => { correo.procesarCola().catch(() => {}); }, 60 * 1000));
-  const sincronizarYCiclos = () => sincronizar.sincronizarPendientes().catch(() => {}).then(() => ciclosIniciales.asegurar()).then(() => modo.avanzarOficial());
+  const sincronizarYCiclos = () => sincronizar.sincronizarPendientes().catch(() => {}).then(() => ciclosIniciales.asegurar()).then(() => require('./lib/cicloDemostracion').asegurar());
   tareas.push(setInterval(sincronizarYCiclos, 10 * 60 * 1000));
   tareas.push(setTimeout(sincronizarYCiclos, 60 * 1000));
   tareas.forEach((t) => t.unref());
@@ -42,7 +41,7 @@ servidor.listen(config.puerto, async () => {
     log.info('Conexión con MySQL correcta');
     await require('./lib/migraciones').migrar().catch(() => {});
     await ciclosIniciales.asegurar();
-    await modo.avanzarOficial();
+    await require('./lib/cicloDemostracion').asegurar();
   }
   else log.error('No se pudo conectar con MySQL. Revisa las variables DB_* del archivo .env (el servidor sigue intentando en cada petición)');
   iniciarTareas();

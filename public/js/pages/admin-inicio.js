@@ -47,40 +47,25 @@
   var modoDatos = null;
   var modoElegido = null;
   function cargarModo() {
-    return P.get('/api/admin/modo').then(function (m) { modoDatos = m; modoElegido = modoElegido || m.modo || (m.oficiales.length ? 'oficial' : 'practica'); pintarModo(); },
+    return P.get('/api/admin/modo').then(function (m) { modoDatos = m; modoElegido = 'practica'; pintarModo(); },
       function (e) { P.poner(P.$('#modo'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
   function nombreFase(c) { return c && c.fase ? (P.idioma() === 'en' ? c.fase_en : c.fase_es) : P.t('Sin iniciar'); }
   function pintarModo() {
     var m = modoDatos;
-    var of = m.oficiales[0] || null;
     var act = m.activo;
-    var practicaSel = act && act.tipo === 'practica' ? act.id : (m.practicas[0] ? m.practicas[0].id : null);
+    var practicaSel = act ? act.id : (m.practicas[0] ? m.practicas[0].id : null);
     P.poner(P.$('#modo'), P.html`
-      <div class="fila entre" style="gap:10px;align-items:flex-start">
-        <div><h2 class="h" id="t-modo" style="margin:0;font-size:22px">Modo del simulador</h2>
-          <p class="tenue" style="margin:4px 0 0;font-size:14px">${act ? P.html`${P.t('Activo ahora:')} <strong>${act.nombre}</strong> · ${nombreFase(act)}` : P.t('No hay ningún ciclo activo.')}</p></div>
-        ${act ? P.html`<span class="etq ${act.tipo === 'oficial' ? 'ok' : ''}">${P.t(act.tipo === 'oficial' ? 'Modo oficial' : 'Modo práctica')}</span>` : ''}
+      <div><h2 class="h" id="t-modo" style="margin:0;font-size:22px">Ciclo activo</h2>
+        <p class="tenue" style="margin:4px 0 0;font-size:14px">${act ? P.html`${P.t('Activo ahora:')} <strong>${act.nombre}</strong> · ${nombreFase(act)}` : P.t('No hay ningún ciclo activo.')}</p></div>
+      <div class="fila" style="gap:10px;align-items:flex-end">
+        ${m.practicas.length ? P.html`<label style="flex:1 1 280px">${P.t('Ciclo')}<select id="ciclo-practica">${m.practicas.map(function (c) {
+          return P.html`<option value="${c.id}" ${c.id === practicaSel ? P.seguro('selected') : ''}>${c.nombre} · ${c.estado === 'activo' ? P.t('Activo') : (c.pausado_en ? P.t('Pausado') : P.t('Borrador'))} · ${nombreFase(c)}</option>`;
+        })}</select></label>` : P.html`<span class="error-texto" style="font-size:13px">${P.t('Aún no hay ciclos.')}</span>`}
+        <button type="button" class="btn" id="aplicar-modo">${P.t('Activar')}</button>
+        <button type="button" class="btn2" data-nuevo>${P.t('Nuevo ciclo')}</button>
       </div>
-      <div class="opciones-modo" role="radiogroup" aria-label="${P.t('Modo del simulador')}">
-        <label class="opcion-modo ${modoElegido === 'oficial' ? 'elegida' : ''}">
-          <input type="radio" name="modo" value="oficial" ${modoElegido === 'oficial' ? P.seguro('checked') : ''} ${of ? '' : P.seguro('disabled')}>
-          <span><strong>Ciclo oficial</strong>
-            <span class="tenue">${of ? P.html`${of.nombre}. ${P.t('Usa el calendario real del IECM: la fase avanza sola con la fecha (hoy le toca: {f}). Los índices de cada colonia se toman de las APIs de Datos Abiertos.', { f: of.fase_hoy ? (P.idioma() === 'en' ? of.fase_hoy_en : of.fase_hoy_es) : P.t('se calcula al activarlo') })}` : P.t('Todavía no hay un ciclo oficial cargado.')}</span>
-            ${of ? '' : P.html`<button type="button" class="btn2 chico" id="cargar-oficial" style="align-self:flex-start">${P.t('Cargar ciclo oficial ahora')}</button>`}</span>
-        </label>
-        <label class="opcion-modo ${modoElegido === 'practica' ? 'elegida' : ''}">
-          <input type="radio" name="modo" value="practica" ${modoElegido === 'practica' ? P.seguro('checked') : ''}>
-          <span><strong>Ciclo de práctica</strong>
-            <span class="tenue">${P.t('Tú eliges el ciclo y cambias las fases cuando quieras; se pueden usar el foro, el registro y la votación.')}</span>
-            ${m.practicas.length ? P.html`<select id="ciclo-practica" aria-label="${P.t('Ciclo de práctica')}" ${modoElegido === 'practica' ? '' : P.seguro('disabled')}>${m.practicas.map(function (c) {
-              return P.html`<option value="${c.id}" ${c.id === practicaSel ? P.seguro('selected') : ''}>${c.nombre} · ${c.estado === 'activo' ? P.t('Activo') : (c.pausado_en ? P.t('Pausado') : P.t('Borrador'))} · ${nombreFase(c)}</option>`;
-            })}</select>` : P.html`<span class="error-texto" style="font-size:13px">${P.t('Aún no tienes ciclos de práctica.')}</span>`}
-            <button type="button" class="btn2 chico" data-nuevo style="align-self:flex-start">${P.t('Nuevo ciclo de práctica')}</button></span>
-        </label>
-      </div>
-      <div class="fila" style="gap:10px"><button type="button" class="btn" id="aplicar-modo">${P.t('Aplicar')}</button>
-        <span class="tenue" style="font-size:13px">${P.t('Solo puede haber un ciclo activo. El que dejes queda pausado con todos sus datos y puedes volver a él cuando quieras.')}</span></div>`);
+      <span class="tenue" style="font-size:13px">${P.t('Solo puede haber un ciclo activo. El que dejes queda pausado con todos sus datos y puedes volver a él cuando quieras.')}</span>`);
   }
   function aplicarModo(boton) {
     var cuerpo = { modo: modoElegido };
@@ -89,13 +74,78 @@
       if (!s) { P.aviso('Primero crea un ciclo de práctica', 'error'); return; }
       cuerpo.ciclo_id = Number(s.value);
     }
-    var destino = modoElegido === 'oficial' ? modoDatos.oficiales[0] : modoDatos.practicas.find(function (c) { return c.id === cuerpo.ciclo_id; });
+    var destino = modoDatos.practicas.find(function (c) { return c.id === cuerpo.ciclo_id; });
     if (modoDatos.activo && destino && modoDatos.activo.id === destino.id) { P.aviso(P.t('Ese ciclo ya es el activo'), 'info'); return; }
     P.confirmar(P.t('¿Cambiar el ciclo activo?'), P.t('«{c}» será el ciclo que vean todos los usuarios.{p}', {
       c: destino ? destino.nombre : '', p: modoDatos.activo ? ' ' + P.t('«{a}» quedará pausado.', { a: modoDatos.activo.nombre }) : '',
     }), { si: 'Cambiar' }).then(function (ok) {
       if (ok) P.accion(boton, function () { return P.post('/api/admin/modo', cuerpo).then(function (r) { setTimeout(function () { location.reload(); }, 700); return r; }); });
     });
+  }
+
+  function fechaCorta(f) {
+    var p = String(f || '').split('-');
+    return p.length === 3 ? p[2] + '/' + p[1] + '/' + p[0] : f;
+  }
+
+  function diaSiguiente(f) {
+    var d = new Date(f + 'T00:00:00Z');
+    if (isNaN(d)) return '';
+    d.setUTCDate(d.getUTCDate() + 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function revisarFechas(alGuardar) {
+    var errores = [];
+    var fases = [];
+    if (!det || !det.fases) return { errores: errores, fases: fases };
+    var anio = Number(det.ciclo && det.ciclo.anio_simulado) || new Date().getFullYear();
+    var minimo = (anio - 1) + '-01-01';
+    var maximo = (anio + 2) + '-12-31';
+    var previo = null;
+    var ordenadas = det.fases.slice().sort(function (a, b) { return a.orden - b.orden; });
+    ordenadas.forEach(function (x) {
+      var ei = P.$('[data-inicio="' + x.fase_id + '"]');
+      var ef = P.$('[data-fin="' + x.fase_id + '"]');
+      if (!ei || !ef) return;
+      var i = ei.value;
+      var fn = ef.value;
+      var nombre = '«' + x.orden + '. ' + P.nombre(x) + '»';
+      var malI = '';
+      var malF = '';
+      ei.min = minimo;
+      ei.max = maximo;
+      ef.min = i || minimo;
+      ef.max = maximo;
+      if (previo && previo.fin) ei.min = diaSiguiente(previo.fin);
+      if ((ei.validity && ei.validity.badInput) || (ef.validity && ef.validity.badInput)) {
+        malI = ei.validity.badInput ? P.t('{f}: la fecha de inicio no es válida', { f: nombre }) : '';
+        malF = ef.validity.badInput ? P.t('{f}: la fecha de fin no es válida', { f: nombre }) : '';
+      } else if (i || fn) {
+        if (!i) malI = P.t('{f}: falta la fecha de inicio', { f: nombre });
+        if (!fn) malF = P.t('{f}: falta la fecha de fin', { f: nombre });
+        if (i && (i < minimo || i > maximo)) malI = P.t('{f}: la fecha de inicio debe estar entre {a} y {b}', { f: nombre, a: fechaCorta(minimo), b: fechaCorta(maximo) });
+        if (fn && (fn < minimo || fn > maximo)) malF = P.t('{f}: la fecha de fin debe estar entre {a} y {b}', { f: nombre, a: fechaCorta(minimo), b: fechaCorta(maximo) });
+        if (i && fn && fn < i) malF = P.t('{f}: termina el {fin}, antes de empezar el {ini}. La fecha de fin no puede ser anterior a la de inicio', { f: nombre, fin: fechaCorta(fn), ini: fechaCorta(i) });
+        if (i && fn && !malF && (Date.parse(fn) - Date.parse(i)) / 86400000 > 366) malF = P.t('{f}: no puede durar más de un año', { f: nombre });
+        if (i && previo && previo.fin && i <= previo.fin && !malI) malI = P.t('{f} empieza el {ini}, pero {p} termina el {fin}. Las fases no pueden encimarse: cada una debe empezar después de que termine la anterior', { f: nombre, ini: fechaCorta(i), p: previo.nombre, fin: fechaCorta(previo.fin) });
+        fases.push({ fase_id: x.fase_id, fecha_inicio: i, fecha_fin: fn });
+      }
+      [[ei, malI], [ef, malF]].forEach(function (par) {
+        par[0].classList.toggle('fecha-mal', !!par[1]);
+        if (par[1]) { par[0].setAttribute('aria-invalid', 'true'); par[0].title = par[1]; } else { par[0].removeAttribute('aria-invalid'); par[0].removeAttribute('title'); }
+      });
+      if (malI) errores.push(malI);
+      if (malF) errores.push(malF);
+      if (i || fn) previo = { fin: fn || i, nombre: nombre };
+    });
+    var caja = P.$('#fechas-error');
+    if (caja) {
+      P.poner(caja, errores.length ? P.html`<div class="mensaje error" role="alert"><span>${errores.slice(0, 3).map(function (m, k) { return P.html`${k ? P.html`<br>` : ''}${m}`; })}${errores.length > 3 ? P.html`<br>${P.t('y {n} más', { n: errores.length - 3 })}` : ''}</span></div>` : '');
+    }
+    var boton = P.$('#guardar-fechas');
+    if (boton) boton.classList.toggle('deshabilitado', errores.length > 0);
+    return { errores: errores, fases: fases, alGuardar: alGuardar };
   }
 
   function cargarDetalle() {
@@ -125,7 +175,7 @@
           <h2 style="margin:8px 0 4px">${c.nombre}</h2>
           <span class="texto-2">${P.t('Año simulado {a} · Presupuesto total {p} · {pct}% en partes iguales · Índices: {o}', { a: c.anio_simulado, p: P.dinero(c.presupuesto_total), pct: P.numero(c.porcentaje_partes_iguales, 0), o: P.t({ api: 'datos abiertos', aleatorio: 'aleatorios', manual: 'captura manual' }[c.origen_indices]) })}</span></div>
           <div class="fila">
-            ${borrador && c.tipo !== 'oficial' ? P.html`<button class="btn2 chico" data-editar-ciclo>Editar datos</button><button class="btn-peligro chico" data-eliminar-ciclo>Eliminar borrador</button>` : ''}
+            ${borrador ? P.html`<button class="btn2 chico" data-editar-ciclo>Editar datos</button><button class="btn-peligro chico" data-eliminar-ciclo>Eliminar borrador</button>` : ''}
             ${!cerrado ? P.html`<label class="btn2 chico" style="flex-direction:row;cursor:pointer">${c.convocatoria_uuid ? P.t('Reemplazar convocatoria') : P.t('Subir convocatoria (PDF)')}<input type="file" accept="application/pdf" class="solo-lector" id="pdf-conv"></label>` : ''}
             ${c.convocatoria_uuid ? P.html`<a class="btn2 chico" href="${P.img(c.convocatoria_uuid)}" target="_blank" rel="noopener">Ver convocatoria</a>` : ''}
             <button class="btn2 chico" data-descargar="/api/admin/ciclos/${c.id}/reporte.pdf">Reporte (PDF)</button>
@@ -146,6 +196,7 @@
         <div class="columna" style="gap:12px">
         <div class="fila entre"><span></span>${!cerrado ? P.html`<button class="btn2 chico" id="guardar-fechas">Guardar fechas</button>` : ''}</div>
         <p class="tenue pequeno" style="margin:0">Para fines de demostración puedes cambiar la fase manualmente; el sistema pide confirmación.</p>
+        <div id="fechas-error" aria-live="polite"></div>
         <div class="tabla-cont"><table><thead><tr><th>#</th><th>Fase</th><th>Inicio</th><th>Fin</th><th></th></tr></thead><tbody>
           ${det.fases.map(function (f) {
             var activa = Number(f.es_fase_activa) === 1 && !borrador;
@@ -179,6 +230,7 @@
           <div class="completo"><button class="btn" type="submit">Publicar aviso</button></div></form>
         <div id="avisos" class="lista"></div></div></details>` : ''}`);
     if (c.estado === 'activo') cargarAvisos();
+    revisarFechas(false);
     var pdf = P.$('#pdf-conv');
     if (pdf) pdf.addEventListener('change', function (e) {
       var a = e.target.files && e.target.files[0];
@@ -257,8 +309,7 @@
           <div><span class="alerta-texto" style="font-size:13px;font-weight:700">${P.t(cerrado ? 'Ciclo cerrado' : (c.estado === 'borrador' ? (c.pausado_en ? 'Ciclo pausado' : 'Ciclo en borrador') : 'Fase actual'))}</span>
             <h2 class="h" style="margin:2px 0 0;font-size:28px;font-weight:800">${actual ? P.html`${actual.orden} · ${P.nombre(actual)}` : P.t(c.estado === 'borrador' ? 'Sin iniciar' : 'Histórico')}</h2>
             ${Number(c.votacion_abierta) ? P.html`<span class="etq ok" style="margin-top:6px">${P.t('Votación abierta')}</span>` : ''}</div>
-          ${!cerrado && c.estado === 'activo' && c.tipo === 'oficial' ? P.html`<span class="etq ok" title="${P.t('Calendario del IECM')}">${P.t('La fase avanza sola según el calendario oficial')}</span>` : ''}
-          ${!cerrado && c.estado !== 'borrador' && c.tipo !== 'oficial' ? P.html`<div class="fila" style="gap:8px">
+          ${!cerrado && c.estado !== 'borrador' ? P.html`<div class="fila" style="gap:8px">
             <button type="button" class="btn2" data-pedir-fase="ant" ${ant ? '' : P.seguro('disabled')}>← ${P.t('Fase anterior')}</button>
             <button type="button" class="btn" data-pedir-fase="sig" ${sig ? '' : P.seguro('disabled')}>${P.t('Avanzar a la siguiente fase')} →</button></div>` : ''}
         </div>
@@ -493,26 +544,27 @@
     }).catch(function (e) { P.poner(m.el.querySelector('.cuerpo-modal'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
 
+  function cargarActividad() {
+    return P.get('/api/admin/bitacora' + P.qs({ limite: 10 })).then(function (d) {
+      P.poner(P.$('#actividad'), d.registros.length ? P.html`<div class="tabla-cont"><table><thead><tr><th>Fecha</th><th>Quién</th><th>Alcaldía</th><th>Qué hizo</th></tr></thead>
+        <tbody>${d.registros.map(function (r) {
+          return P.html`<tr><td>${P.fechaHora(r.realizada_en)}</td><td>${r.responsable || '—'}</td><td>${r.alcaldia || '—'}</td><td>${r.accion.replace(/_/g, ' ')}</td></tr>`;
+        })}</tbody></table></div>` : P.html`<p class="vacio">Todavía no hay acciones registradas</p>`);
+    }, function (e) { P.poner(P.$('#actividad'), P.html`<p class="mensaje error">${e.message}</p>`); });
+  }
+
   P.pagina(function () {
+    P.$('#csv-actividad').addEventListener('click', function (e) { P.descargar('/api/admin/bitacora.csv', e.currentTarget); });
     document.addEventListener('toggle', function (e) {
       var d = e.target;
       if (d && d.getAttribute && d.getAttribute('data-plegable')) abiertos[d.getAttribute('data-plegable')] = d.open;
     }, true);
     P.$('#sel-ciclo').addEventListener('change', function (e) { cicloId = Number(e.target.value); cargarDetalle(); });
     P.$('#nuevo-ciclo').addEventListener('click', function () { formCiclo(null); });
-    document.addEventListener('change', function (e) {
-      if (e.target.name === 'modo') { modoElegido = e.target.value; pintarModo(); }
-    });
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (t.closest('[data-nuevo]')) { formCiclo(null); return; }
       if (t.closest('#aplicar-modo')) { aplicarModo(t.closest('#aplicar-modo')); return; }
-      if (t.closest('#cargar-oficial')) {
-        P.accion(t.closest('#cargar-oficial'), function () {
-          return P.post('/api/admin/modo/cargar-oficial').then(function (r) { modoElegido = 'oficial'; cargarModo(); cargarCiclos(cicloId); return r; });
-        });
-        return;
-      }
       if (t.closest('[data-editar-ciclo]')) { formCiclo(det.ciclo); return; }
       var d = t.closest('[data-descargar]');
       if (d) { P.descargar(d.getAttribute('data-descargar'), d); return; }
@@ -547,19 +599,23 @@
       }
       var g = t.closest('#guardar-fechas');
       if (g) {
-        var fases = [];
-        var err = null;
-        det.fases.forEach(function (x) {
-          var i = P.$('[data-inicio="' + x.fase_id + '"]').value;
-          var fn = P.$('[data-fin="' + x.fase_id + '"]').value;
-          if (!i && !fn) return;
-          if (!i || !fn) err = 'Completa la fecha de inicio y de fin de cada fase';
-          else if (fn < i) err = 'La fecha de fin de una fase no puede ser anterior a su inicio';
-          fases.push({ fase_id: x.fase_id, fecha_inicio: i, fecha_fin: fn });
-        });
-        if (err || !fases.length) { P.aviso(err || 'Indica al menos las fechas de una fase', 'error'); return; }
+        var rev = revisarFechas(true);
+        var fases = rev.fases;
+        var err = rev.errores[0] || null;
+        if (err || !fases.length) {
+          P.aviso(err || 'Indica al menos las fechas de una fase', 'error');
+          var mal = P.$('#calendario input.fecha-mal');
+          if (mal) mal.focus();
+          return;
+        }
         P.accion(g, function () { return P.put('/api/admin/ciclos/' + cicloId + '/fases', { fases: fases }).then(function (r) { cargarDetalle(); return r; }); });
       }
+    });
+    document.addEventListener('input', function (e) {
+      if (e.target.matches && e.target.matches('#calendario [data-inicio], #calendario [data-fin]')) revisarFechas(false);
+    });
+    document.addEventListener('change', function (e) {
+      if (e.target.matches && e.target.matches('#calendario [data-inicio], #calendario [data-fin]')) revisarFechas(false);
     });
     document.addEventListener('submit', function (e) {
       if (e.target.id !== 'form-aviso') return;
@@ -571,6 +627,6 @@
           .then(function (r) { e.target.reset(); cargarAvisos(); return r; });
       });
     });
-    return P.catalogos().then(function (c) { cat = c; return Promise.all([cargarResumen(), cargarCiclos(), cargarModo()]); });
+    return P.catalogos().then(function (c) { cat = c; return Promise.all([cargarResumen(), cargarCiclos(), cargarModo(), cargarActividad()]); });
   });
 }());

@@ -11,8 +11,6 @@ const sesion = require('../lib/sesion');
 const { ErrorApp, peticionInvalida } = require('../lib/errores');
 const envioCorreo = require('../lib/correo');
 const { tipoReal, dimensiones, acotar } = require('../lib/archivos');
-const captcha = require('../lib/captcha');
-const google = require('../lib/google');
 const verificacion = require('../lib/verificacion');
 
 const router = express.Router();
@@ -39,27 +37,11 @@ const limiteRecuperarCorreo = limitador({
   clave: (req) => `r:${String((req.body && req.body.correo) || '').toLowerCase().slice(0, 50)}`,
   mensaje: 'Ya enviamos varios enlaces a este correo. Revisa tu bandeja o intenta en una hora',
 });
-const limiteCaptcha = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 120, mensaje: 'Pediste demasiados códigos. Espera unos minutos' });
 const limiteVerificar = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 30, mensaje: 'Demasiados intentos. Espera unos minutos' });
 const limiteReenviar = limitador({ ventanaMs: 15 * 60 * 1000, maximo: 3, clave: (req) => `rv:${req.usuario ? req.usuario.id : req.ip}`,
   mensaje: 'Ya te enviamos varios enlaces. Revisa tu bandeja de entrada y la de spam, o espera 15 minutos' });
 const limiteEliminar = limitador({ ventanaMs: 15 * 60 * 1000, maximo: 5, clave: (req) => `el:${req.usuario ? req.usuario.id : req.ip}`,
   mensaje: 'Demasiados intentos. Espera 15 minutos' });
-const limiteGoogle = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 40, mensaje: 'Demasiados intentos con Google. Espera unos minutos' });
-const COOKIE_GOOGLE = 'prepar_google';
-const COOKIE_GOOGLE_REG = 'prepar_google_reg';
-const opcionesCookie = (minutos, ruta) => ({ httpOnly: true, sameSite: 'lax', secure: config.cookieSegura, maxAge: minutos * 60 * 1000, path: ruta });
-
-function exigirCaptcha(b, req) {
-  if (!config.captcha.activo) return;
-  if (!b.captcha_id || typeof b.captcha !== 'string' || !b.captcha.trim()) {
-    throw new ErrorApp(400, 'Escribe el código que aparece en la imagen', { codigo: 'captcha' });
-  }
-  if (!captcha.verificar(b.captcha_id, b.captcha)) {
-    log.seguridad('captcha_fallido', req);
-    throw new ErrorApp(400, 'El código de la imagen no coincide. Escribe el código nuevo', { codigo: 'captcha' });
-  }
-}
 const limiteFoto = limitador({ ventanaMs: 10 * 60 * 1000, maximo: 20, clave: (req) => `f:${req.usuario ? req.usuario.id : req.ip}` });
 
 async function abrirSesion(req, res, con, usuarioId) {
@@ -101,25 +83,14 @@ router.post('/auth/aceptar-terminos', asincrono(async (req, res) => {
   res.json({ ok: true, version: r.version, destino: destinoPorRol(req.usuario.rol, req.usuario.debeCambiarPassword), mensaje: 'Gracias. Aceptaste los Términos y condiciones' });
 }));
 
-router.get('/captcha', limiteCaptcha, (req, res) => {
-  res.json(captcha.crear());
-});
-
-router.get('/auth/opciones', (req, res) => {
-  res.json({ google: google.activo(), captcha: config.captcha.activo });
-});
-
 router.post('/auth/login', limiteLoginIp, limiteLoginCorreo, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
   const correo = v.correo(b.correo);
   const pass = typeof b.password === 'string' ? b.password : '';
   if (!pass) throw peticionInvalida('Escribe tu contraseña');
-  if (config.captcha.activo && captcha.requiere(req, correo)) exigirCaptcha(b, req);
   const credencialesMal = () => {
-    captcha.anotarFallo(req, correo);
     log.seguridad('login_fallido', req, { correo });
-    const pedir = config.captcha.activo && captcha.requiere(req, correo);
-    return new ErrorApp(401, 'Correo o contraseña incorrectos', pedir ? { codigo: 'captcha' } : undefined);
+    return new ErrorApp(401, 'Correo o contraseña incorrectos');
   };
   const u = await db.conSistema((con) => con.uno(
     'SELECT id, password_hash, estado, (bloqueado_hasta IS NOT NULL AND bloqueado_hasta > NOW()) AS bloqueado FROM usuarios WHERE correo = ?',
@@ -142,52 +113,8 @@ router.post('/auth/login', limiteLoginIp, limiteLoginCorreo, asincrono(async (re
     return abrirSesion(req, res, con, u.id);
   });
   log.seguridad('login_ok', req, { usuario: u.id });
-  captcha.limpiarFallos(req, correo);
   res.json(resultado);
 }));
-
-router.get('/auth/google', limiteGoogle, (req, res) => {
-  if (!google.activo()) return res.redirect(302, '/login.html?google=sin_configurar');
-  const estado = crypto.randomBytes(24).toString('base64url');
-  const nonce = crypto.randomBytes(24).toString('base64url');
-  res.cookie(COOKIE_GOOGLE, google.firmar({ estado, nonce }, 10), opcionesCookie(10, '/api/auth/google'));
-  return res.redirect(302, google.urlAutorizacion(estado, nonce));
-});
-
-router.get('/auth/google/callback', limiteGoogle, asincrono(async (req, res) => {
-  const guardado = google.leerFirmado(req.cookies[COOKIE_GOOGLE]);
-  res.clearCookie(COOKIE_GOOGLE, { path: '/api/auth/google' });
-  if (req.query.error) return res.redirect(302, '/login.html?google=cancelado');
-  const codigo = typeof req.query.code === 'string' && req.query.code.length < 2000 ? req.query.code : null;
-  if (!guardado || !codigo || typeof req.query.state !== 'string' || req.query.state !== guardado.estado) {
-    return res.redirect(302, '/login.html?google=error');
-  }
-  let identidad;
-  try {
-    identidad = await google.canjearCodigo(codigo, guardado.nonce);
-  } catch (e) {
-    log.seguridad('google_rechazado', req, { motivo: e.message });
-    return res.redirect(302, '/login.html?google=error');
-  }
-  const u = await db.conSistema((con) => con.uno('SELECT id, estado FROM usuarios WHERE correo = ?', [identidad.correo]));
-  if (!u) {
-    res.cookie(COOKIE_GOOGLE_REG, google.firmar(identidad, 30), opcionesCookie(30, '/api/auth'));
-    return res.redirect(302, '/registro.html?google=1');
-  }
-  if (u.estado === 'suspendida') return res.redirect(302, '/login.html?google=suspendida');
-  if (u.estado !== 'activa') return res.redirect(302, '/login.html?google=inactiva');
-  const r = await db.conSistema(async (con) => {
-    await con.q('UPDATE usuarios SET correo_verificado_en = COALESCE(correo_verificado_en, NOW()) WHERE id = ?', [u.id]);
-    return abrirSesion(req, res, con, u.id);
-  });
-  return res.redirect(302, r.destino);
-}));
-
-router.get('/auth/google/pendiente', (req, res) => {
-  const d = google.leerFirmado(req.cookies[COOKIE_GOOGLE_REG]);
-  if (!d || !d.correo) return res.status(404).json({ error: 'No hay un registro con Google pendiente. Vuelve a presionar «Continuar con Google»' });
-  return res.json({ correo: d.correo, nombre: d.nombre || '' });
-});
 
 router.post('/auth/logout', asincrono(async (req, res) => {
   if (req.tokenHash) sesion.olvidar({ tokenHash: req.tokenHash });
@@ -207,18 +134,10 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
   const b = v.cuerpo(req);
   const nombre = v.nombrePersona(b.nombre);
   const correo = v.correo(b.correo);
-  const conGoogle = v.booleano(b.google);
-  let pass;
-  if (conGoogle) {
-    const pendiente = google.leerFirmado(req.cookies[COOKIE_GOOGLE_REG]);
-    if (!pendiente || pendiente.correo !== correo) throw peticionInvalida('Tu sesión de Google expiró. Presiona otra vez «Continuar con Google»');
-    pass = crypto.randomBytes(18).toString('base64url');
-  } else {
-    pass = v.password(b.password);
-    v.contrasenaSegura(pass, { correo: b.correo, nombre: b.nombre });
-    if (typeof b.confirmar !== 'string' || !b.confirmar) throw peticionInvalida('Escribe tu contraseña otra vez en «Confirmar contraseña»');
-    if (b.confirmar !== pass) throw peticionInvalida('Las contraseñas no coinciden: escribe la misma contraseña en los dos campos');
-  }
+  const pass = v.password(b.password);
+  v.contrasenaSegura(pass, { correo: b.correo, nombre: b.nombre });
+  if (typeof b.confirmar !== 'string' || !b.confirmar) throw peticionInvalida('Escribe tu contraseña otra vez en «Confirmar contraseña»');
+  if (b.confirmar !== pass) throw peticionInvalida('Las contraseñas no coinciden: escribe la misma contraseña en los dos campos');
   const nacimiento = v.fecha(b.fecha_nacimiento, { campo: 'tu fecha de nacimiento' });
   const genero = v.opcion(b.genero, ['mujer', 'hombre', 'no_binario', 'prefiero_no_decir'], { campo: 'tu género' });
   const unidad = v.id(b.unidad_territorial_id, 'tu colonia, barrio o pueblo');
@@ -228,7 +147,6 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
   const limite = new Date(Date.UTC(hoy.getUTCFullYear() - 18, hoy.getUTCMonth(), hoy.getUTCDate()));
   if (new Date(`${nacimiento}T00:00:00Z`) > limite) throw peticionInvalida('Solo pueden registrarse personas mayores de 18 años');
   if (Number(nacimiento.slice(0, 4)) < hoy.getUTCFullYear() - 120) throw peticionInvalida('La fecha de nacimiento no es válida');
-  if (!conGoogle) exigirCaptcha(b, req);
   const hashPass = await hash.hash(pass);
   const resultado = await db.conSistema(async (con) => {
     const ut = await con.uno('SELECT id FROM unidades_territoriales WHERE id = ? AND activa', [unidad]);
@@ -236,23 +154,20 @@ router.post('/auth/registro', limiteRegistroIntentos, limiteRegistro, asincrono(
     const filas = await con.call('sp_registrar_ciudadano', [nombre, correo, hashPass, nacimiento, genero, unidad, true]);
     const id = filas[0].usuario_id;
     await con.q(`UPDATE usuarios SET terminos_version = (${SQL_VIGENTE}), terminos_aceptados_en = NOW() WHERE id = ?`, [id]);
-    if (conGoogle) await con.q('UPDATE usuarios SET correo_verificado_en = NOW() WHERE id = ?', [id]);
     const r = await abrirSesion(req, res, con, id);
-    if (!conGoogle && verificacion.activa()) {
+    if (verificacion.activa()) {
       await verificacion.enviarEnlace(con, { id, correo, nombre });
       r.verificarCorreo = true;
       r.mensaje = `Te enviamos un enlace a ${correo} para confirmar tu correo. Ábrelo para poder participar.`;
     }
     return r;
   });
-  if (conGoogle) res.clearCookie(COOKIE_GOOGLE_REG, { path: '/api/auth' });
   res.status(201).json(resultado);
 }));
 
 router.post('/auth/recuperar', limiteRecuperar, limiteRecuperarCorreo, asincrono(async (req, res) => {
   const b = v.cuerpo(req);
   const correo = v.correo(b.correo);
-  exigirCaptcha(b, req);
   const token = crypto.randomBytes(32).toString('base64url');
   await db.conSistema(async (con) => {
     await con.call('sp_solicitar_recuperacion', [correo, sesion.hashToken(token)]);

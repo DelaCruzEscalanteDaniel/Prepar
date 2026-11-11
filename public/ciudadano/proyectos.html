@@ -1,17 +1,16 @@
 <!doctype html>
-<html lang="es" data-tema="oscuro">
+<html lang="es" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#F3F6FA">
 <title>Mis proyectos · Prepar</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/css/app.css">
-<script src="/js/tema.js"></script>
 </head>
 <body data-rol="ciudadano" data-pagina="proyectos">
 <main id="principal" class="contenido" tabindex="-1">
@@ -32,7 +31,6 @@
     <label class="completo">Título<input type="text" name="titulo" maxlength="100" data-contador required placeholder="Ej.: Rehabilitación del parque Norte 45"></label>
     <label class="completo">Descripción<textarea name="descripcion" maxlength="500" rows="4" required placeholder="¿Qué se hará y a quién beneficia?"></textarea></label>
     <label>Rubro<select name="rubro_id" class="sel-rubro" required></select></label>
-    <label>Tipo de proyecto <span class="opcional">(define el color en el mapa)</span><select name="categoria"></select><span class="ayuda muestra-categoria" aria-live="polite"></span></label>
     <label>Costo estimado (MXN)<input type="number" name="costo_estimado" min="1" max="999999999999" step="0.01" inputmode="decimal" required placeholder="Ej.: 800000"><span class="ayuda" id="ayuda-presupuesto"></span></label>
     <label>Idea del foro que lo originó <span class="opcional">(opcional)</span><select name="idea_id" id="sel-idea"><option value="">Ninguna</option></select></label>
     <fieldset class="completo"><legend>Dirección del proyecto</legend>
@@ -63,7 +61,6 @@
 <section data-panel="unidad" hidden class="columna" style="gap:14px"><div id="filtro-alcaldia"></div><div class="lista" id="proyectos-unidad"></div></section>
 </main>
 <script src="/vendor/leaflet/leaflet.js" defer></script>
-<script src="/js/i18n-en.js" defer></script>
 <script src="/js/app.js" defer></script>
 <script src="/js/pages/ciudadano-proyectos.js" defer></script>
 </body>

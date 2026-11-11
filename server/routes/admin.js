@@ -15,10 +15,7 @@ const { sincronizarFuente, PERFILES } = require('../lib/sincronizar');
 const pdf = require('../lib/pdf');
 const envioCorreo = require('../lib/correo');
 const publico = require('./publico');
-const categorias = require('../lib/categorias');
 const modo = require('../lib/modo');
-const ciclosIniciales = require('../lib/ciclosIniciales');
-const { repartirOficial } = require('../lib/datosOficiales');
 const cuentas = require('../lib/cuentas');
 const etapasObra = require('../lib/etapas');
 
@@ -139,7 +136,6 @@ router.put('/admin/ciclos/:id', asincrono(async (req, res) => {
   const pct = v.decimal(b.porcentaje_partes_iguales ?? 50, { campo: 'el porcentaje en partes iguales', min: 0, max: 100 });
   await db.conUsuario(req.usuario.id, async (con) => {
     const c = await cicloExistente(con, id);
-    if (c.tipo === 'oficial') throw conflicto('El ciclo oficial conserva el nombre y el monto publicados en la Gaceta Oficial');
     if (c.estado !== 'borrador' || c.pausado_en) {
       await con.q('UPDATE ciclos SET nombre = ? WHERE id = ?', [nombre, id]);
       return;
@@ -166,24 +162,44 @@ router.put('/admin/ciclos/:id/fases', asincrono(async (req, res) => {
   const id = v.id(req.params.id, 'el ciclo');
   const b = v.cuerpo(req);
   if (!Array.isArray(b.fases) || !b.fases.length || b.fases.length > 20) throw peticionInvalida('Indica las fechas de las fases');
-  const fases = b.fases.map((f) => {
+  const enviadas = b.fases.map((f) => {
     if (!f || typeof f !== 'object') throw peticionInvalida('Alguna fase no es válida');
-    const inicio = v.fecha(f.fecha_inicio, { campo: 'la fecha de inicio' });
-    const fin = v.fecha(f.fecha_fin, { campo: 'la fecha de fin' });
-    if (fin < inicio) throw peticionInvalida('La fecha de fin de una fase no puede ser anterior a su inicio');
-    return { fase: v.id(f.fase_id, 'la fase'), inicio, fin };
+    return {
+      fase: v.id(f.fase_id, 'la fase'),
+      inicio: v.fecha(f.fecha_inicio, { campo: 'la fecha de inicio' }),
+      fin: v.fecha(f.fecha_fin, { campo: 'la fecha de fin' }),
+    };
   });
+  if (new Set(enviadas.map((f) => f.fase)).size !== enviadas.length) throw peticionInvalida('Una fase viene repetida');
   await db.conUsuario(req.usuario.id, (con) => con.transaccion(async () => {
-    await cicloExistente(con, id);
-    const orden = await con.q('SELECT id, orden FROM fases');
-    const mapa = new Map(orden.map((f) => [f.id, f.orden]));
-    if (fases.some((f) => !mapa.has(f.fase))) throw peticionInvalida('Alguna fase no existe');
-    const ordenadas = [...fases].sort((a, b2) => mapa.get(a.fase) - mapa.get(b2.fase));
-    for (let i = 1; i < ordenadas.length; i += 1) {
-      if (ordenadas[i].inicio < ordenadas[i - 1].inicio) throw peticionInvalida('Las fases deben seguir el orden del calendario');
-      if (ordenadas[i].inicio <= ordenadas[i - 1].fin) throw peticionInvalida('Las fases no pueden encimarse: cada una debe empezar después de que termine la anterior');
+    const ciclo = await cicloExistente(con, id);
+    const catalogo = await con.q('SELECT id, orden, nombre_es FROM fases');
+    const info = new Map(catalogo.map((f) => [Number(f.id), f]));
+    if (enviadas.some((f) => !info.has(f.fase))) throw peticionInvalida('Alguna fase no existe');
+    const guardadas = await con.q("SELECT fase_id, DATE_FORMAT(fecha_inicio, '%Y-%m-%d') AS inicio, DATE_FORMAT(fecha_fin, '%Y-%m-%d') AS fin FROM ciclo_fases WHERE ciclo_id = ?", [id]);
+    const todas = new Map(guardadas.map((g) => [Number(g.fase_id), { fase: Number(g.fase_id), inicio: g.inicio, fin: g.fin }]));
+    for (const f of enviadas) todas.set(f.fase, f);
+    const anio = Number(ciclo.anio_simulado) || new Date().getFullYear();
+    const minimo = `${anio - 1}-01-01`;
+    const maximo = `${anio + 2}-12-31`;
+    const dias = (a, z) => Math.round((Date.parse(`${z}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+    const nombre = (f) => `«${info.get(f.fase).orden}. ${info.get(f.fase).nombre_es}»`;
+    for (const f of enviadas) {
+      v.rangoFechas(f.inicio, f.fin, { inicial: 'su fecha de inicio', final: `La fecha de fin de ${nombre(f)}` });
+      if (f.inicio < minimo || f.fin > maximo) {
+        throw peticionInvalida(`Las fechas de ${nombre(f)} deben estar entre ${v.fechaCorta(minimo)} y ${v.fechaCorta(maximo)}, cerca del año del ciclo (${anio})`);
+      }
+      if (dias(f.inicio, f.fin) > 366) throw peticionInvalida(`${nombre(f)} no puede durar más de un año`);
     }
-    for (const f of fases) {
+    const ordenadas = [...todas.values()].filter((f) => info.has(f.fase)).sort((a, z) => info.get(a.fase).orden - info.get(z.fase).orden);
+    for (let i = 1; i < ordenadas.length; i += 1) {
+      const antes = ordenadas[i - 1];
+      const ahora = ordenadas[i];
+      if (ahora.inicio <= antes.fin) {
+        throw peticionInvalida(`${nombre(ahora)} empieza el ${v.fechaCorta(ahora.inicio)}, pero ${nombre(antes)} termina el ${v.fechaCorta(antes.fin)}. Las fases no pueden encimarse: cada una debe empezar después de que termine la anterior`);
+      }
+    }
+    for (const f of enviadas) {
       await con.q(`INSERT INTO ciclo_fases (ciclo_id, fase_id, fecha_inicio, fecha_fin) VALUES (?, ?, ?, ?)
                    ON DUPLICATE KEY UPDATE fecha_inicio = VALUES(fecha_inicio), fecha_fin = VALUES(fecha_fin)`, [id, f.fase, f.inicio, f.fin]);
     }
@@ -217,10 +233,6 @@ router.post('/admin/ciclos/:id/presupuesto', asincrono(async (req, res) => {
   const filas = await db.conUsuario(req.usuario.id, async (con) => {
     const c = await cicloExistente(con, id);
     if (c.pausado_en) throw conflicto('El ciclo está pausado: su presupuesto ya no se recalcula');
-    if (c.tipo === 'oficial') {
-      await repartirOficial(con, id);
-      return con.q('SELECT unidad_territorial_id, presupuesto_asignado FROM ciclo_unidades WHERE ciclo_id = ? ORDER BY 1', [id]);
-    }
     return con.call('sp_calcular_presupuesto', [id]);
   });
   res.json({ ok: true, unidades: filas, mensaje: 'La distribución del presupuesto se recalculó' });
@@ -232,10 +244,9 @@ router.post('/admin/ciclos/:id/fase', asincrono(async (req, res) => {
   const c = await db.conUsuario(req.usuario.id, (con) => cicloExistente(con, id));
   if (c.estado === 'borrador') {
     const r = await modo.activar(req.usuario.id, id);
-    if (c.tipo !== 'oficial' && r.fase !== fase) await db.conUsuario(req.usuario.id, (con) => con.call('sp_cambiar_fase', [id, fase]));
+    if (r.fase !== fase) await db.conUsuario(req.usuario.id, (con) => con.call('sp_cambiar_fase', [id, fase]));
     return res.json({ ok: true, mensaje: r.pausado ? `El ciclo se activó; «${r.pausado}» quedó pausado` : 'El ciclo se activó' });
   }
-  if (c.tipo === 'oficial') throw conflicto('El ciclo oficial avanza solo según el calendario del IECM');
   await db.conUsuario(req.usuario.id, (con) => con.call('sp_cambiar_fase', [id, fase]));
   return res.json({ ok: true, mensaje: 'La fase del ciclo cambió' });
 }));
@@ -244,33 +255,19 @@ router.get('/admin/modo', asincrono(async (req, res) => {
   res.json(await modo.estado(req.usuario.id));
 }));
 
-router.post('/admin/modo/cargar-oficial', asincrono(async (req, res) => {
-  const r = await ciclosIniciales.crearOficial({ forzar: true });
-  if (!r.id) throw conflicto(r.motivo || 'No se pudo cargar el ciclo oficial');
-  res.json({ ok: true, id: r.id, mensaje: r.yaExistia ? 'El ciclo oficial ya estaba cargado' : 'Se cargó el ciclo oficial 2026-2027 con el calendario del IECM' });
-}));
-
 router.post('/admin/modo', asincrono(async (req, res) => {
   const b = v.cuerpo(req);
-  const elegido = v.opcion(b.modo, ['oficial', 'practica'], { campo: 'el modo' });
   const e = await modo.estado(req.usuario.id);
-  let id;
-  if (elegido === 'oficial') {
-    const of = b.ciclo_id ? e.oficiales.find((c) => c.id === Number(b.ciclo_id)) : e.oficiales[0];
-    if (!of) throw conflicto('No hay un ciclo oficial cargado todavía');
-    id = of.id;
-  } else {
-    id = v.id(b.ciclo_id, 'el ciclo de práctica');
-    const pr = e.practicas.find((c) => c.id === id);
-    if (!pr) throw peticionInvalida('Elige uno de tus ciclos de práctica');
-    if (!Number(pr.fases_con_fecha)) throw conflicto('Configura las fechas de las fases de ese ciclo antes de activarlo');
-  }
+  const id = v.id(b.ciclo_id, 'el ciclo');
+  const pr = e.practicas.find((c) => c.id === id);
+  if (!pr) throw peticionInvalida('Elige uno de los ciclos');
+  if (!Number(pr.fases_con_fecha)) throw conflicto('Configura las fechas de las fases de ese ciclo antes de activarlo');
   const r = await modo.activar(req.usuario.id, id);
   publico.invalidarEstado && publico.invalidarEstado();
   res.json({
     ok: true, ...r,
     mensaje: r.sinCambio ? 'Ese ciclo ya es el activo'
-      : `Modo ${elegido === 'oficial' ? 'oficial' : 'práctica'}: «${r.ciclo}» está activo${r.pausado ? ` y «${r.pausado}» quedó pausado` : ''}`,
+      : `«${r.ciclo}» está activo${r.pausado ? ` y «${r.pausado}» quedó pausado` : ''}`,
   });
 }));
 
@@ -670,9 +667,15 @@ function filtrosEstadistica(query) {
   };
 }
 
+function filtrosEstadisticaValidos(query) {
+  const f = filtrosEstadistica(query);
+  v.rangoFechas(f.desde, f.hasta);
+  return f;
+}
+
 router.get('/admin/estadisticas', asincrono(async (req, res) => {
   const tipo = v.opcion(req.query.tipo || 'participacion', ['participacion', 'demograficas', 'proyectos', 'seguimiento'], { campo: 'el tipo de estadística' });
-  const f = filtrosEstadistica(req.query);
+  const f = filtrosEstadisticaValidos(req.query);
   const datos = await db.conUsuario(req.usuario.id, async (con) => {
     const ciclo = f.ciclo || ((await con.uno("SELECT id FROM ciclos WHERE estado = 'activo'")) || (await con.uno('SELECT id FROM ciclos ORDER BY creado_en DESC LIMIT 1')) || {}).id;
     if (!ciclo) return { tipo, ciclo: null };
@@ -683,9 +686,9 @@ router.get('/admin/estadisticas', asincrono(async (req, res) => {
       const total = await con.uno(`SELECT COALESCE(SUM(registrados), 0) AS registrados, COALESCE(SUM(votantes), 0) AS votantes,
                                           ROUND(100 * SUM(votantes) / NULLIF(SUM(registrados), 0), 2) AS porcentaje
                                    FROM v_est_participacion WHERE ${wp}`, pp);
-      const porAlcaldia = await con.q(`SELECT alcaldia AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
-                                       FROM v_est_participacion WHERE ${wp} GROUP BY alcaldia ORDER BY alcaldia`, pp);
       if (tipo === 'participacion') {
+        const porAlcaldia = await con.q(`SELECT alcaldia AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
+                                         FROM v_est_participacion WHERE ${wp} GROUP BY alcaldia ORDER BY alcaldia`, pp);
         const porDia = await con.q(
           `SELECT DATE(pa.participo_en) AS dia, COUNT(*) AS votantes
            FROM participaciones pa JOIN ciudadanos ci ON ci.usuario_id = pa.ciudadano_id
@@ -698,9 +701,9 @@ router.get('/admin/estadisticas', asincrono(async (req, res) => {
       }
       const porGenero = await con.q(`SELECT genero AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
                                      FROM v_est_participacion WHERE ${wp} GROUP BY genero ORDER BY FIELD(genero, 'mujer', 'hombre', 'no_binario', 'prefiero_no_decir')`, pp);
-      const porEdad = await con.q(`SELECT rango_edad AS etiqueta, SUM(registrados) AS registrados, SUM(votantes) AS votantes
-                                   FROM v_est_participacion WHERE ${wp} GROUP BY rango_edad ORDER BY rango_edad`, pp);
-      return { tipo, ciclo, total, porGenero, porEdad, porAlcaldia };
+      const porEdadGenero = await con.q(`SELECT rango_edad AS etiqueta, genero, SUM(registrados) AS registrados, SUM(votantes) AS votantes
+                                         FROM v_est_participacion WHERE ${wp} GROUP BY rango_edad, genero ORDER BY rango_edad`, pp);
+      return { tipo, ciclo, total, porGenero, porEdadGenero };
     }
     if (tipo === 'proyectos') {
       const wpr = `p.ciclo_id = ? AND (? IS NULL OR ut.alcaldia_id = ?) AND (? IS NULL OR p.unidad_territorial_id = ?)
@@ -713,9 +716,22 @@ router.get('/admin/estadisticas', asincrono(async (req, res) => {
                     LEFT JOIN resultados_unidad ru ON ru.proyecto_ganador_id = p.id`;
       const total = await con.uno(`SELECT ${sel} ${from} WHERE ${wpr}`, ppr);
       const porRubro = await con.q(`SELECT r.nombre_es AS etiqueta, ${sel} ${from} WHERE ${wpr} GROUP BY r.id, r.nombre_es ORDER BY r.id`, ppr);
-      const porAlcaldia = await con.q(`SELECT a.nombre AS etiqueta, ${sel} ${from} WHERE ${wpr} GROUP BY a.id, a.nombre ORDER BY a.nombre`, ppr);
-      const porEstatus = await con.q(`SELECT p.estatus AS etiqueta, COUNT(*) AS n ${from} WHERE ${wpr} GROUP BY p.estatus ORDER BY n DESC`, ppr);
-      return { tipo, ciclo, total, porRubro, porAlcaldia, porEstatus };
+      const ideas = await con.uno(
+        `SELECT COUNT(*) AS n FROM ideas i JOIN unidades_territoriales ut ON ut.id = i.unidad_territorial_id
+         WHERE i.ciclo_id = ? AND i.estado = 'visible' AND (? IS NULL OR ut.alcaldia_id = ?) AND (? IS NULL OR i.unidad_territorial_id = ?)
+           AND (? IS NULL OR i.rubro_id = ?) AND (? IS NULL OR i.creada_en >= ?) AND (? IS NULL OR i.creada_en < DATE_ADD(?, INTERVAL 1 DAY))`, ppr);
+      let votacion = null;
+      if (f.unidad) {
+        const ut = await con.uno('SELECT nombre FROM unidades_territoriales WHERE id = ?', [f.unidad]);
+        const pub = await con.uno('SELECT resultados_publicados_en FROM ciclos WHERE id = ?', [ciclo]);
+        const filas = await con.q(
+          `SELECT p.numero_sorteo, p.titulo, rp.total_votos, COALESCE(ru.proyecto_ganador_id = p.id, FALSE) AS ganador
+           FROM resultados_proyecto rp JOIN proyectos p ON p.id = rp.proyecto_id
+           LEFT JOIN resultados_unidad ru ON ru.ciclo_id = rp.ciclo_id AND ru.unidad_territorial_id = rp.unidad_territorial_id
+           WHERE rp.ciclo_id = ? AND rp.unidad_territorial_id = ? AND ? ORDER BY p.numero_sorteo`, [ciclo, f.unidad, !!(pub && pub.resultados_publicados_en)]);
+        votacion = { colonia: ut ? ut.nombre : '', proyectos: filas.map((x) => ({ ...x, total_votos: Number(x.total_votos), ganador: Number(x.ganador) })) };
+      }
+      return { tipo, ciclo, total, ideas: Number(ideas.n), porRubro, votacion };
     }
     const ws = `ciclo_id = ? AND (? IS NULL OR alcaldia_id = ?) AND (? IS NULL OR unidad_territorial_id = ?) AND (? IS NULL OR rubro_id = ?)`;
     const ps = [ciclo, f.alcaldia, f.alcaldia, f.unidad, f.unidad, f.rubro, f.rubro];
@@ -747,12 +763,17 @@ function filtrosBitacora(query) {
     hasta: v.fecha(query.hasta, { campo: 'la fecha final', requerido: false }),
   };
 }
+function filtrosBitacoraValidos(query) {
+  const f = filtrosBitacora(query);
+  v.rangoFechas(f.desde, f.hasta);
+  return f;
+}
 const WHERE_BIT = `(? IS NULL OR usuario_id = ?) AND (? IS NULL OR accion = ?) AND (? IS NULL OR alcaldia_id = ?)
                    AND (? IS NULL OR ciclo_id = ?) AND (? IS NULL OR realizada_en >= ?) AND (? IS NULL OR realizada_en < DATE_ADD(?, INTERVAL 1 DAY))`;
 const paramsBit = (f) => [f.usuario, f.usuario, f.accion, f.accion, f.alcaldia, f.alcaldia, f.ciclo, f.ciclo, f.desde, f.desde, f.hasta, f.hasta];
 
 router.get('/admin/bitacora', asincrono(async (req, res) => {
-  const f = filtrosBitacora(req.query);
+  const f = filtrosBitacoraValidos(req.query);
   const { limite, desplazamiento } = v.pagina(req.query, 50, 200);
   const datos = await db.conUsuario(req.usuario.id, async (con) => ({
     registros: await con.q(`SELECT id, realizada_en, usuario_id, responsable, rol, alcaldia, ciclo_id, accion, entidad, entidad_id, detalle
@@ -766,7 +787,7 @@ router.get('/admin/bitacora', asincrono(async (req, res) => {
 }));
 
 router.get('/admin/bitacora.csv', asincrono(async (req, res) => {
-  const f = filtrosBitacora(req.query);
+  const f = filtrosBitacoraValidos(req.query);
   const buf = await db.conUsuario(req.usuario.id, async (con) => {
     const filas = await con.q(`SELECT * FROM v_bitacora WHERE ${WHERE_BIT} ORDER BY realizada_en DESC, id DESC LIMIT 50000`, paramsBit(f));
     const csv = aCsv([
@@ -778,102 +799,6 @@ router.get('/admin/bitacora.csv', asincrono(async (req, res) => {
     return csv;
   });
   res.set({ 'Content-Type': 'text/csv; charset=utf-8', 'Content-Disposition': 'attachment; filename="bitacora.csv"', 'Cache-Control': 'no-store' }).send(buf);
-}));
-
-function claveDe(nombre) {
-  const c = categorias.normalizar(nombre).replace(/ñ/g, 'n').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 17);
-  return /^[a-z]/.test(c) ? c : `t_${c}`.slice(0, 17);
-}
-function datosTipo(b, parcial) {
-  const nombreEs = v.texto(b.nombre_es, { campo: 'el nombre del tipo', max: 60, min: 3, letras: 3 });
-  const color = String(b.color || '').trim();
-  if (!/^#[0-9a-fA-F]{6}$/.test(color)) throw peticionInvalida('Elige un color válido (por ejemplo #3B9EDB)');
-  const palabras = v.texto(b.palabras, { campo: 'las palabras clave', max: 400, requerido: false }) || '';
-  if (palabras && palabras.split(',').some((p) => p.trim().length > 40)) throw peticionInvalida('Separa las palabras clave con comas (cada una de máximo 40 letras)');
-  return {
-    nombre_es: nombreEs,
-    nombre_en: v.texto(b.nombre_en, { campo: 'el nombre en inglés', max: 60, requerido: false, letras: 3 }) || nombreEs,
-    color: color.toUpperCase(),
-    icono: v.opcion(b.icono, categorias.ICONOS, { campo: 'el dibujo' }),
-    palabras: palabras.split(',').map((p) => p.trim().replace(/\s+/g, ' ')).filter(Boolean).join(', '),
-    orden: v.entero(b.orden, { campo: 'el orden', min: 1, max: 998, requerido: false }),
-    activa: parcial ? v.booleano(b.activa, true) : true,
-  };
-}
-const tiposCambiaron = () => { categorias.invalidar(); publico.invalidarCatalogos(); };
-
-router.get('/admin/categorias', asincrono(async (req, res) => {
-  const filas = await db.conUsuario(req.usuario.id, (con) => con.q(
-    `SELECT c.clave, c.nombre_es, c.nombre_en, c.color, c.icono, c.palabras, c.orden, c.activa, COUNT(p.id) AS proyectos
-     FROM categorias_proyecto c LEFT JOIN proyectos p ON p.categoria = c.clave
-     GROUP BY c.clave, c.nombre_es, c.nombre_en, c.color, c.icono, c.palabras, c.orden, c.activa
-     ORDER BY c.orden, c.clave`));
-  res.json({ tipos: filas.map((f) => ({ ...f, activa: Number(f.activa), proyectos: Number(f.proyectos) })), iconos: categorias.ICONOS, respaldo: categorias.RESPALDO });
-}));
-
-router.post('/admin/categorias', asincrono(async (req, res) => {
-  const d = datosTipo(v.cuerpo(req), false);
-  const clave = await db.conUsuario(req.usuario.id, async (con) => {
-    if (await con.uno('SELECT 1 AS si FROM categorias_proyecto WHERE LOWER(nombre_es) = LOWER(?)', [d.nombre_es])) {
-      throw conflicto('Ya existe un tipo con ese nombre');
-    }
-    const base = claveDe(d.nombre_es);
-    let c = base;
-    for (let i = 2; await con.uno('SELECT 1 AS si FROM categorias_proyecto WHERE clave = ?', [c]); i += 1) c = `${base}_${i}`;
-    const orden = d.orden || Number((await con.uno('SELECT COALESCE(MAX(orden), 0) + 10 AS o FROM categorias_proyecto WHERE clave <> ?', [categorias.RESPALDO])).o);
-    await con.q('INSERT INTO categorias_proyecto (clave, nombre_es, nombre_en, color, icono, palabras, orden, activa) VALUES (?, ?, ?, ?, ?, ?, ?, TRUE)',
-      [c, d.nombre_es, d.nombre_en, d.color, d.icono, d.palabras, Math.min(orden, 998)]);
-    return c;
-  });
-  tiposCambiaron();
-  res.status(201).json({ ok: true, clave, mensaje: `Se agregó «${d.nombre_es}». Ya aparece en los formularios, los mapas y la simbología.` });
-}));
-
-router.put('/admin/categorias/:clave', asincrono(async (req, res) => {
-  const clave = v.texto(req.params.clave, { campo: 'el tipo', max: 20 });
-  const d = datosTipo(v.cuerpo(req), true);
-  if (clave === categorias.RESPALDO && !d.activa) throw peticionInvalida('«Otro» no se puede desactivar: es el tipo que se usa cuando ningún otro coincide');
-  await db.conUsuario(req.usuario.id, async (con) => {
-    if (!(await con.uno('SELECT 1 AS si FROM categorias_proyecto WHERE clave = ?', [clave]))) throw noEncontrado('El tipo de proyecto no existe');
-    if (await con.uno('SELECT 1 AS si FROM categorias_proyecto WHERE LOWER(nombre_es) = LOWER(?) AND clave <> ?', [d.nombre_es, clave])) {
-      throw conflicto('Ya existe otro tipo con ese nombre');
-    }
-    const r = await con.q(`UPDATE categorias_proyecto SET nombre_es = ?, nombre_en = ?, color = ?, icono = ?, palabras = ?,
-                           orden = COALESCE(?, orden), activa = ? WHERE clave = ?`,
-    [d.nombre_es, d.nombre_en, d.color, d.icono, d.palabras, clave === categorias.RESPALDO ? null : d.orden, d.activa, clave]);
-    return r;
-  });
-  tiposCambiaron();
-  res.json({ ok: true, mensaje: 'Se guardaron los cambios. Los mapas ya usan el color y el dibujo nuevos.' });
-}));
-
-router.delete('/admin/categorias/:clave', asincrono(async (req, res) => {
-  const clave = v.texto(req.params.clave, { campo: 'el tipo', max: 20 });
-  if (clave === categorias.RESPALDO) throw peticionInvalida('«Otro» no se puede borrar');
-  await db.conUsuario(req.usuario.id, async (con) => {
-    const usos = await con.uno('SELECT COUNT(*) AS n FROM proyectos WHERE categoria = ?', [clave]);
-    if (Number(usos.n) > 0) throw conflicto(`Hay ${usos.n} proyecto(s) con este tipo. Desactívalo en lugar de borrarlo: los proyectos conservan su color.`);
-    const r = await con.q('DELETE FROM categorias_proyecto WHERE clave = ?', [clave]);
-    if (!r.affectedRows) throw noEncontrado('El tipo de proyecto no existe');
-  });
-  tiposCambiaron();
-  res.json({ ok: true, mensaje: 'Se borró el tipo de proyecto' });
-}));
-
-router.post('/admin/categorias/reclasificar', asincrono(async (req, res) => {
-  await categorias.refrescar(true);
-  const cambios = await db.conSistema(async (con) => {
-    const filas = await con.q(`SELECT p.id, p.titulo, p.descripcion FROM proyectos p JOIN ciclos c ON c.id = p.ciclo_id
-                               WHERE c.estado = 'activo' AND (p.categoria IS NULL OR p.categoria = ?)`, [categorias.RESPALDO]);
-    let n = 0;
-    for (const p of filas) {
-      const nueva = categorias.adivinar(p.titulo, p.descripcion);
-      if (nueva !== categorias.RESPALDO) { await con.q('UPDATE proyectos SET categoria = ? WHERE id = ?', [nueva, p.id]); n += 1; }
-    }
-    return { revisados: filas.length, n };
-  });
-  log.info(`Tipos de proyecto reclasificados por el administrador ${req.usuario.id}: ${cambios.n} de ${cambios.revisados}`);
-  res.json({ ok: true, ...cambios, mensaje: cambios.n ? `Se asignó un tipo a ${cambios.n} de ${cambios.revisados} proyecto(s) que estaban como «Otro».` : 'Ningún proyecto marcado como «Otro» coincide con las palabras clave.' });
 }));
 
 const fechaLocal = (ms) => new Date(ms - 6 * 3600 * 1000).toISOString().slice(0, 19).replace('T', ' ');

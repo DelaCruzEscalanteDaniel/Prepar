@@ -60,12 +60,6 @@ module.exports = {
   cookieSegura: env.COOKIE_SEGURA ? env.COOKIE_SEGURA === 'true' : produccion,
   confiarProxy: entero(env.CONFIAR_PROXY, produccion ? 1 : 0),
   verificacionGoogle: (env.GOOGLE_VERIFICACION || '').trim().replace(/^.*\//, ''),
-  google: {
-    clientId: (env.GOOGLE_CLIENT_ID || '').trim(),
-    clientSecret: (env.GOOGLE_CLIENT_SECRET || '').trim(),
-    secreto: env.SECRETO_FIRMAS || '',
-  },
-  captcha: { activo: env.CAPTCHA !== 'false' },
   verificarCorreo: env.VERIFICAR_CORREO === 'false' ? false : (env.VERIFICAR_CORREO === 'true' ? true : 'auto'),
   correo: {
     proveedor: (env.CORREO_PROVEEDOR || '').trim().toLowerCase(),

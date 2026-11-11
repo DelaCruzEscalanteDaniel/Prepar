@@ -8,6 +8,10 @@ const EXACTAS = new Set([
   'mamada', 'mamadas', 'mamon', 'mamona', 'mamones', 'mamonas', 'ojete', 'ojetes', 'conyo', 'carajo', 'carajos',
   'gilipolas', 'hijueputa', 'hijueputas', 'malparido', 'malparida', 'chingon', 'chingona',
   'hdp', 'ptm', 'alv', 'vrg', 'ctm', 'pndj', 'pndjo', 'hdtpm', 'csm', 'ptmr',
+  'wey', 'weyes', 'wei', 'wuey', 'wueyes', 'guey', 'gueyes', 'weon', 'weona', 'huevon', 'huevona', 'huevones', 'huevonas', 'guevon', 'guevona',
+  'mames', 'pedo', 'pedos', 'peda', 'cagada', 'cagadas', 'cagon', 'cagona', 'joder', 'jodido', 'jodida', 'jodidos', 'jodidas',
+  'naco', 'naca', 'nacos', 'nacas', 'baboso', 'babosa', 'babosos', 'babosas', 'tarado', 'tarada', 'tarados', 'taradas', 'retrasado', 'retrasada',
+  'menso', 'mensa', 'mensos', 'mensas', 'punyeta', 'punyetas', 'cabrones',
   'shit', 'shits', 'shity', 'bulshit', 'asshole', 'assholes', 'cunt', 'cunts', 'fag', 'fags', 'faggot', 'faggots', 'dumbass', 'bastard',
 ]);
 

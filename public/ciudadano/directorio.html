@@ -1,20 +1,19 @@
 <!doctype html>
-<html lang="es" data-tema="oscuro">
+<html lang="es" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#F3F6FA">
 <title>Directorio · Prepar</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
-<script src="/js/tema.js"></script>
 </head>
 <body data-rol="ciudadano" data-pagina="directorio">
 <main id="principal" class="contenido" tabindex="-1" style="gap:18px">
-<div><h1 class="titulo-pagina" style="font-size:32px">Directorio de alcaldías</h1><p class="texto-2" style="margin:0">Titulares y datos de contacto de las 16 alcaldías, del Gobierno de la Ciudad y del IECM, tomados de fuentes públicas oficiales.</p></div>
+<div><h1 class="titulo-pagina" style="font-size:32px">Directorio de alcaldías</h1><p class="texto-2" style="margin:0">Titulares y datos de contacto de las 16 alcaldías, tomados de fuentes públicas oficiales.</p></div>
 <section class="dir-ayuda tarjeta" aria-label="¿A quién contacto?">
   <span class="dir-ayuda-icono" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
   <div class="columna" style="gap:4px">
@@ -23,7 +22,6 @@
   </div>
   <button type="button" class="btn" id="mi-alcaldia" hidden>Ver mi alcaldía</button>
 </section>
-<div id="dir-ciudad"></div>
 <form id="filtros-dir" class="tarjeta fila" style="align-items:flex-end;gap:10px;padding:16px;border-radius:14px" novalidate>
   <label style="flex:2 1 260px">Buscar por nombre, cargo o tema<input type="search" name="q" maxlength="50" placeholder="Ej.: participación ciudadana"></label>
   <label style="flex:1 1 200px">Alcaldía<select name="alcaldia" id="f-alcaldia"></select></label>
@@ -41,7 +39,6 @@
 </div>
 <div id="directorio" class="columna" style="gap:22px" aria-live="polite"></div>
 </main>
-<script src="/js/i18n-en.js" defer></script>
 <script src="/js/app.js" defer></script>
 <script src="/js/pages/ciudadano-directorio.js" defer></script>
 </body>

@@ -4,17 +4,6 @@
   var lista = [];
   var alcaldias = [];
   var tipo = '';
-  var ciudad = [];
-  function seccionCiudad() {
-    if (!ciudad.length) return '';
-    return P.html`<section class="grupo-dir grupo-ciudad" aria-label="${P.t('Gobierno de la Ciudad de México')}">
-      <div class="grupo-dir-cabeza"><span class="grupo-dir-sello" aria-hidden="true">${P.seguro(P.iconoDir('alcaldia', 20))}</span>
-        <h2 class="h" style="margin:0;font-size:20px">${P.t('Gobierno de la Ciudad y consulta ciudadana')}</h2>
-        <span class="tenue" style="font-size:13px">${P.t('{n} contacto(s)', { n: ciudad.length })}</span></div>
-      <div class="rejilla-chips">${ciudad.map(function (c) {
-        return P.tarjetaDirectorioCompacta(Object.assign({}, c, { tipo: c.nombre_titular ? 'titular' : 'sede_atencion', alcaldia: '', alcaldia_id: 0, etiqueta: c.institucion }));
-      })}</div></section>`;
-  }
   function mosaico() {
     var cuenta = {};
     lista.forEach(function (d) { cuenta[d.alcaldia_id] = (cuenta[d.alcaldia_id] || 0) + 1; });
@@ -63,10 +52,7 @@
       function (e) { P.poner(P.$('#directorio'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
   P.pagina(function (ctx) {
-    return Promise.all([P.catalogos(), P.get('/api/directorio/ciudad').catch(function () { return []; })]).then(function (r) {
-      var cat = r[0];
-      ciudad = r[1] || [];
-      P.poner(P.$('#dir-ciudad'), seccionCiudad());
+    return P.catalogos().then(function (cat) {
       alcaldias = cat.alcaldias;
       P.$('#directorio').addEventListener('click', function (e) {
         var t = e.target.closest('[data-alc]');

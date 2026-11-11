@@ -1,42 +1,45 @@
 <!doctype html>
-<html lang="es" data-tema="oscuro">
+<html lang="es" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#F3F6FA">
 <title>Directorio · Prepar</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
-<script src="/js/tema.js"></script>
 </head>
 <body data-rol="funcionario" data-pagina="directorio">
-<main id="principal" tabindex="-1">
-<div class="fila entre" style="gap:12px;align-items:flex-end">
-  <div><h1 class="titulo-pagina" style="margin:0 0 4px;font-size:32px" id="tit-dir">Directorio</h1><p class="texto-2" style="margin:0">Lo que captures aquí es lo que ven los ciudadanos en el Directorio público.</p></div>
-  <button type="button" class="btn" id="nuevo" hidden>+ Agregar registro</button>
+<main id="principal" class="contenido" tabindex="-1" style="gap:18px">
+<div><h1 class="titulo-pagina" style="font-size:32px">Directorio de alcaldías</h1><p class="texto-2" style="margin:0">Titulares y datos de contacto de las 16 alcaldías, tomados de fuentes públicas oficiales.</p></div>
+<section class="dir-ayuda tarjeta" aria-label="¿A quién contacto?">
+  <span class="dir-ayuda-icono" aria-hidden="true"><svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+  <div class="columna" style="gap:4px">
+    <strong class="h" style="font-size:18px">¿A quién contacto?</strong>
+    <span class="texto-2" style="font-size:14px">Para dudas de la consulta de Presupuesto Participativo, la <strong>Dirección Distrital del IECM</strong> o la línea CITIECM. Para trámites, quejas y obras, tu <strong>alcaldía</strong>. Cada contacto indica su fuente oficial.</span>
+  </div>
+  <button type="button" class="btn" id="mi-alcaldia" hidden>Ver mi alcaldía</button>
+</section>
+<form id="filtros-dir" class="tarjeta fila" style="align-items:flex-end;gap:10px;padding:16px;border-radius:14px" novalidate>
+  <label style="flex:2 1 260px">Buscar por nombre, cargo o tema<input type="search" name="q" maxlength="50" placeholder="Ej.: participación ciudadana"></label>
+  <label style="flex:1 1 200px">Alcaldía<select name="alcaldia" id="f-alcaldia"></select></label>
+  <button class="btn2" type="button" id="limpiar-dir">Limpiar filtros</button>
+</form>
+<button type="button" class="enlace-boton volver-dir" id="volver-dir" hidden>← Ver todas las alcaldías</button>
+<div class="fila entre" style="gap:10px">
+  <div class="fila chips-tipo" role="group" aria-label="Tipo de contacto" id="chips-tipo">
+    <button type="button" class="chip-tipo" data-tipo="" aria-pressed="true">Todos</button>
+    <button type="button" class="chip-tipo" data-tipo="alcaldia" aria-pressed="false">Alcaldías</button>
+    <button type="button" class="chip-tipo" data-tipo="titular" aria-pressed="false">Titulares</button>
+    <button type="button" class="chip-tipo" data-tipo="sede_atencion" aria-pressed="false">Sedes de atención</button>
+  </div>
+  <span class="tenue" style="font-size:14px" id="total-dir"></span>
 </div>
-<div id="aviso-dir"></div>
-<div class="fila arriba" style="gap:18px">
-  <section class="columna" style="flex:1 1 280px;min-width:0;gap:10px" id="directorio" aria-label="Registros"></section>
-  <form id="form-dir" class="tarjeta form-dir" novalidate hidden>
-    <h2 class="h completo" style="margin:0;font-size:22px" id="tit-form">Editar registro</h2>
-    <label>Cargo o área <span class="opcional">(hasta 50)</span><input type="text" name="cargo" maxlength="50" required></label>
-    <label>Persona titular <span class="opcional">(hasta 50)</span><input type="text" name="nombre_titular" maxlength="50" placeholder="[Nombre de la persona titular]"></label>
-    <label>Tipo<select name="tipo"><option value="alcaldia">Alcaldía</option><option value="titular">Titular</option><option value="sede_atencion">Sede de atención</option></select></label>
-    <label>Temas de atención <span class="opcional">(hasta 100)</span><input type="text" name="temas" maxlength="100"></label>
-    <label class="completo">Dirección <span class="opcional">(hasta 150)</span><input type="text" name="direccion" maxlength="150"></label>
-    <label>Teléfono <span class="opcional">(10 dígitos)</span><input type="tel" name="telefono" maxlength="10" inputmode="numeric"><span class="nota-campo" id="tel-msg" aria-live="polite"></span></label>
-    <label>Correo <span class="opcional">(hasta 50)</span><input type="email" name="correo" maxlength="50"></label>
-    <label class="completo">Sitio web <span class="opcional">(hasta 100)</span><input type="url" name="sitio_web" maxlength="100" placeholder="https://"></label>
-    <div class="completo fila" style="gap:10px"><button type="submit" class="btn" id="guardar-dir">Guardar</button><button type="button" class="btn2" id="cancelar-dir">Cancelar</button><span id="msg-dir" aria-live="polite"></span></div>
-  </form>
-</div>
+<div id="directorio" class="columna" style="gap:22px" aria-live="polite"></div>
 </main>
-<script src="/js/i18n-en.js" defer></script>
 <script src="/js/app.js" defer></script>
-<script src="/js/pages/funcionario-directorio.js" defer></script>
+<script src="/js/pages/ciudadano-directorio.js" defer></script>
 </body>
 </html>

@@ -1,5 +1,4 @@
 'use strict';
-const { adivinar: adivinarCategoria } = require('../lib/categorias');
 const express = require('express');
 const db = require('../db');
 const v = require('../lib/validar');
@@ -61,8 +60,7 @@ router.get('/func/panel', soloFuncionario, asincrono(async (req, res) => {
        FROM avisos av LEFT JOIN alcaldias a ON a.id = av.alcaldia_id
        WHERE av.ciclo_id = ? AND av.activo AND (av.alcaldia_id IS NULL OR av.alcaldia_id = ?)
        ORDER BY av.publicado_en DESC LIMIT 10`, [u.id, ciclo.id, u.alcaldiaId]);
-    const dir = await con.uno('SELECT MAX(actualizado_en) AS ultima, COUNT(*) AS n FROM directorio WHERE alcaldia_id = ?', [u.alcaldiaId]);
-    return { ciclo, funciones: u.funciones, conteos: { ...conteos, ...extra }, avisos, directorio: dir };
+    return { ciclo, funciones: u.funciones, conteos: { ...conteos, ...extra }, avisos };
   });
   res.json(datos);
 }));
@@ -326,7 +324,7 @@ router.get('/func/ubicaciones', soloFuncionario, asincrono(async (req, res) => {
     const ciclo = await cicloActivo(con);
     if (!ciclo) return [];
     return con.q(
-      `SELECT p.id, p.folio, p.titulo, p.calle, p.numero, p.referencias, p.codigo_postal, p.latitud, p.longitud, p.estado_ubicacion, p.estatus, p.rubro_id, p.categoria,
+      `SELECT p.id, p.folio, p.titulo, p.calle, p.numero, p.referencias, p.codigo_postal, p.latitud, p.longitud, p.estado_ubicacion, p.estatus, p.rubro_id,
               ut.id AS unidad_territorial_id, ut.nombre AS unidad_territorial, ut.latitud AS ut_latitud, ut.longitud AS ut_longitud
        FROM proyectos p JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
        WHERE p.ciclo_id = ? AND ut.alcaldia_id = ? AND p.estatus <> 'retirado' AND p.estado_moderacion = 'visible'
@@ -334,7 +332,6 @@ router.get('/func/ubicaciones', soloFuncionario, asincrono(async (req, res) => {
        ORDER BY FIELD(p.estado_ubicacion, 'no_ubicado', 'pendiente', 'ubicado', 'corregido'), p.folio LIMIT 1000`,
       [ciclo.id, u.alcaldiaId, estado, estado]);
   });
-  filas.forEach((p) => { if (!p.categoria) p.categoria = adivinarCategoria(p.titulo, ''); });
   res.json(filas);
 }));
 
@@ -421,7 +418,12 @@ router.post('/direcciones/punto', requiere(), limiteGeo, asincrono(async (req, r
   const b = v.cuerpo(req);
   const c = v.coordenadas(b.latitud, b.longitud, true);
   const d = await direccionDePunto(c.latitud, c.longitud);
-  res.json(d ? { encontrado: true, ...d } : { encontrado: false });
+  let fuera = null;
+  if (req.usuario.rol === 'ciudadano' && req.usuario.unidadId) {
+    const r = await require('../lib/territorio').verificar(req.usuario.unidadId, c.latitud, c.longitud, { consultarDireccion: false }).catch(() => null);
+    if (r && !r.ok) fuera = r.mensaje;
+  }
+  res.json(d ? { encontrado: true, ...d, fuera } : { encontrado: false, fuera });
 }));
 
 router.get('/func/seguimiento', soloFuncionario, requiereFuncion('seguimiento'), asincrono(async (req, res) => {
@@ -536,61 +538,6 @@ router.post('/func/reportes/:id', soloFuncionario, requiereFuncion('seguimiento'
       : con.q("UPDATE reportes SET estatus = 'eliminado', motivo_eliminacion = ? WHERE id = ? AND estatus = 'pendiente'", [texto, id]));
   });
   res.json({ ok: true, mensaje: accion === 'atender' ? 'El reporte quedó como Atendido y se notificó al vecino' : 'El reporte se eliminó' });
-}));
-
-function datosDirectorio(b, alcaldiaPorDefecto) {
-  return {
-    alcaldia: v.id(b.alcaldia_id ?? alcaldiaPorDefecto, 'la alcaldía'),
-    tipo: v.opcion(b.tipo, ['alcaldia', 'titular', 'sede_atencion'], { campo: 'el tipo de registro' }),
-    cargo: v.texto(b.cargo, { campo: 'el cargo', max: L.cargo, min: 2, letras: 2 }),
-    titular: v.texto(b.nombre_titular, { campo: 'el nombre de la persona titular', max: L.nombre, requerido: false, letras: 3 }),
-    temas: v.texto(b.temas, { campo: 'los temas de atención', max: L.temas, requerido: false, letras: 3 }),
-    direccion: v.texto(b.direccion, { campo: 'la dirección', max: L.direccion, requerido: false, letras: 3 }),
-    telefono: v.telefono(b.telefono),
-    correo: v.correo(b.correo, { requerido: false, campo: 'el correo' }),
-    web: v.url(b.sitio_web),
-  };
-}
-
-function alcaldiaPermitida(req, alcaldia) {
-  if (req.usuario.rol === 'funcionario' && alcaldia !== req.usuario.alcaldiaId) throw prohibido('Solo puedes editar el directorio de tu alcaldía');
-}
-
-router.post('/func/directorio', personal, requiereFuncion('directorio'), asincrono(async (req, res) => {
-  const d = datosDirectorio(v.cuerpo(req), req.usuario.alcaldiaId);
-  alcaldiaPermitida(req, d.alcaldia);
-  const r = await db.conUsuario(req.usuario.id, (con) => con.q(
-    `INSERT INTO directorio (alcaldia_id, tipo, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web, fuente_nombre, fuente_url, consultado_en)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'Captura de un funcionario de la alcaldía', NULL, CURDATE())`, [d.alcaldia, d.tipo, d.cargo, d.titular, d.temas, d.direccion, d.telefono, d.correo, d.web]));
-  res.status(201).json({ ok: true, id: r.insertId, mensaje: 'El registro se agregó al directorio' });
-}));
-
-router.put('/func/directorio/:id', personal, requiereFuncion('directorio'), asincrono(async (req, res) => {
-  const id = v.id(req.params.id, 'el registro');
-  const d = datosDirectorio(v.cuerpo(req), req.usuario.alcaldiaId);
-  alcaldiaPermitida(req, d.alcaldia);
-  const r = await db.conUsuario(req.usuario.id, async (con) => {
-    const previo = await con.uno('SELECT alcaldia_id FROM directorio WHERE id = ?', [id]);
-    if (!previo) throw noEncontrado('El registro no existe');
-    alcaldiaPermitida(req, previo.alcaldia_id);
-    return con.q(
-      `UPDATE directorio SET alcaldia_id = ?, tipo = ?, cargo = ?, nombre_titular = ?, temas = ?, direccion = ?, telefono = ?,
-                             correo = ?, sitio_web = ?, fuente_nombre = 'Captura de un funcionario de la alcaldía', fuente_url = NULL,
-                             consultado_en = CURDATE() WHERE id = ?`,
-      [d.alcaldia, d.tipo, d.cargo, d.titular, d.temas, d.direccion, d.telefono, d.correo, d.web, id]);
-  });
-  res.json({ ok: true, cambios: r.affectedRows, mensaje: 'El registro del directorio se actualizó' });
-}));
-
-router.delete('/func/directorio/:id', personal, requiereFuncion('directorio'), asincrono(async (req, res) => {
-  const id = v.id(req.params.id, 'el registro');
-  await db.conUsuario(req.usuario.id, async (con) => {
-    const previo = await con.uno('SELECT alcaldia_id FROM directorio WHERE id = ?', [id]);
-    if (!previo) throw noEncontrado('El registro no existe');
-    alcaldiaPermitida(req, previo.alcaldia_id);
-    await con.q('DELETE FROM directorio WHERE id = ?', [id]);
-  });
-  res.json({ ok: true, mensaje: 'El registro se eliminó del directorio' });
 }));
 
 router.get('/avisos', personal, asincrono(async (req, res) => {

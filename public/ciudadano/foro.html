@@ -1,24 +1,23 @@
 <!doctype html>
-<html lang="es" data-tema="oscuro">
+<html lang="es" data-tema="claro">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#0F172A">
+<meta name="theme-color" content="#F3F6FA">
 <title>Foro vecinal · Prepar</title>
 <link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
 <link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/css/app.css">
-<script src="/js/tema.js"></script>
 </head>
 <body data-rol="ciudadano" data-pagina="foro">
 <main id="principal" class="contenido" tabindex="-1">
 <div class="encabezado-pagina">
   <div>
     <h1 id="titulo-foro" class="titulo-pagina">Foro vecinal</h1>
-    <p class="texto-2" style="margin:0">Comparte necesidades de tu colonia, apoya las ideas de tus vecinos y registra tu proyecto.</p>
+    <p class="texto-2" style="margin:0">Aquí ves las ideas de todas las colonias de tu alcaldía. Puedes apoyarlas y comentarlas; tus ideas y tu proyecto son para tu colonia.</p>
   </div>
   <a class="btn2 ir-mis-proyectos" href="/ciudadano/proyectos.html"><span>Mis proyectos</span><span aria-hidden="true">→</span></a>
 </div>
@@ -34,6 +33,7 @@
     </form>
     <form class="fila filtros-foro" id="form-filtros" novalidate>
       <label style="flex:2 1 220px">Buscar<input type="search" name="q" maxlength="50" placeholder="Palabra clave"></label>
+      <label style="flex:1 1 180px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
       <label style="flex:1 1 180px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
       <label style="flex:1 1 150px">Ordenar<select name="orden"><option value="apoyos">Más apoyadas</option><option value="recientes">Más recientes</option></select></label>
       <button type="button" class="btn2" id="limpiar">Limpiar filtros</button>
@@ -60,7 +60,6 @@
         <label>Título <span class="opcional">(hasta 100)</span><input type="text" name="titulo" maxlength="100" required placeholder="Ej.: Rehabilitación de la cancha de usos múltiples"></label>
         <label>Descripción <span class="opcional">(hasta 500)</span><textarea name="descripcion" rows="3" maxlength="500" required placeholder="¿Qué se hará y a quién beneficia?"></textarea></label>
         <label>Rubro<select name="rubro_id" class="sel-rubro" required></select></label>
-        <label>Tipo de proyecto <span class="opcional">(define el color en el mapa)</span><select name="categoria"></select><span class="ayuda muestra-categoria" aria-live="polite"></span></label>
         <label>Costo estimado<input type="text" name="costo_estimado" inputmode="decimal" maxlength="16" required placeholder="$0"><span class="ayuda" id="ayuda-costo"></span></label>
         <fieldset class="columna" style="gap:10px;padding:14px">
           <legend>Dirección del proyecto</legend>
@@ -82,7 +81,6 @@
 </div>
 </main>
 <script src="/vendor/leaflet/leaflet.js" defer></script>
-<script src="/js/i18n-en.js" defer></script>
 <script src="/js/app.js" defer></script>
 <script src="/js/pages/ciudadano-foro.js" defer></script>
 </body>

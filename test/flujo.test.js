@@ -58,8 +58,7 @@ test('registro: confirmar contraseña y aceptar Términos y condiciones', async 
   falla(await anon.post('/api/auth/registro', { ...base, acepta_terminos: true }, { crudo: true }), 400, 'sin confirmar');
   falla(await anon.post('/api/auth/registro', { ...base, acepta_terminos: true, confirmar: 'Prepar2027' }, { crudo: true }), 400, 'no coinciden');
   falla(await anon.post('/api/auth/registro', { ...base, confirmar: 'Prepar2026' }, { crudo: true }), 400, 'sin términos');
-  falla(await anon.post('/api/auth/registro', { ...base, confirmar: 'Prepar2026', acepta_terminos: true }, { crudo: true }), 400, 'sin captcha');
-  const r = await anon.post('/api/auth/registro', { ...base, confirmar: 'Prepar2026', acepta_terminos: true, ...(await A.captchaResuelto()) }, { crudo: true });
+  const r = await anon.post('/api/auth/registro', { ...base, confirmar: 'Prepar2026', acepta_terminos: true }, { crudo: true });
   ok(r, 'registro completo');
   assert.equal(r.datos.debeAceptarTerminos, false, 'al registrarse ya aceptó la versión vigente');
   const fila = await A.db.conSistema((con) => con.uno("SELECT terminos_version, terminos_aceptados_en FROM usuarios WHERE correo = 'terminos@correo.mx'"));
@@ -134,7 +133,7 @@ test('administrador registra un funcionario y este cambia su contraseña tempora
   ok(await estado.admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' }));
   const r = await estado.admin.post('/api/admin/funcionarios', {
     nombre: 'Carlos Méndez Ruiz', correo: 'carlos@prepar.mx', alcaldia_id: AZC,
-    funciones: ['directorio', 'moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'],
+    funciones: ['moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'],
   });
   ok(r, 'alta de funcionario');
   assert.match(r.datos.passwordTemporal, /^[A-Za-z0-9]{4}-[A-Za-z0-9]{4}-[A-Za-z0-9]{4}$/);
@@ -160,7 +159,8 @@ test('administrador registra un funcionario y este cambia su contraseña tempora
   const lista = await estado.admin.get('/api/admin/funcionarios');
   ok(lista);
   assert.equal(lista.datos.length, 2);
-  ok(await estado.admin.put(`/api/admin/funcionarios/${estado.idLucia}`, { alcaldia_id: COY, funciones: ['moderacion', 'directorio'] }));
+  ok(await estado.admin.put(`/api/admin/funcionarios/${estado.idLucia}`, { alcaldia_id: COY, funciones: ['moderacion'] }));
+  falla(await estado.admin.put(`/api/admin/funcionarios/${estado.idLucia}`, { alcaldia_id: COY, funciones: ['directorio'] }), 400, 'el directorio ya no es una función');
   ok(await estado.admin.post(`/api/admin/funcionarios/${estado.idLucia}/estado`, { estado: 'desactivada' }));
   ok(await estado.admin.post(`/api/admin/funcionarios/${estado.idLucia}/estado`, { estado: 'activa' }));
   const rp = await estado.admin.post(`/api/admin/funcionarios/${estado.idLucia}/restablecer`);
@@ -240,10 +240,24 @@ test('foro vecinal: ideas, comentarios y apoyos', async () => {
   const filtrado = await c1.get('/api/foro?q=parque&rubro=1&min_apoyos=1');
   assert.equal(filtrado.datos.ideas.length, 1);
   assert.equal(filtrado.datos.ideas[0].total_apoyos, 1);
+  const vecina = estado.c[4];
+  const foroVecina = await vecina.get('/api/foro');
+  assert.ok(foroVecina.datos.ideas.some((x) => x.id === i1.datos.id && x.colonia && !x.de_mi_colonia), 'otra colonia de la misma alcaldía ve la idea');
+  assert.ok(foroVecina.datos.colonias.length >= 1);
+  const soloClaveria = await vecina.get(`/api/foro?colonia=${CLAVERIA}`);
+  assert.ok(soloClaveria.datos.ideas.length >= 1 && soloClaveria.datos.ideas.every((x) => x.unidad_territorial_id === CLAVERIA), 'filtro por colonia');
+  ok(await vecina.post(`/api/foro/ideas/${i1.datos.id}/apoyo`), 'apoya una idea de otra colonia de su alcaldía');
+  ok(await vecina.del(`/api/foro/ideas/${i1.datos.id}/apoyo`));
+  ok(await vecina.post(`/api/foro/ideas/${i1.datos.id}/comentarios`, { contenido: 'Desde San Álvaro también lo apoyamos' }), 'comenta en otra colonia de su alcaldía');
   const otro = await estado.c[5].get(`/api/foro/ideas/${i1.datos.id}/comentarios`);
-  falla(otro, 404, 'un vecino de otra unidad no ve el foro ajeno');
+  falla(otro, 404, 'un vecino de otra alcaldía no ve el foro ajeno');
+  falla(await estado.c[5].post(`/api/foro/ideas/${i1.datos.id}/apoyo`), 404, 'ni puede apoyar');
+  falla(await estado.c[5].post(`/api/foro/ideas/${i1.datos.id}/comentarios`, { contenido: 'Comentario desde otra alcaldía' }), 404, 'ni comentar');
+  assert.ok(!(await estado.c[5].get('/api/foro')).datos.ideas.some((x) => x.id === i1.datos.id));
+  const idCoy = (await estado.c[5].get('/api/auth/yo')).datos.id;
+  await assert.rejects(db.conUsuario(idCoy, (con) => con.q('INSERT INTO apoyos_idea (idea_id) VALUES (?)', [i1.datos.id])), /foro de tu alcald/, 'la base también lo impide');
   const com = await c1.get(`/api/foro/ideas/${i1.datos.id}/comentarios`);
-  assert.equal(com.datos.length, 2);
+  assert.equal(com.datos.length, 3);
   estado.idea = i1.datos.id;
 });
 
@@ -290,7 +304,7 @@ test('registro, edición y retiro de proyectos con folio automático', async () 
   estado.p = { p1: p1.datos.id, p2: p2.datos.id, p3: p3.datos.id, p4: p4.datos.id, p5: p5.datos.id };
 });
 
-test('funcionario revisa registros, modera y gestiona directorio y avisos', async () => {
+test('funcionario revisa registros, modera, consulta el directorio y publica avisos', async () => {
   const f = estado.func;
   const panel = await f.get('/api/func/panel');
   ok(panel);
@@ -309,25 +323,15 @@ test('funcionario revisa registros, modera y gestiona directorio y avisos', asyn
   const malo = coms.datos.find((x) => x.texto === 'Comentario fuera de lugar');
   ok(await f.post('/api/func/moderacion', { tipo_objeto: 'comentario_idea', objeto_id: malo.id, accion: 'ocultar', motivo: 'No aporta a la discusión' }));
   const com = await estado.c[0].get(`/api/foro/ideas/${estado.idea}/comentarios`);
-  assert.equal(com.datos.length, 1, 'el comentario oculto ya no aparece');
+  assert.equal(com.datos.length, 2, 'el comentario oculto ya no aparece');
   falla(await f.post('/api/func/moderacion', { tipo_objeto: 'idea', objeto_id: 999999, accion: 'ocultar', motivo: 'No existe' }), 409);
-  const d = await f.post('/api/func/directorio', { tipo: 'titular', cargo: 'Alcaldesa', nombre_titular: 'Nombre Titular', telefono: '55 5354 9994', correo: 'alcaldia@azc.mx', sitio_web: 'azcapotzalco.cdmx.gob.mx' });
-  ok(d);
-  falla(await f.post('/api/func/directorio', { alcaldia_id: COY, tipo: 'titular', cargo: 'Otro' }), 403, 'directorio de otra alcaldía');
-  falla(await f.post('/api/func/directorio', { tipo: 'titular', cargo: 'X', telefono: '123' }), 400);
-  ok(await f.put(`/api/func/directorio/${d.datos.id}`, { tipo: 'titular', cargo: 'Alcaldesa de Azcapotzalco', telefono: '5553549994' }));
+  falla(await f.post('/api/func/directorio', { tipo: 'titular', cargo: 'Alcaldesa' }), 404, 'el directorio ya no se edita');
   const dir = await A.cliente().get('/api/directorio?q=alcaldesa&alcaldia=2');
-  assert.equal(dir.datos.length, 2, 'la titular oficial y la captura del funcionario');
   assert.ok(dir.datos.some((x) => x.nombre_titular === 'Nancy Marlene Núñez Reséndiz' && /^https:\/\//.test(x.fuente_url) && x.consultado_en === '2026-10-31'));
-  assert.ok(dir.datos.some((x) => x.id === d.datos.id && x.fuente_nombre === 'Captura de un funcionario de la alcaldía' && x.fuente_url === null));
-  const ciudad = await A.cliente().get('/api/directorio/ciudad');
-  assert.equal(ciudad.datos[0].nombre_titular, 'Clara Marina Brugada Molina');
-  assert.ok(ciudad.datos.every((x) => x.fuente_nombre && x.consultado_en));
   const titulares = await A.cliente().get('/api/directorio');
   assert.equal(titulares.datos.filter((x) => x.tipo === 'titular' && x.fuente_url).length, 16, 'las 16 personas titulares con su fuente');
   const dir2 = await A.cliente().get(`/api/directorio?q=${encodeURIComponent('100%_')}`);
   ok(dir2, 'comodines escapados');
-  ok(await f.del(`/api/func/directorio/${d.datos.id}`));
   ok(await f.post('/api/avisos', { titulo: 'Cierre próximo', mensaje: 'El registro de proyectos cierra el viernes', alcance: 'mi_alcaldia' }));
   const panelC = await estado.c[0].get('/api/ciudadano/panel');
   assert.equal(panelC.datos.avisos.length, 1);
@@ -553,8 +557,15 @@ test('estadísticas, bitácora e integraciones', async () => {
   assert.equal(Number(p.datos.total.votantes), 5);
   const d = await a.get(`/api/admin/estadisticas?tipo=demograficas&ciclo=${estado.ciclo}&alcaldia=${AZC}&genero=mujer`);
   ok(d);
+  assert.ok(Array.isArray(d.datos.porEdadGenero) && d.datos.porEdadGenero.every((x) => x.genero === 'mujer'));
   const pr = await a.get(`/api/admin/estadisticas?tipo=proyectos&ciclo=${estado.ciclo}&rubro=1&desde=2020-01-01&hasta=2099-12-31`);
   assert.equal(Number(pr.datos.total.ganadores), 2);
+  assert.ok(pr.datos.ideas >= 1, 'el embudo empieza con las ideas del foro');
+  assert.equal(pr.datos.votacion, null, 'sin colonia no hay resultados por colonia');
+  const pc = await a.get(`/api/admin/estadisticas?tipo=proyectos&ciclo=${estado.ciclo}&unidad=${CLAVERIA}`);
+  assert.ok(pc.datos.votacion.proyectos.length >= 1);
+  assert.equal(pc.datos.votacion.proyectos.filter((x) => x.ganador).length, 1, 'un ganador en la colonia');
+  assert.ok(pc.datos.votacion.proyectos.every((x) => Number.isInteger(x.total_votos)));
   falla(await a.get('/api/admin/estadisticas?tipo=otra'), 400);
   const b = await a.get('/api/admin/bitacora?accion=dictamen_emitir');
   ok(b);
@@ -613,125 +624,12 @@ test('cierre del ciclo y solo lectura', async () => {
   ok(await a.post(`/api/admin/ciclos/${nuevo.datos.id}/fase`, { fase: 'convocatoria' }), 'y activarlo');
 });
 
-test('el administrador agrega tipos de proyecto y aparecen solos en mapas, formularios y simbología', async () => {
-  const anon = A.cliente();
-  falla(await anon.get('/api/admin/categorias'), 401, 'sin sesión no entra');
+test('los tipos de proyecto configurables ya no existen: el color del mapa sale del rubro', async () => {
   const a = A.cliente();
   ok(await a.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' }));
-  const lista = await a.get('/api/admin/categorias');
-  ok(lista);
-  assert.ok(lista.datos.tipos.some((t) => t.clave === 'agua' && t.color === '#3B9EDB'));
-  assert.ok(lista.datos.iconos.includes('gota'));
-
-  const nuevo = { nombre_es: 'Desazolve y pozos', nombre_en: 'Well cleaning', color: '#1e6fd9', icono: 'gota', palabras: 'desazolve,  pozo de visita ,limpieza de pozos' };
-  falla(await a.post('/api/admin/categorias', { ...nuevo, color: 'azul' }), 400, 'color inválido');
-  falla(await a.post('/api/admin/categorias', { ...nuevo, icono: '<script>' }), 400, 'dibujo inválido');
-  falla(await a.post('/api/admin/categorias', { ...nuevo, nombre_es: 'Otro' }), 409, 'nombre repetido');
-  const r = await a.post('/api/admin/categorias', nuevo);
-  ok(r, 'crea el tipo');
-  assert.equal(r.datos.clave, 'desazolve_y_pozos');
-
-  const pub = await anon.get('/api/categorias');
-  const t = pub.datos.find((x) => x.clave === 'desazolve_y_pozos');
-  assert.deepEqual([t.color, t.icono, t.palabras, Number(t.activa)], ['#1E6FD9', 'gota', 'desazolve, pozo de visita, limpieza de pozos', 1]);
-  const categorias = require('../server/lib/categorias');
-  await categorias.refrescar(true);
-  assert.equal(categorias.adivinar('Desazolve de la colonia', ''), 'desazolve_y_pozos');
-
-  ok(await a.put('/api/admin/categorias/desazolve_y_pozos', { ...nuevo, activa: false }), 'se desactiva');
-  await categorias.refrescar(true);
-  assert.ok(!categorias.claves().includes('desazolve_y_pozos'));
-  falla(await a.put('/api/admin/categorias/otro', { nombre_es: 'Otro', color: '#5F7387', icono: 'proyecto', activa: false }), 400, '«Otro» siempre activo');
-  falla(await a.del('/api/admin/categorias/otro'), 400);
-  falla(await a.put('/api/admin/categorias/no_existe', nuevo), 404);
-  ok(await a.post('/api/admin/categorias/reclasificar', {}));
-  const usado = (await a.get('/api/admin/categorias')).datos.tipos.find((x) => x.proyectos > 0);
-  if (usado && usado.clave !== 'otro') falla(await a.del(`/api/admin/categorias/${usado.clave}`), 409);
-  ok(await a.del('/api/admin/categorias/desazolve_y_pozos'), 'uno sin proyectos sí');
-  await categorias.refrescar(true);
-});
-
-test('captcha: imagen sin texto legible, un solo uso, y se pide tras dos intentos fallidos', async () => {
-  const captcha = require('../server/lib/captcha');
-  const anon = A.cliente();
-  const c1 = await anon.get('/api/captcha');
-  ok(c1);
-  assert.match(c1.datos.imagen, /^data:image\/svg\+xml;base64,/);
-  const svg = Buffer.from(c1.datos.imagen.split(',')[1], 'base64').toString();
-  assert.ok(!/<text/i.test(svg), 'el código no viene como texto dentro de la imagen');
-  const resp = captcha._respuesta(c1.datos.id);
-  assert.match(resp, /^[A-Z2-9]{5}$/);
-  assert.equal(captcha.verificar(c1.datos.id, resp.toLowerCase()), true, 'no importan mayúsculas');
-  assert.equal(captcha.verificar(c1.datos.id, resp), false, 'cada código sirve una sola vez');
-  assert.equal(captcha.verificar('x', 'y'), false);
-  const c2 = (await anon.get('/api/captcha')).datos;
-  assert.equal(captcha.verificar(c2.id, 'ZZZZZ'), false, 'un código equivocado se descarta');
-  falla(await anon.post('/api/auth/recuperar', { correo: 'nadie@correo.mx' }, { crudo: true }), 400, 'recuperar pide captcha');
-
-  const c = A.cliente();
-  const malo = { correo: 'maria@correo.mx', password: 'Equivocada1' };
-  const f1 = await c.post('/api/auth/login', malo, { crudo: true });
-  falla(f1, 401);
-  const f2 = await c.post('/api/auth/login', malo, { crudo: true });
-  falla(f2, 401);
-  assert.equal(f2.datos.codigo, 'captcha', 'al segundo fallo avisa que hace falta el captcha');
-  const sin = await c.post('/api/auth/login', { ...malo, password: 'Prepar2026' }, { crudo: true });
-  falla(sin, 400, 'sin captcha ya no deja intentar');
-  assert.equal(sin.datos.codigo, 'captcha');
-  const mal = await c.post('/api/auth/login', { ...malo, captcha_id: (await c.get('/api/captcha')).datos.id, captcha: 'AAAAA' }, { crudo: true });
-  falla(mal, 400, 'captcha equivocado');
-  captcha._reiniciar();
-});
-
-test('inicio de sesión con Google: sin configurar, estado, identidad y registro', async () => {
-  const config = require('../server/config');
-  const google = require('../server/lib/google');
-  const anon = A.cliente();
-  const sin = await anon.get('/api/auth/google');
-  falla(sin, 302);
-  assert.equal(sin.headers.get('location'), '/login.html?google=sin_configurar');
-  assert.equal((await anon.get('/api/auth/opciones')).datos.google, false);
-  Object.assign(config.google, { clientId: 'cliente-prueba.apps.googleusercontent.com', clientSecret: 'secreto' });
-  try {
-    const ir = await anon.get('/api/auth/google');
-    falla(ir, 302);
-    const destino = new URL(ir.headers.get('location'));
-    assert.equal(destino.hostname, 'accounts.google.com');
-    assert.equal(destino.searchParams.get('client_id'), 'cliente-prueba.apps.googleusercontent.com');
-    assert.match(destino.searchParams.get('redirect_uri'), /\/api\/auth\/google\/callback$/);
-    assert.match(ir.headers.get('set-cookie'), /prepar_google=.*HttpOnly/i);
-    falla(await anon.get('/api/auth/google/callback?code=x&state=otro'), 302, 'sin la cookie de estado no entra');
-    const ok1 = { iss: 'https://accounts.google.com', aud: 'cliente-prueba.apps.googleusercontent.com', exp: Math.floor(Date.now() / 1000) + 600, nonce: 'n1', email: 'Vecino.Google@gmail.com', email_verified: true, name: 'Vecino Google' };
-    assert.deepEqual(google.validarIdentidad(ok1, 'n1'), { correo: 'vecino.google@gmail.com', nombre: 'Vecino Google' });
-    assert.throws(() => google.validarIdentidad({ ...ok1, aud: 'otra-app' }, 'n1'), /no es para esta aplicación/);
-    assert.throws(() => google.validarIdentidad({ ...ok1, iss: 'https://evil.example' }, 'n1'), /no viene de Google/);
-    assert.throws(() => google.validarIdentidad(ok1, 'n2'), /no coincide/);
-    assert.throws(() => google.validarIdentidad({ ...ok1, email_verified: false }, 'n1'), /verificado/);
-    assert.throws(() => google.validarIdentidad({ ...ok1, exp: 1 }, 'n1'), /expiró/);
-    const jwt = ['e30', Buffer.from(JSON.stringify(ok1)).toString('base64url'), 'firma'].join('.');
-    const falso = async () => ({ ok: true, json: async () => ({ id_token: jwt }) });
-    assert.equal((await google.canjearCodigo('c', 'n1', { pedir: falso })).correo, 'vecino.google@gmail.com');
-    const rechazo = async () => ({ ok: false, json: async () => ({ error: 'invalid_grant' }) });
-    await assert.rejects(google.canjearCodigo('c', 'n1', { pedir: rechazo }), /no confirmó/);
-    assert.equal(google.leerFirmado(google.firmar({ a: 1 }, 1)).a, 1);
-    assert.equal(google.leerFirmado(google.firmar({ a: 1 }, 1).replace(/.$/, 'x')), null, 'una firma alterada no sirve');
-    assert.equal(google.leerFirmado(google.firmar({ a: 1 }, -1)), null, 'expirada');
-
-    const c = A.cliente();
-    const pendiente = google.firmar({ correo: 'vecino.google@gmail.com', nombre: 'Vecino Google' }, 30);
-    const pend = await c.get('/api/auth/google/pendiente', { headers: { Cookie: `prepar_google_reg=${pendiente}` } });
-    ok(pend);
-    assert.equal(pend.datos.correo, 'vecino.google@gmail.com');
-    falla(await c.get('/api/auth/google/pendiente'), 404);
-    const base = { nombre: 'Vecino Google', fecha_nacimiento: '1990-01-01', genero: 'hombre', unidad_territorial_id: CLAVERIA, acepta_aviso: true, acepta_terminos: true, google: true };
-    falla(await c.post('/api/auth/registro', { ...base, correo: 'otro@gmail.com' }, { crudo: true, headers: { Cookie: `prepar_google_reg=${pendiente}` } }), 400, 'el correo debe ser el de Google');
-    falla(await c.post('/api/auth/registro', { ...base, correo: 'vecino.google@gmail.com' }, { crudo: true }), 400, 'sin la cookie de Google no');
-    const r = await c.post('/api/auth/registro', { ...base, correo: 'vecino.google@gmail.com' }, { crudo: true, headers: { Cookie: `prepar_google_reg=${pendiente}` } });
-    ok(r, 'registro con Google sin contraseña ni captcha');
-    assert.equal(r.datos.rol, 'ciudadano');
-    assert.ok(!r.datos.verificarCorreo, 'con Google el correo ya viene verificado');
-    assert.equal((await c.get('/api/auth/yo')).datos.debeVerificarCorreo, false);
-  } finally {
-    Object.assign(config.google, { clientId: '', clientSecret: '' });
-  }
+  falla(await a.get('/api/admin/categorias'), 404);
+  falla(await A.cliente().get('/api/categorias'), 404);
+  const m = await a.get('/api/mapa/proyectos');
+  ok(m);
+  assert.ok(m.datos.proyectos.every((p) => p.rubro_id >= 1));
 });

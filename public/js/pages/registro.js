@@ -39,23 +39,6 @@
     };
     var pass = form.querySelector('[name=password]');
     var conf = form.querySelector('[name=confirmar]');
-    var captcha = P.captcha(P.$('#captcha-registro'));
-    captcha.cargar();
-    var conGoogle = false;
-    if (P.param('google') === '1') {
-      P.get('/api/auth/google/pendiente', { sinRedirigir: true }).then(function (g) {
-        conGoogle = true;
-        form.nombre.value = form.nombre.value || g.nombre;
-        form.correo.value = g.correo;
-        form.correo.readOnly = true;
-        [pass, conf].forEach(function (x) { var l = x.closest('label'); x.disabled = true; if (l) l.hidden = true; });
-        P.$('#registro-google').hidden = true;
-        P.$('#captcha-registro').hidden = true;
-        var av = P.$('#aviso-google');
-        av.hidden = false;
-        P.poner(av, P.html`<span>${P.seguro(P.LOGO_GOOGLE)} ${P.t('Tu cuenta de Google {c} quedó confirmada. Completa los datos que faltan para terminar.', { c: g.correo })}</span>`);
-      }, function (e) { P.poner(msg, P.html`<div class="mensaje error" role="alert">${e.message}</div>`); });
-    }
     var revisarPass = function () {
       var n = Array.from(pass.value).length;
       var nivel = P.$('#nivel-pass');
@@ -97,16 +80,15 @@
       if (!d.nombre || Array.from(d.nombre).length < 3) error = 'Escribe tu nombre completo';
       else if (P.errorNombre(d.nombre)) error = P.errorNombre(d.nombre);
       else if (!P.correoValido(d.correo)) error = 'El correo electrónico no es válido';
-      else if (!conGoogle && P.errorPassword(d.password)) error = P.errorPassword(d.password);
-      else if (!conGoogle && !d.confirmar) error = 'Escribe tu contraseña otra vez en «Confirmar contraseña»';
-      else if (!conGoogle && d.confirmar !== d.password) error = 'Las contraseñas no coinciden: escribe la misma contraseña en los dos campos';
+      else if (P.errorPassword(d.password)) error = P.errorPassword(d.password);
+      else if (!d.confirmar) error = 'Escribe tu contraseña otra vez en «Confirmar contraseña»';
+      else if (d.confirmar !== d.password) error = 'Las contraseñas no coinciden: escribe la misma contraseña en los dos campos';
       else if (errorFecha()) error = errorFecha();
       else if (!d.fecha_nacimiento) error = 'Indica tu fecha de nacimiento';
       else if (d.fecha_nacimiento > fecha.max) error = 'Solo pueden registrarse personas mayores de 18 años';
       else if (!d.genero) error = 'Elige tu género';
       else if (!d.unidad_territorial_id) error = 'Elige tu colonia, barrio o pueblo';
       else if (!d.acepta_terminos) error = 'Debes aceptar los Términos y condiciones para crear tu cuenta';
-      else if (!conGoogle && captcha.vacio()) error = 'Escribe el código que aparece en la imagen';
       if (error) {
         P.poner(msg, P.html`<div class="mensaje error" role="alert">${P.t(error)}</div>`);
         msg.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -116,11 +98,10 @@
         var cuerpo = {
           nombre: d.nombre, correo: d.correo, fecha_nacimiento: d.fecha_nacimiento,
           genero: d.genero, unidad_territorial_id: Number(d.unidad_territorial_id), acepta_terminos: true, acepta_aviso: true,
+          password: d.password, confirmar: d.confirmar,
         };
-        if (conGoogle) cuerpo.google = true;
-        else Object.assign(cuerpo, { password: d.password, confirmar: d.confirmar }, captcha.datos());
         return P.post('/api/auth/registro', cuerpo, { sinRedirigir: true })
-          .then(function (r) { P.reiniciarAyuda(); location.href = r.destino + '?bienvenida=1'; }, function (e) { if (!conGoogle) captcha.cargar(); throw e; });
+          .then(function (r) { P.reiniciarAyuda(); location.href = r.destino + '?bienvenida=1'; }, function (e) { throw e; });
       }, { destino: msg });
     });
   });

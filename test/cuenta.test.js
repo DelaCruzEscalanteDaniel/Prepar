@@ -232,7 +232,7 @@ test('el inicio de sesión nunca revela si el correo existe, si la cuenta está 
 test('el Administrador elimina funcionarios y ciudadanos: datos personales borrados, historial conservado', async () => {
   const admin = A.cliente();
   ok(await admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' }));
-  const f = await admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Por Borrar', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['directorio', 'moderacion'] });
+  const f = await admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Por Borrar', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['moderacion'] });
   ok(f);
   const fu = A.cliente();
   ok(await fu.post('/api/auth/login', { correo: 'borrar.func@prepar.mx', password: f.datos.passwordTemporal }));
@@ -276,6 +276,6 @@ test('el Administrador elimina funcionarios y ciudadanos: datos personales borra
   const uc = await fila("SELECT u.nombre_completo, c.genero FROM usuarios u JOIN ciudadanos c ON c.usuario_id = u.id WHERE u.id = ?", [ciu.id]);
   assert.equal(uc.nombre_completo, 'Cuenta eliminada');
   assert.equal(uc.genero, 'prefiero_no_decir');
-  ok(await admin.post('/api/admin/funcionarios', { nombre: 'Otra Funcionaria Nueva', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['directorio'] }), 'el correo quedó libre');
+  ok(await admin.post('/api/admin/funcionarios', { nombre: 'Otra Funcionaria Nueva', correo: 'borrar.func@prepar.mx', alcaldia_id: AZC, funciones: ['moderacion'] }), 'el correo quedó libre');
   falla(await A.cliente().post('/api/auth/registro', datos('borrar.ciu@correo.mx'), {}), 201, 'también el del ciudadano');
 });

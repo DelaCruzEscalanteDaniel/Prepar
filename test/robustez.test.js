@@ -57,7 +57,7 @@ test.before(async () => {
   const admin = A.cliente();
   await admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' });
   const f = await admin.post('/api/admin/funcionarios', { nombre: 'Funcionaria Prueba', correo: 'f@prepar.mx', alcaldia_id: 2,
-    funciones: ['directorio', 'moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'] });
+    funciones: ['moderacion', 'revision_registros', 'dictaminacion', 'consulta', 'seguimiento'] });
   const func = A.cliente();
   await func.post('/api/auth/login', { correo: 'f@prepar.mx', password: f.datos.passwordTemporal });
   await func.post('/api/auth/cambiar-password', { actual: f.datos.passwordTemporal, nueva: 'PruebaSegura#26' });
