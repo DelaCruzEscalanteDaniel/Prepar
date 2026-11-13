@@ -862,3 +862,642 @@ JOIN indicadores i ON i.id = iu.indicador_id
 WHERE iu.periodo = (SELECT MAX(x.periodo) FROM indicadores_unidad x
                     WHERE x.unidad_territorial_id = iu.unidad_territorial_id AND x.indicador_id = iu.indicador_id)
 GROUP BY iu.unidad_territorial_id;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_error(IN p_mensaje VARCHAR(255))
+BEGIN
+  SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = p_mensaje;
+END$$
+
+CREATE PROCEDURE sp_requiere_admin()
+BEGIN
+  IF @usuario_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM usuarios WHERE id = @usuario_id AND rol = 'administrador' AND estado = 'activa') THEN
+    CALL sp_error('Solo el Administrador puede realizar esta acción');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_requiere_funcionario(IN p_funcion VARCHAR(30), IN p_alcaldia SMALLINT)
+BEGIN
+  IF @usuario_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id AND rol = 'administrador' AND estado = 'activa')
+     AND NOT EXISTS (
+       SELECT 1 FROM funcionarios f
+       JOIN usuarios u ON u.id = f.usuario_id AND u.estado = 'activa'
+       WHERE f.usuario_id = @usuario_id
+         AND (p_alcaldia IS NULL OR f.alcaldia_id = p_alcaldia)
+         AND (p_funcion IS NULL OR EXISTS (SELECT 1 FROM funcionario_funciones ff
+                                           WHERE ff.funcionario_id = f.usuario_id AND ff.funcion = p_funcion))) THEN
+    CALL sp_error(CONCAT('No tienes la función "', COALESCE(p_funcion, 'funcionario'),
+                         '" en la alcaldía de este registro'));
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_requiere_funcionario_ut(IN p_funcion VARCHAR(30), IN p_ut INT)
+BEGIN
+  DECLARE v_alcaldia SMALLINT;
+  SET v_alcaldia = (SELECT alcaldia_id FROM unidades_territoriales WHERE id = p_ut);
+  CALL sp_requiere_funcionario(p_funcion, v_alcaldia);
+END$$
+
+CREATE PROCEDURE sp_requiere_funcionario_proyecto(IN p_funcion VARCHAR(30), IN p_proyecto BIGINT)
+BEGIN
+  DECLARE v_ut INT;
+  SET v_ut = (SELECT unidad_territorial_id FROM proyectos WHERE id = p_proyecto);
+  CALL sp_requiere_funcionario_ut(p_funcion, v_ut);
+END$$
+
+CREATE PROCEDURE sp_validar_ciudadano(IN p_ciclo INT, IN p_ut INT, IN p_fase VARCHAR(30))
+BEGIN
+  DECLARE v_fase VARCHAR(30);
+  IF @usuario_id IS NOT NULL THEN
+    IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id AND rol = 'ciudadano' AND estado = 'activa') THEN
+      CALL sp_error('Solo un Ciudadano con cuenta activa puede realizar esta acción');
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM ciclos WHERE id = p_ciclo AND estado = 'activo') THEN
+      CALL sp_error('El ciclo de simulación no está activo');
+    END IF;
+    SET v_fase = (SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = p_ciclo));
+    IF p_fase IS NOT NULL AND (v_fase IS NULL OR v_fase <> p_fase) THEN
+      CALL sp_error(CONCAT('Esta acción solo está disponible en la fase "',
+                           (SELECT nombre_es FROM fases WHERE clave = p_fase), '"'));
+    END IF;
+    IF p_ut IS NOT NULL AND NOT EXISTS (SELECT 1 FROM ciudadanos WHERE usuario_id = @usuario_id AND unidad_territorial_id = p_ut) THEN
+      CALL sp_error('Solo puedes participar en tu unidad territorial de residencia');
+    END IF;
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_validar_ciudadano_alcaldia(IN p_ciclo INT, IN p_ut INT)
+BEGIN
+  CALL sp_validar_ciudadano(p_ciclo, NULL, NULL);
+  IF @usuario_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM ciudadanos ci
+       JOIN unidades_territoriales mia ON mia.id = ci.unidad_territorial_id
+       JOIN unidades_territoriales otra ON otra.id = p_ut
+       WHERE ci.usuario_id = @usuario_id AND mia.alcaldia_id = otra.alcaldia_id) THEN
+    CALL sp_error('Solo puedes participar en el foro de tu alcaldía');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_requiere_ciclo_activo(IN p_ciclo INT)
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM ciclos WHERE id = p_ciclo AND estado = 'activo') THEN
+    CALL sp_error('El ciclo no está activo (si está cerrado, su información es de solo lectura)');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_bitacora(IN p_accion VARCHAR(60), IN p_entidad VARCHAR(40), IN p_entidad_id VARCHAR(40),
+                             IN p_ciclo INT, IN p_detalle JSON)
+BEGIN
+  DECLARE v_ciclo INT;
+  IF EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id AND rol IN ('administrador', 'funcionario')) THEN
+    SET v_ciclo = COALESCE(p_ciclo, IF(p_entidad = 'proyectos',
+                    (SELECT ciclo_id FROM proyectos WHERE id = p_entidad_id), NULL));
+    INSERT INTO bitacora (usuario_id, rol, alcaldia_id, ciclo_id, accion, entidad, entidad_id, detalle)
+    VALUES (@usuario_id, (SELECT rol FROM usuarios WHERE id = @usuario_id),
+            (SELECT alcaldia_id FROM funcionarios WHERE usuario_id = @usuario_id),
+            v_ciclo, p_accion, p_entidad, p_entidad_id, p_detalle);
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_notificar(IN p_usuario INT, IN p_tipo VARCHAR(30), IN p_titulo VARCHAR(100),
+                              IN p_mensaje VARCHAR(500), IN p_proyecto BIGINT)
+BEGIN
+  INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, proyecto_id)
+  VALUES (p_usuario, p_tipo, LEFT(p_titulo, 100), LEFT(p_mensaje, 500), p_proyecto);
+END$$
+
+CREATE PROCEDURE sp_notificar_proyecto(IN p_proyecto BIGINT, IN p_tipo VARCHAR(30),
+                                       IN p_titulo VARCHAR(100), IN p_mensaje VARCHAR(500))
+BEGIN
+  INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, proyecto_id)
+  SELECT proponente_id, p_tipo, LEFT(p_titulo, 100), LEFT(REPLACE(p_mensaje, '{folio}', folio), 500), id
+  FROM proyectos WHERE id = p_proyecto;
+END$$
+
+DELIMITER ;
+
+DELIMITER $$
+
+CREATE TRIGGER tg_ciudadanos_bi BEFORE INSERT ON ciudadanos FOR EACH ROW
+BEGIN
+  IF (SELECT rol FROM usuarios WHERE id = NEW.usuario_id) <> 'ciudadano' THEN
+    CALL sp_error('El usuario no tiene rol de Ciudadano');
+  END IF;
+  IF NEW.fecha_nacimiento > DATE_SUB(CURDATE(), INTERVAL 18 YEAR) THEN
+    CALL sp_error('Solo pueden registrarse personas mayores de 18 años');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_ciudadanos_bu BEFORE UPDATE ON ciudadanos FOR EACH ROW
+BEGIN
+  IF NEW.fecha_nacimiento <> OLD.fecha_nacimiento AND @usuario_id IS NOT NULL THEN
+    CALL sp_error('La fecha de nacimiento no puede modificarse');
+  END IF;
+  IF NEW.unidad_territorial_id <> OLD.unidad_territorial_id
+     AND (SELECT orden FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.estado = 'activo'))
+         >= (SELECT orden FROM fases WHERE clave = 'consulta') THEN
+    CALL sp_error('El cambio de residencia solo se permite antes de la fase de Consulta');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_funcionarios_bi BEFORE INSERT ON funcionarios FOR EACH ROW
+BEGIN
+  IF (SELECT rol FROM usuarios WHERE id = NEW.usuario_id) <> 'funcionario' THEN
+    CALL sp_error('El usuario no tiene rol de Funcionario');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_usuarios_bu BEFORE UPDATE ON usuarios FOR EACH ROW
+BEGIN
+  IF NEW.rol <> OLD.rol THEN
+    CALL sp_error('El rol de una cuenta no puede cambiarse');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_usuarios_au AFTER UPDATE ON usuarios FOR EACH ROW
+BEGIN
+  IF NEW.password_hash <> OLD.password_hash THEN
+    UPDATE funcionarios SET debe_cambiar_password = FALSE WHERE usuario_id = NEW.id;
+    UPDATE sesiones SET cerrada_en = NOW() WHERE usuario_id = NEW.id AND cerrada_en IS NULL
+       AND @usuario_id IS NULL;
+  END IF;
+  IF NEW.estado <> OLD.estado THEN
+    CALL sp_bitacora(CONCAT('cuenta_', NEW.estado), 'usuarios', NEW.id, NULL, NULL);
+    IF NEW.estado <> 'activa' THEN
+      UPDATE sesiones SET cerrada_en = NOW() WHERE usuario_id = NEW.id AND cerrada_en IS NULL;
+    END IF;
+  END IF;
+END$$
+
+CREATE TRIGGER tg_suspensiones_bi BEFORE INSERT ON suspensiones_cuenta FOR EACH ROW
+BEGIN
+  CALL sp_requiere_admin();
+  SET NEW.administrador_id = COALESCE(NEW.administrador_id, @usuario_id);
+END$$
+
+CREATE TRIGGER tg_suspensiones_ai AFTER INSERT ON suspensiones_cuenta FOR EACH ROW
+BEGIN
+  UPDATE usuarios SET estado = IF(NEW.accion = 'suspender', 'suspendida', 'activa')
+   WHERE id = NEW.ciudadano_id;
+END$$
+
+CREATE TRIGGER tg_ciclos_bu BEFORE UPDATE ON ciclos FOR EACH ROW
+BEGIN
+  IF OLD.estado = 'cerrado' THEN
+    CALL sp_error('El ciclo está cerrado: su información es de solo lectura');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_ciclo_fases_bi BEFORE INSERT ON ciclo_fases FOR EACH ROW
+BEGIN
+  CALL sp_requiere_admin();
+  IF (SELECT estado FROM ciclos WHERE id = NEW.ciclo_id) = 'cerrado' THEN
+    CALL sp_error('El ciclo está cerrado: su información es de solo lectura');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_ciclo_fases_bu BEFORE UPDATE ON ciclo_fases FOR EACH ROW
+BEGIN
+  CALL sp_requiere_admin();
+  IF (SELECT estado FROM ciclos WHERE id = NEW.ciclo_id) = 'cerrado' THEN
+    CALL sp_error('El ciclo está cerrado: su información es de solo lectura');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_ciclo_unidades_bu BEFORE UPDATE ON ciclo_unidades FOR EACH ROW
+BEGIN
+  IF (SELECT estado FROM ciclos WHERE id = NEW.ciclo_id) = 'cerrado' THEN
+    CALL sp_error('El ciclo está cerrado: su información es de solo lectura');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_avisos_bi BEFORE INSERT ON avisos FOR EACH ROW
+BEGIN
+  SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
+  SET NEW.ciclo_id = COALESCE(NULLIF(NEW.ciclo_id, 0), (SELECT id FROM ciclos WHERE estado = 'activo'));
+  CALL sp_requiere_ciclo_activo(NEW.ciclo_id);
+  CALL sp_requiere_funcionario(NULL, NEW.alcaldia_id);
+  CALL sp_bitacora('aviso_publicar', 'avisos', NULL, NEW.ciclo_id, JSON_OBJECT('titulo', NEW.titulo));
+END$$
+
+CREATE TRIGGER tg_directorio_bi BEFORE INSERT ON directorio FOR EACH ROW
+BEGIN
+  CALL sp_requiere_funcionario('directorio', NEW.alcaldia_id);
+  SET NEW.actualizado_por = @usuario_id;
+  IF @usuario_id IS NOT NULL THEN SET NEW.origen = 'manual', NEW.editado_manualmente = TRUE; END IF;
+  CALL sp_bitacora('directorio_alta', 'directorio', NULL, NULL, JSON_OBJECT('cargo', NEW.cargo));
+END$$
+
+CREATE TRIGGER tg_directorio_bu BEFORE UPDATE ON directorio FOR EACH ROW
+BEGIN
+  CALL sp_requiere_funcionario('directorio', OLD.alcaldia_id);
+  CALL sp_requiere_funcionario('directorio', NEW.alcaldia_id);
+  SET NEW.actualizado_por = @usuario_id;
+  IF @usuario_id IS NOT NULL THEN SET NEW.editado_manualmente = TRUE; END IF;
+  CALL sp_bitacora('directorio_edicion', 'directorio', OLD.id, NULL, JSON_OBJECT('cargo', NEW.cargo));
+END$$
+
+CREATE TRIGGER tg_directorio_bd BEFORE DELETE ON directorio FOR EACH ROW
+BEGIN
+  CALL sp_requiere_funcionario('directorio', OLD.alcaldia_id);
+  CALL sp_bitacora('directorio_baja', 'directorio', OLD.id, NULL, JSON_OBJECT('cargo', OLD.cargo));
+END$$
+
+CREATE TRIGGER tg_ideas_bi BEFORE INSERT ON ideas FOR EACH ROW
+BEGIN
+  SET NEW.ciclo_id = COALESCE(NULLIF(NEW.ciclo_id, 0), (SELECT id FROM ciclos WHERE estado = 'activo'));
+  SET NEW.unidad_territorial_id = COALESCE(NULLIF(NEW.unidad_territorial_id, 0),
+        (SELECT unidad_territorial_id FROM ciudadanos WHERE usuario_id = @usuario_id));
+  SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
+  CALL sp_validar_ciudadano(NEW.ciclo_id, NEW.unidad_territorial_id, 'diagnostico_registro');
+  IF @usuario_id IS NOT NULL THEN
+    SET NEW.total_apoyos = 0, NEW.estado = 'visible';
+  END IF;
+END$$
+
+CREATE TRIGGER tg_ideas_bu BEFORE UPDATE ON ideas FOR EACH ROW
+BEGIN
+  IF @usuario_id IS NOT NULL AND COALESCE(@interno, 0) = 0 THEN
+    CALL sp_error('Las ideas publicadas no pueden modificarse directamente');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_comentarios_idea_bi BEFORE INSERT ON comentarios_idea FOR EACH ROW
+BEGIN
+  DECLARE v_ciclo INT; DECLARE v_ut INT; DECLARE v_estado VARCHAR(10);
+  SELECT ciclo_id, unidad_territorial_id, estado INTO v_ciclo, v_ut, v_estado FROM ideas WHERE id = NEW.idea_id;
+  IF v_estado <> 'visible' THEN CALL sp_error('La idea no está disponible'); END IF;
+  SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
+  CALL sp_validar_ciudadano_alcaldia(v_ciclo, v_ut);
+  IF @usuario_id IS NOT NULL THEN SET NEW.estado = 'visible'; END IF;
+END$$
+
+CREATE TRIGGER tg_apoyos_bi BEFORE INSERT ON apoyos_idea FOR EACH ROW
+BEGIN
+  DECLARE v_ciclo INT; DECLARE v_ut INT; DECLARE v_autor INT; DECLARE v_estado VARCHAR(10);
+  SELECT ciclo_id, unidad_territorial_id, autor_id, estado INTO v_ciclo, v_ut, v_autor, v_estado
+    FROM ideas WHERE id = NEW.idea_id;
+  SET NEW.ciudadano_id = COALESCE(NULLIF(NEW.ciudadano_id, 0), @usuario_id);
+  IF v_estado <> 'visible' THEN CALL sp_error('La idea no está disponible'); END IF;
+  IF v_autor = NEW.ciudadano_id THEN CALL sp_error('No puedes apoyar tu propia idea'); END IF;
+  CALL sp_validar_ciudadano_alcaldia(v_ciclo, v_ut);
+END$$
+
+CREATE TRIGGER tg_apoyos_ai AFTER INSERT ON apoyos_idea FOR EACH ROW
+BEGIN
+  SET @interno = 1;
+  UPDATE ideas SET total_apoyos = total_apoyos + 1 WHERE id = NEW.idea_id;
+  SET @interno = 0;
+END$$
+
+CREATE TRIGGER tg_apoyos_ad AFTER DELETE ON apoyos_idea FOR EACH ROW
+BEGIN
+  SET @interno = 1;
+  UPDATE ideas SET total_apoyos = GREATEST(total_apoyos - 1, 0) WHERE id = OLD.idea_id;
+  SET @interno = 0;
+END$$
+
+CREATE TRIGGER tg_moderaciones_bi BEFORE INSERT ON moderaciones FOR EACH ROW
+BEGIN
+  SET @mod_ut = CASE NEW.tipo_objeto
+    WHEN 'idea'            THEN (SELECT unidad_territorial_id FROM ideas WHERE id = NEW.objeto_id)
+    WHEN 'comentario_idea' THEN (SELECT unidad_territorial_id FROM ideas
+                                 WHERE id = (SELECT idea_id FROM comentarios_idea WHERE id = NEW.objeto_id))
+    WHEN 'proyecto'        THEN (SELECT unidad_territorial_id FROM proyectos WHERE id = NEW.objeto_id)
+    ELSE (SELECT unidad_territorial_id FROM proyectos
+          WHERE id = (SELECT proyecto_id FROM reportes
+                      WHERE id = (SELECT reporte_id FROM comentarios_reporte WHERE id = NEW.objeto_id)))
+  END;
+  IF @mod_ut IS NULL THEN CALL sp_error('El contenido a moderar no existe'); END IF;
+  CALL sp_requiere_funcionario('moderacion', (SELECT alcaldia_id FROM unidades_territoriales WHERE id = @mod_ut));
+  SET NEW.funcionario_id = COALESCE(NEW.funcionario_id,
+        (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id));
+  SET @mod_estado = CASE NEW.accion WHEN 'ocultar' THEN 'oculto' WHEN 'eliminar' THEN 'eliminado' ELSE 'visible' END;
+  SET @interno = 1;
+  IF NEW.tipo_objeto = 'idea' THEN
+    UPDATE ideas SET estado = @mod_estado WHERE id = NEW.objeto_id;
+  ELSEIF NEW.tipo_objeto = 'comentario_idea' THEN
+    UPDATE comentarios_idea SET estado = @mod_estado WHERE id = NEW.objeto_id;
+  ELSEIF NEW.tipo_objeto = 'proyecto' THEN
+    UPDATE proyectos SET estado_moderacion = @mod_estado WHERE id = NEW.objeto_id;
+  ELSE
+    UPDATE comentarios_reporte SET estado = @mod_estado WHERE id = NEW.objeto_id;
+  END IF;
+  SET @interno = 0;
+  CALL sp_bitacora(CONCAT('moderacion_', NEW.accion), NEW.tipo_objeto, NEW.objeto_id, NULL,
+                   JSON_OBJECT('motivo', NEW.motivo));
+END$$
+
+CREATE TRIGGER tg_proyectos_bi BEFORE INSERT ON proyectos FOR EACH ROW
+BEGIN
+  SET NEW.ciclo_id = COALESCE(NULLIF(NEW.ciclo_id, 0), (SELECT id FROM ciclos WHERE estado = 'activo'));
+  SET NEW.unidad_territorial_id = COALESCE(NULLIF(NEW.unidad_territorial_id, 0),
+        (SELECT unidad_territorial_id FROM ciudadanos WHERE usuario_id = @usuario_id));
+  SET NEW.proponente_id = COALESCE(NULLIF(NEW.proponente_id, 0), @usuario_id);
+  CALL sp_validar_ciudadano(NEW.ciclo_id, NEW.unidad_territorial_id, 'diagnostico_registro');
+  IF @usuario_id IS NOT NULL THEN
+    SET NEW.estatus = 'registrado', NEW.numero_sorteo = NULL, NEW.avance_porcentaje = 0,
+        NEW.monto_ejercido = 0, NEW.estado_moderacion = 'visible';
+  END IF;
+  IF NEW.idea_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM ideas WHERE id = NEW.idea_id AND ciclo_id = NEW.ciclo_id
+                             AND unidad_territorial_id = NEW.unidad_territorial_id) THEN
+    CALL sp_error('La idea de origen debe pertenecer al mismo foro');
+  END IF;
+  IF NEW.latitud IS NOT NULL AND NEW.estado_ubicacion = 'pendiente' THEN
+    SET NEW.estado_ubicacion = 'ubicado';
+  END IF;
+  IF NEW.imagen_archivo_id IS NOT NULL AND NOT EXISTS (
+       SELECT 1 FROM archivos WHERE id = NEW.imagen_archivo_id AND categoria = 'imagen_proyecto'
+                                AND eliminado_en IS NULL
+                                AND (@usuario_id IS NULL OR subido_por = @usuario_id)) THEN
+    CALL sp_error('La imagen del proyecto no es válida');
+  END IF;
+
+  SET @folio_anio = (SELECT anio_simulado FROM ciclos WHERE id = NEW.ciclo_id);
+  SET @folio_alc  = (SELECT alcaldia_id FROM unidades_territoriales WHERE id = NEW.unidad_territorial_id);
+  INSERT INTO folio_consecutivos (anio, alcaldia_id, ultimo) VALUES (@folio_anio, @folio_alc, 1)
+    ON DUPLICATE KEY UPDATE ultimo = ultimo + 1;
+  SET @folio_n = (SELECT ultimo FROM folio_consecutivos WHERE anio = @folio_anio AND alcaldia_id = @folio_alc);
+  SET NEW.folio = CONCAT('PP-', @folio_anio, '-', (SELECT clave FROM alcaldias WHERE id = @folio_alc), '-',
+                         LPAD(@folio_n, 4, '0'));
+  IF NEW.folio IS NULL THEN
+    CALL sp_error('No se pudo generar el folio del proyecto');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_proyectos_bu BEFORE UPDATE ON proyectos FOR EACH ROW
+BEGIN
+  DECLARE v_rol VARCHAR(20);
+  IF COALESCE(NEW.folio, '') <> COALESCE(OLD.folio, '') OR NEW.ciclo_id <> OLD.ciclo_id
+     OR NEW.unidad_territorial_id <> OLD.unidad_territorial_id OR NEW.proponente_id <> OLD.proponente_id THEN
+    CALL sp_error('El folio, el ciclo, la unidad territorial y el proponente no pueden cambiar');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM ciclos WHERE id = NEW.ciclo_id AND estado = 'activo') THEN
+    CALL sp_error('El ciclo no está activo (si está cerrado, su información es de solo lectura)');
+  END IF;
+
+  IF @usuario_id IS NOT NULL AND COALESCE(@interno, 0) = 0 THEN
+    SET v_rol = (SELECT rol FROM usuarios WHERE id = @usuario_id AND estado = 'activa');
+    IF v_rol = 'ciudadano' THEN
+      IF OLD.proponente_id <> @usuario_id THEN CALL sp_error('Solo puedes editar tus proyectos'); END IF;
+      IF COALESCE((SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = NEW.ciclo_id)), '') <> 'diagnostico_registro' OR OLD.estatus <> 'registrado' THEN
+        CALL sp_error('El proyecto solo puede editarse o retirarse durante la fase de Diagnóstico y Registro');
+      END IF;
+      IF NEW.estatus NOT IN ('registrado', 'retirado') OR COALESCE(NEW.numero_sorteo, 0) <> COALESCE(OLD.numero_sorteo, 0)
+         OR NEW.avance_porcentaje <> OLD.avance_porcentaje OR NEW.monto_ejercido <> OLD.monto_ejercido
+         OR NEW.estado_moderacion <> OLD.estado_moderacion THEN
+        CALL sp_error('No puedes modificar los campos que administra el sistema');
+      END IF;
+      IF NEW.imagen_archivo_id IS NOT NULL AND COALESCE(NEW.imagen_archivo_id, 0) <> COALESCE(OLD.imagen_archivo_id, 0)
+         AND NOT EXISTS (SELECT 1 FROM archivos WHERE id = NEW.imagen_archivo_id AND categoria = 'imagen_proyecto'
+                                                  AND eliminado_en IS NULL AND subido_por = @usuario_id) THEN
+        CALL sp_error('La imagen del proyecto no es válida');
+      END IF;
+    ELSEIF v_rol = 'funcionario' THEN
+      IF NEW.titulo <> OLD.titulo OR NEW.descripcion <> OLD.descripcion OR NEW.rubro_id <> OLD.rubro_id
+         OR NEW.costo_estimado <> OLD.costo_estimado OR NEW.estatus <> OLD.estatus
+         OR COALESCE(NEW.numero_sorteo, 0) <> COALESCE(OLD.numero_sorteo, 0) OR NEW.avance_porcentaje <> OLD.avance_porcentaje
+         OR NEW.monto_ejercido <> OLD.monto_ejercido OR NEW.estado_moderacion <> OLD.estado_moderacion
+         OR COALESCE(NEW.imagen_archivo_id, 0) <> COALESCE(OLD.imagen_archivo_id, 0) OR COALESCE(NEW.idea_id, 0) <> COALESCE(OLD.idea_id, 0) THEN
+        CALL sp_error('El Funcionario solo puede corregir la ubicación del proyecto');
+      END IF;
+      CALL sp_requiere_funcionario_ut(NULL, NEW.unidad_territorial_id);
+      SET NEW.estado_ubicacion = IF(NEW.latitud IS NULL, 'no_ubicado', 'corregido');
+      CALL sp_bitacora('ubicacion_corregir', 'proyectos', NEW.id, NEW.ciclo_id,
+                       JSON_OBJECT('latitud', NEW.latitud, 'longitud', NEW.longitud));
+    ELSEIF v_rol IS NULL OR v_rol <> 'administrador' THEN
+      CALL sp_error('Sin permiso para modificar el proyecto');
+    END IF;
+  END IF;
+END$$
+
+CREATE TRIGGER tg_proyectos_ai AFTER INSERT ON proyectos FOR EACH ROW
+BEGIN
+  INSERT INTO historial_estatus_proyecto (proyecto_id, estatus_anterior, estatus_nuevo, usuario_id)
+  VALUES (NEW.id, NULL, NEW.estatus, @usuario_id);
+END$$
+
+CREATE TRIGGER tg_proyectos_au AFTER UPDATE ON proyectos FOR EACH ROW
+BEGIN
+  IF NEW.estatus <> OLD.estatus THEN
+    INSERT INTO historial_estatus_proyecto (proyecto_id, estatus_anterior, estatus_nuevo, usuario_id)
+    VALUES (NEW.id, OLD.estatus, NEW.estatus, @usuario_id);
+  END IF;
+END$$
+
+CREATE TRIGGER tg_revisiones_bi BEFORE INSERT ON revisiones_registro FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT;
+  SELECT estatus, unidad_territorial_id, ciclo_id INTO v_estatus, v_ut, v_ciclo
+    FROM proyectos WHERE id = NEW.proyecto_id;
+  CALL sp_requiere_ciclo_activo(v_ciclo);
+  CALL sp_requiere_funcionario_ut('revision_registros', v_ut);
+  IF v_estatus <> 'registrado' THEN CALL sp_error('Solo se revisan proyectos con estatus Registrado'); END IF;
+  SET NEW.funcionario_id = COALESCE(NEW.funcionario_id,
+        (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id));
+END$$
+
+CREATE TRIGGER tg_revisiones_ai AFTER INSERT ON revisiones_registro FOR EACH ROW
+BEGIN
+  IF NEW.resultado = 'completo' THEN
+    SET @interno = 1;
+    UPDATE proyectos SET estatus = 'en_dictaminacion' WHERE id = NEW.proyecto_id;
+    SET @interno = 0;
+    CALL sp_notificar_proyecto(NEW.proyecto_id, 'proyecto_en_dictaminacion', 'Tu proyecto pasó a dictaminación',
+                               'El proyecto {folio} está completo y fue enviado al Órgano Dictaminador.');
+  ELSE
+    CALL sp_notificar_proyecto(NEW.proyecto_id, 'correccion_solicitada', 'Se solicitó una corrección',
+                               CONCAT('Proyecto {folio}: ', NEW.observacion));
+  END IF;
+  CALL sp_bitacora(CONCAT('revision_', NEW.resultado), 'proyectos', NEW.proyecto_id, NULL, NULL);
+END$$
+
+CREATE TRIGGER tg_dictamenes_bi BEFORE INSERT ON dictamenes FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT;
+  SELECT estatus, unidad_territorial_id, ciclo_id INTO v_estatus, v_ut, v_ciclo FROM proyectos WHERE id = NEW.proyecto_id;
+  CALL sp_requiere_ciclo_activo(v_ciclo);
+  CALL sp_requiere_funcionario_ut('dictaminacion', v_ut);
+  IF v_estatus <> 'en_dictaminacion' THEN CALL sp_error('El proyecto no está en dictaminación'); END IF;
+  IF NEW.emitido_en IS NOT NULL THEN
+    CALL sp_error('Primero registra la evaluación de los criterios; después emite el dictamen');
+  END IF;
+  SET NEW.funcionario_id = COALESCE(NEW.funcionario_id,
+        (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id));
+END$$
+
+CREATE TRIGGER tg_dictamenes_bu BEFORE UPDATE ON dictamenes FOR EACH ROW
+BEGIN
+  IF OLD.emitido_en IS NOT NULL THEN CALL sp_error('El dictamen ya fue emitido y es definitivo'); END IF;
+  CALL sp_requiere_funcionario_proyecto('dictaminacion', NEW.proyecto_id);
+  IF NEW.emitido_en IS NOT NULL AND EXISTS (
+       SELECT 1 FROM criterios_dictamen cd
+       WHERE cd.activo AND NOT EXISTS (SELECT 1 FROM dictamen_criterios dc
+                                       WHERE dc.dictamen_id = NEW.id AND dc.criterio_id = cd.id)) THEN
+    CALL sp_error('Evalúa todos los criterios antes de emitir el dictamen');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_dictamenes_au AFTER UPDATE ON dictamenes FOR EACH ROW
+BEGIN
+  IF NEW.emitido_en IS NOT NULL AND OLD.emitido_en IS NULL THEN
+    SET @interno = 1;
+    UPDATE proyectos SET estatus = NEW.resultado WHERE id = NEW.proyecto_id;
+    SET @interno = 0;
+    CALL sp_notificar_proyecto(NEW.proyecto_id, 'dictamen_emitido',
+                               CONCAT('Dictamen de tu proyecto: ', REPLACE(NEW.resultado, '_', ' ')),
+                               CONCAT('Proyecto {folio}. Justificación: ', NEW.justificacion));
+    CALL sp_bitacora('dictamen_emitir', 'proyectos', NEW.proyecto_id, NULL,
+                     JSON_OBJECT('resultado', NEW.resultado));
+  END IF;
+END$$
+
+CREATE TRIGGER tg_dictamen_criterios_bi BEFORE INSERT ON dictamen_criterios FOR EACH ROW
+BEGIN
+  IF (SELECT emitido_en FROM dictamenes WHERE id = NEW.dictamen_id) IS NOT NULL THEN
+    CALL sp_error('El dictamen ya fue emitido y es definitivo');
+  END IF;
+  CALL sp_requiere_funcionario_proyecto('dictaminacion', (SELECT proyecto_id FROM dictamenes WHERE id = NEW.dictamen_id));
+END$$
+
+CREATE TRIGGER tg_dictamen_criterios_bu BEFORE UPDATE ON dictamen_criterios FOR EACH ROW
+BEGIN
+  IF (SELECT emitido_en FROM dictamenes WHERE id = OLD.dictamen_id) IS NOT NULL THEN
+    CALL sp_error('El dictamen ya fue emitido y es definitivo');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_dictamen_criterios_bd BEFORE DELETE ON dictamen_criterios FOR EACH ROW
+BEGIN
+  IF (SELECT emitido_en FROM dictamenes WHERE id = OLD.dictamen_id) IS NOT NULL THEN
+    CALL sp_error('El dictamen ya fue emitido y es definitivo');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_avances_bi BEFORE INSERT ON avances_proyecto FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT; DECLARE v_costo DECIMAL(14,2);
+  SELECT estatus, unidad_territorial_id, ciclo_id, costo_estimado INTO v_estatus, v_ut, v_ciclo, v_costo FROM proyectos WHERE id = NEW.proyecto_id;
+  CALL sp_requiere_ciclo_activo(v_ciclo);
+  CALL sp_requiere_funcionario_ut('seguimiento', v_ut);
+  IF v_estatus NOT IN ('ganador','en_ejecucion','concluido','inejecutable') THEN
+    CALL sp_error('Solo se registra avance de proyectos ganadores');
+  END IF;
+  IF v_costo > 0 AND NEW.monto_ejercido > v_costo THEN
+    CALL sp_error(CONCAT('No se puede registrar más de $', FORMAT(v_costo, 2), ', que es el límite de este proyecto'));
+  END IF;
+  IF (SELECT orden FROM fases WHERE id = (SELECT fase_actual_id FROM ciclos
+         WHERE id = (SELECT ciclo_id FROM proyectos WHERE id = NEW.proyecto_id)))
+     < (SELECT orden FROM fases WHERE clave = 'ejecucion_seguimiento') THEN
+    CALL sp_error('El avance se registra a partir de la fase de Ejecución y Seguimiento');
+  END IF;
+  SET NEW.funcionario_id = COALESCE(NEW.funcionario_id,
+        (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id));
+END$$
+
+CREATE TRIGGER tg_avances_ai AFTER INSERT ON avances_proyecto FOR EACH ROW
+BEGIN
+  SET @interno = 1;
+  UPDATE proyectos SET avance_porcentaje = NEW.porcentaje, monto_ejercido = NEW.monto_ejercido,
+                       estatus = NEW.estatus
+   WHERE id = NEW.proyecto_id;
+  SET @interno = 0;
+  CALL sp_bitacora('avance_registrar', 'proyectos', NEW.proyecto_id, NULL,
+                   JSON_OBJECT('porcentaje', NEW.porcentaje, 'monto', NEW.monto_ejercido, 'estatus', NEW.estatus));
+END$$
+
+CREATE TRIGGER tg_reportes_bi BEFORE INSERT ON reportes FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(20); DECLARE v_mod VARCHAR(10); DECLARE v_ciclo INT;
+  SELECT estatus, estado_moderacion, ciclo_id INTO v_estatus, v_mod, v_ciclo FROM proyectos WHERE id = NEW.proyecto_id;
+  SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
+  CALL sp_validar_ciudadano(v_ciclo, NULL, NULL);
+  IF v_estatus NOT IN ('ganador','en_ejecucion','concluido','inejecutable') OR v_mod <> 'visible' THEN
+    CALL sp_error('Solo se pueden reportar proyectos ganadores');
+  END IF;
+  IF @usuario_id IS NOT NULL THEN
+    SET NEW.estatus = 'pendiente', NEW.respuesta = NULL, NEW.motivo_eliminacion = NULL,
+        NEW.revisado_por = NULL, NEW.revisado_en = NULL;
+  END IF;
+END$$
+
+CREATE TRIGGER tg_reportes_bu BEFORE UPDATE ON reportes FOR EACH ROW
+BEGIN
+  IF NEW.proyecto_id <> OLD.proyecto_id OR NEW.autor_id <> OLD.autor_id
+     OR NEW.tipo <> OLD.tipo OR NEW.descripcion <> OLD.descripcion THEN
+    CALL sp_error('El contenido del reporte no puede modificarse');
+  END IF;
+  CALL sp_requiere_funcionario_proyecto('seguimiento', NEW.proyecto_id);
+  IF NEW.estatus <> OLD.estatus THEN
+    SET NEW.revisado_por = (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id),
+        NEW.revisado_en = NOW();
+  END IF;
+END$$
+
+CREATE TRIGGER tg_reportes_au AFTER UPDATE ON reportes FOR EACH ROW
+BEGIN
+  IF NEW.estatus <> OLD.estatus AND NEW.estatus IN ('atendido', 'eliminado') THEN
+    CALL sp_notificar(NEW.autor_id, CONCAT('reporte_', NEW.estatus),
+                      IF(NEW.estatus = 'atendido', 'Tu reporte fue atendido', 'Tu reporte fue eliminado'),
+                      COALESCE(NEW.respuesta, NEW.motivo_eliminacion), NEW.proyecto_id);
+    CALL sp_bitacora(CONCAT('reporte_', NEW.estatus), 'reportes', NEW.id, NULL, NULL);
+  END IF;
+END$$
+
+CREATE TRIGGER tg_reporte_fotos_bi BEFORE INSERT ON reporte_fotos FOR EACH ROW
+BEGIN
+  IF @usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM reportes WHERE id = NEW.reporte_id AND autor_id = @usuario_id) THEN
+    CALL sp_error('Solo el autor del reporte puede adjuntar fotografías');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM archivos WHERE id = NEW.archivo_id AND categoria = 'foto_reporte'
+                   AND eliminado_en IS NULL AND (@usuario_id IS NULL OR subido_por = @usuario_id)) THEN
+    CALL sp_error('La fotografía no es válida (debe ser JPG o PNG de hasta 5 MB subida por ti)');
+  END IF;
+  IF (SELECT COUNT(*) FROM reporte_fotos WHERE reporte_id = NEW.reporte_id) >= 5 THEN
+    CALL sp_error('Un reporte admite como máximo 5 fotografías');
+  END IF;
+END$$
+
+CREATE TRIGGER tg_comentarios_reporte_bi BEFORE INSERT ON comentarios_reporte FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(10); DECLARE v_ciclo INT;
+  SELECT r.estatus, p.ciclo_id INTO v_estatus, v_ciclo
+    FROM reportes r JOIN proyectos p ON p.id = r.proyecto_id WHERE r.id = NEW.reporte_id;
+  IF v_estatus = 'eliminado' THEN CALL sp_error('El reporte no está disponible'); END IF;
+  SET NEW.autor_id = COALESCE(NULLIF(NEW.autor_id, 0), @usuario_id);
+  CALL sp_validar_ciudadano(v_ciclo, NULL, NULL);
+  IF @usuario_id IS NOT NULL THEN SET NEW.estado = 'visible'; END IF;
+END$$
+
+CREATE TRIGGER tg_calificaciones_bi BEFORE INSERT ON calificaciones FOR EACH ROW
+BEGIN
+  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT;
+  SELECT estatus, unidad_territorial_id, ciclo_id INTO v_estatus, v_ut, v_ciclo FROM proyectos WHERE id = NEW.proyecto_id;
+  SET NEW.ciudadano_id = COALESCE(NULLIF(NEW.ciudadano_id, 0), @usuario_id);
+  IF v_estatus NOT IN ('ganador','en_ejecucion','concluido','inejecutable') THEN
+    CALL sp_error('Solo se califican proyectos ganadores');
+  END IF;
+  CALL sp_validar_ciudadano(v_ciclo, v_ut, 'evaluacion');
+END$$
+
+CREATE TRIGGER tg_notificaciones_ai AFTER INSERT ON notificaciones FOR EACH ROW
+BEGIN
+  IF EXISTS (SELECT 1 FROM usuarios WHERE id = NEW.usuario_id AND recibir_correos AND estado = 'activa') THEN
+    INSERT INTO correos_salida (usuario_id, destinatario, asunto, cuerpo, plantilla, notificacion_id)
+    VALUES (NEW.usuario_id, (SELECT correo FROM usuarios WHERE id = NEW.usuario_id),
+            CONCAT('Prepar · ', NEW.titulo), NEW.mensaje, NEW.tipo, NEW.id);
+  END IF;
+END$$
+
+CREATE TRIGGER tg_calificaciones_bu BEFORE UPDATE ON calificaciones FOR EACH ROW
+BEGIN
+  DECLARE v_ut INT; DECLARE v_ciclo INT;
+  SELECT unidad_territorial_id, ciclo_id INTO v_ut, v_ciclo FROM proyectos WHERE id = NEW.proyecto_id;
+  CALL sp_validar_ciudadano(v_ciclo, v_ut, 'evaluacion');
+END$$
+
+DELIMITER ;
