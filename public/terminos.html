@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#F3F6FA">
+<title>Términos y condiciones · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-rol="invitado" data-pagina="terminos" class="acceso-fondo">
+<main id="principal" tabindex="-1">
+<div class="acceso">
+  <div class="barra-sup">
+    <a class="volver" href="/" id="volver-terminos">← Volver al inicio</a>
+    <div class="acciones"></div>
+  </div>
+  <div class="centro-acceso">
+    <div class="caja-vidrio ancha-privacidad">
+      <div class="cabeza-acceso">
+        <img src="/img/logo.png?v=castor2" alt="Logo de Prepar" class="logo-acceso">
+        <h1>Términos y condiciones</h1>
+        <p id="version-terminos"></p>
+      </div>
+      <div id="caja-aceptar" hidden>
+        <div class="mensaje info" role="status"><span><strong>Antes de continuar</strong>, lee y acepta los Términos y condiciones. Solo se pide una vez; si algún día cambian, te los volveremos a mostrar.</span></div>
+      </div>
+      <div id="texto-terminos" class="texto-terminos texto-2"><div class="cargando-bloque">Cargando…</div></div>
+      <p class="texto-2" style="margin:0">Cómo usamos tus datos: consulta el <a href="/privacidad.html" target="_blank" rel="noopener">Aviso de privacidad</a>.</p>
+      <form id="form-aceptar" class="columna" style="gap:12px" hidden novalidate>
+        <label class="casilla arriba" style="font-weight:600"><input type="checkbox" name="acepto"> <span>He leído y acepto los Términos y condiciones y el Aviso de privacidad.</span></label>
+        <div id="msg-aceptar" aria-live="polite"></div>
+        <div class="fila" style="gap:10px"><button type="submit" class="btn grande" id="btn-aceptar" disabled>Aceptar y continuar</button><button type="button" class="btn2" id="no-acepto">No acepto (cerrar sesión)</button></div>
+      </form>
+    </div>
+  </div>
+</div>
+</main>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/terminos.js" defer></script>
+</body>
+</html>
