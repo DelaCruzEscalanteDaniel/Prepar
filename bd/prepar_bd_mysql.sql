@@ -653,3 +653,212 @@ CREATE TABLE participaciones (
   CONSTRAINT fk_part_ciudadano FOREIGN KEY (ciudadano_id) REFERENCES ciudadanos(usuario_id),
   CONSTRAINT fk_part_ut        FOREIGN KEY (unidad_territorial_id) REFERENCES unidades_territoriales(id)
 );
+
+CREATE TABLE votos (
+  id                     CHAR(32) NOT NULL PRIMARY KEY,
+  ciclo_id               INT      NOT NULL,
+  unidad_territorial_id  INT      NOT NULL,
+  proyecto_id            BIGINT   NOT NULL,
+  KEY ix_votos_proyecto (proyecto_id),
+  CONSTRAINT fk_voto_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_voto_cu FOREIGN KEY (ciclo_id, unidad_territorial_id) REFERENCES ciclo_unidades(ciclo_id, unidad_territorial_id)
+);
+
+CREATE TABLE resultados_proyecto (
+  proyecto_id            BIGINT   NOT NULL PRIMARY KEY,
+  ciclo_id               INT      NOT NULL,
+  unidad_territorial_id  INT      NOT NULL,
+  total_votos            INT      NOT NULL DEFAULT 0,
+  posicion               SMALLINT NULL,
+  CONSTRAINT fk_rp_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+);
+
+CREATE TABLE resultados_unidad (
+  ciclo_id               INT          NOT NULL,
+  unidad_territorial_id  INT          NOT NULL,
+  total_votos            INT          NOT NULL DEFAULT 0,
+  caso_especial          VARCHAR(12) NULL CHECK (caso_especial IN ('empate', 'unico_viable', 'sin_votos')),
+  proyecto_ganador_id    BIGINT       NULL,
+  metodo                 VARCHAR(18) NULL CHECK (metodo IN ('votacion', 'asamblea_seleccion', 'asamblea_sorteo')),
+  justificacion          VARCHAR(500) NULL,
+  resuelto_por           INT          NULL,
+  resuelto_en            DATETIME     NULL,
+  PRIMARY KEY (ciclo_id, unidad_territorial_id),
+  CONSTRAINT fk_ru_cu       FOREIGN KEY (ciclo_id, unidad_territorial_id) REFERENCES ciclo_unidades(ciclo_id, unidad_territorial_id),
+  CONSTRAINT fk_ru_ganador  FOREIGN KEY (proyecto_ganador_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_ru_funcionario FOREIGN KEY (resuelto_por) REFERENCES funcionarios(usuario_id),
+  CONSTRAINT ck_ru_metodo   CHECK ((proyecto_ganador_id IS NULL AND metodo IS NULL) OR (proyecto_ganador_id IS NOT NULL AND metodo IS NOT NULL)),
+  CONSTRAINT ck_ru_justif   CHECK (metodo IS NULL OR metodo = 'votacion' OR COALESCE(TRIM(justificacion), '') <> '')
+);
+
+CREATE TABLE avances_proyecto (
+  id                          BIGINT        NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  proyecto_id                 BIGINT        NOT NULL,
+  funcionario_id              INT           NULL,
+  porcentaje                  DECIMAL(5,2)  NOT NULL,
+  monto_ejercido              DECIMAL(14,2) NOT NULL,
+  estatus                     VARCHAR(12) NOT NULL CHECK (estatus IN ('ganador', 'en_ejecucion', 'concluido', 'inejecutable')),
+  nota                        VARCHAR(250)  NULL,
+  justificacion_inejecutable  VARCHAR(500)  NULL,
+  registrado_en               DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_av_proyecto    FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_av_funcionario FOREIGN KEY (funcionario_id) REFERENCES funcionarios(usuario_id),
+  CONSTRAINT ck_av_valores     CHECK (porcentaje BETWEEN 0 AND 100 AND monto_ejercido >= 0),
+  CONSTRAINT ck_av_inejecutable CHECK (estatus <> 'inejecutable' OR COALESCE(TRIM(justificacion_inejecutable), '') <> '')
+);
+
+CREATE TABLE etapas_rubro (
+  id         SMALLINT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  rubro_id   SMALLINT      NULL,
+  orden      TINYINT       NOT NULL,
+  nombre_es  VARCHAR(80)   NOT NULL,
+  nombre_en  VARCHAR(80)   NOT NULL,
+  peso       DECIMAL(5,2)  NOT NULL,
+  UNIQUE KEY uk_etapa_orden (rubro_id, orden),
+  CONSTRAINT fk_etapa_rubro FOREIGN KEY (rubro_id) REFERENCES rubros(id) ON DELETE CASCADE,
+  CONSTRAINT ck_etapa_peso  CHECK (peso > 0 AND peso <= 100 AND orden > 0)
+);
+
+CREATE TABLE etapas_proyecto (
+  proyecto_id    BIGINT        NOT NULL,
+  etapa_id       SMALLINT      NOT NULL,
+  evidencia      VARCHAR(250)  NOT NULL,
+  usuario_id     INT           NULL,
+  cumplida_en    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (proyecto_id, etapa_id),
+  CONSTRAINT fk_ep_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id) ON DELETE CASCADE,
+  CONSTRAINT fk_ep_etapa    FOREIGN KEY (etapa_id) REFERENCES etapas_rubro(id),
+  CONSTRAINT fk_ep_usuario  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT ck_ep_evidencia CHECK (COALESCE(TRIM(evidencia), '') <> '')
+);
+
+CREATE TABLE reportes (
+  id                  BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  proyecto_id         BIGINT       NOT NULL,
+  autor_id            INT          NOT NULL DEFAULT 0,
+  tipo                VARCHAR(13) NOT NULL CHECK (tipo IN ('avance', 'irregularidad')),
+  descripcion         VARCHAR(500) NOT NULL,
+  estatus             VARCHAR(9) NOT NULL DEFAULT 'pendiente' CHECK (estatus IN ('pendiente', 'atendido', 'eliminado')),
+  respuesta           VARCHAR(250) NULL,
+  motivo_eliminacion  VARCHAR(250) NULL,
+  revisado_por        INT          NULL,
+  revisado_en         DATETIME     NULL,
+  creado_en           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_reportes_proyecto (proyecto_id, creado_en),
+  CONSTRAINT fk_rep_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_rep_autor    FOREIGN KEY (autor_id) REFERENCES ciudadanos(usuario_id),
+  CONSTRAINT fk_rep_revisor  FOREIGN KEY (revisado_por) REFERENCES funcionarios(usuario_id),
+  CONSTRAINT ck_rep_texto     CHECK (COALESCE(TRIM(descripcion), '') <> ''),
+  CONSTRAINT ck_rep_atendido  CHECK (estatus <> 'atendido'  OR COALESCE(TRIM(respuesta), '') <> ''),
+  CONSTRAINT ck_rep_eliminado CHECK (estatus <> 'eliminado' OR COALESCE(TRIM(motivo_eliminacion), '') <> '')
+);
+
+CREATE TABLE reporte_fotos (
+  id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  reporte_id    BIGINT       NOT NULL,
+  archivo_id    BIGINT       NOT NULL UNIQUE,
+  orden         TINYINT      NOT NULL DEFAULT 1,
+  subida_en     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_foto_reporte FOREIGN KEY (reporte_id) REFERENCES reportes(id),
+  CONSTRAINT fk_foto_archivo FOREIGN KEY (archivo_id) REFERENCES archivos(id)
+);
+
+CREATE TABLE comentarios_reporte (
+  id          BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  reporte_id  BIGINT       NOT NULL,
+  autor_id    INT          NOT NULL DEFAULT 0,
+  contenido   VARCHAR(250) NOT NULL,
+  estado      VARCHAR(9) NOT NULL DEFAULT 'visible' CHECK (estado IN ('visible', 'oculto', 'eliminado')),
+  creado_en   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cr_reporte FOREIGN KEY (reporte_id) REFERENCES reportes(id),
+  CONSTRAINT fk_cr_autor   FOREIGN KEY (autor_id) REFERENCES ciudadanos(usuario_id),
+  CONSTRAINT ck_cr_texto   CHECK (COALESCE(TRIM(contenido), '') <> '')
+);
+
+CREATE TABLE calificaciones (
+  proyecto_id   BIGINT       NOT NULL,
+  ciudadano_id  INT          NOT NULL DEFAULT 0,
+  puntuacion    TINYINT      NOT NULL,
+  comentario    VARCHAR(250) NULL,
+  creada_en     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (proyecto_id, ciudadano_id),
+  CONSTRAINT fk_cal_proyecto  FOREIGN KEY (proyecto_id) REFERENCES proyectos(id),
+  CONSTRAINT fk_cal_ciudadano FOREIGN KEY (ciudadano_id) REFERENCES ciudadanos(usuario_id),
+  CONSTRAINT ck_cal_puntuacion CHECK (puntuacion BETWEEN 1 AND 5)
+);
+
+CREATE TABLE notificaciones (
+  id           BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  usuario_id   INT          NOT NULL,
+  tipo         VARCHAR(30)  NOT NULL,
+  titulo       VARCHAR(100) NOT NULL,
+  mensaje      VARCHAR(500) NOT NULL,
+  proyecto_id  BIGINT       NULL,
+  leida        BOOLEAN      NOT NULL DEFAULT FALSE,
+  creada_en    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_notif_usuario (usuario_id, leida, creada_en),
+  CONSTRAINT fk_notif_usuario  FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notif_proyecto FOREIGN KEY (proyecto_id) REFERENCES proyectos(id)
+);
+
+CREATE TABLE correos_salida (
+  id                 BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  usuario_id         INT          NULL,
+  destinatario       VARCHAR(50)  NOT NULL,
+  asunto             VARCHAR(150) NOT NULL,
+  cuerpo             TEXT         NOT NULL,
+  plantilla          VARCHAR(40)  NULL,
+  notificacion_id    BIGINT       NULL,
+  estado             VARCHAR(9)   NOT NULL DEFAULT 'pendiente' CHECK (estado IN ('pendiente', 'enviado', 'fallido', 'cancelado')),
+  intentos           TINYINT      NOT NULL DEFAULT 0,
+  fuente_id          SMALLINT     NULL,
+  id_mensaje_externo VARCHAR(100) NULL,
+  ultimo_error       VARCHAR(500) NULL,
+  creado_en          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  enviado_en         DATETIME     NULL,
+  KEY ix_correos_pendientes (estado, creado_en),
+  CONSTRAINT fk_correo_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id) ON DELETE SET NULL,
+  CONSTRAINT fk_correo_notif   FOREIGN KEY (notificacion_id) REFERENCES notificaciones(id) ON DELETE SET NULL,
+  CONSTRAINT fk_correo_fuente  FOREIGN KEY (fuente_id) REFERENCES fuentes_externas(id)
+);
+
+CREATE TABLE reportes_generados (
+  id            BIGINT       NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  ciclo_id      INT          NULL,
+  tipo          VARCHAR(20)  NOT NULL CHECK (tipo IN ('cierre_ciclo', 'estadisticas', 'resultados_csv', 'bitacora_csv')),
+  archivo_id    BIGINT       NOT NULL,
+  filtros       JSON         NULL,
+  generado_por  INT          NULL,
+  generado_en   DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_repgen_ciclo   FOREIGN KEY (ciclo_id) REFERENCES ciclos(id),
+  CONSTRAINT fk_repgen_archivo FOREIGN KEY (archivo_id) REFERENCES archivos(id),
+  CONSTRAINT fk_repgen_usuario FOREIGN KEY (generado_por) REFERENCES usuarios(id)
+);
+
+CREATE TABLE bitacora (
+  id            BIGINT      NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  usuario_id    INT         NULL,
+  rol           VARCHAR(20) NULL,
+  alcaldia_id   SMALLINT    NULL,
+  ciclo_id      INT         NULL,
+  accion        VARCHAR(60) NOT NULL,
+  entidad       VARCHAR(40) NOT NULL,
+  entidad_id    VARCHAR(40) NULL,
+  detalle       JSON        NULL,
+  realizada_en  DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  KEY ix_bitacora_filtros (realizada_en, usuario_id, accion),
+  CONSTRAINT fk_bit_usuario FOREIGN KEY (usuario_id) REFERENCES usuarios(id)
+);
+
+CREATE VIEW v_indicadores_recientes AS
+SELECT iu.unidad_territorial_id,
+       MAX(CASE WHEN i.clave = 'poblacion'            THEN iu.valor END) AS poblacion_actual,
+       MAX(CASE WHEN i.clave = 'poblacion_flotante'   THEN iu.valor END) AS poblacion_flotante_actual,
+       MAX(CASE WHEN i.clave = 'indice_pobreza'       THEN iu.valor END) AS indice_pobreza_actual,
+       MAX(CASE WHEN i.clave = 'incidencia_delictiva' THEN iu.valor END) AS incidencia_delictiva_actual,
+       MAX(iu.sincronizado_en) AS actualizado_en
+FROM indicadores_unidad iu
+JOIN indicadores i ON i.id = iu.indicador_id
+WHERE iu.periodo = (SELECT MAX(x.periodo) FROM indicadores_unidad x
+                    WHERE x.unidad_territorial_id = iu.unidad_territorial_id AND x.indicador_id = iu.indicador_id)
+GROUP BY iu.unidad_territorial_id;
