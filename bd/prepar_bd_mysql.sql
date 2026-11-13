@@ -2275,3 +2275,549 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+CREATE VIEW v_panel_ciclo AS
+SELECT c.id AS ciclo_id, c.nombre AS ciclo, c.anio_simulado, c.estado,
+       f.id AS fase_id, f.orden, f.clave, f.nombre_es, f.nombre_en,
+       cf.fecha_inicio, cf.fecha_fin, (f.id = c.fase_actual_id) AS es_fase_activa,
+       f.que_ocurre_es, f.que_ocurre_en, f.que_puedes_hacer_es, f.que_puedes_hacer_en,
+       c.votacion_abierta, c.resultados_publicados_en
+FROM ciclos c
+CROSS JOIN fases f
+LEFT JOIN ciclo_fases cf ON cf.ciclo_id = c.id AND cf.fase_id = f.id;
+
+CREATE VIEW v_presupuesto_unidades AS
+SELECT cu.ciclo_id, a.id AS alcaldia_id, a.nombre AS alcaldia, ut.id AS unidad_territorial_id,
+       ut.clave, ut.nombre AS unidad_territorial, ut.tipo, cu.presupuesto_asignado
+FROM ciclo_unidades cu
+JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id;
+
+CREATE VIEW v_foro AS
+SELECT i.id, i.ciclo_id, i.unidad_territorial_id, i.contenido, i.rubro_id, r.nombre_es AS rubro,
+       i.total_apoyos, i.creada_en, i.autor_id, u.nombre_completo AS autor,
+       (SELECT COUNT(*) FROM comentarios_idea ci WHERE ci.idea_id = i.id AND ci.estado = 'visible') AS total_comentarios
+FROM ideas i
+JOIN rubros r ON r.id = i.rubro_id
+JOIN usuarios u ON u.id = i.autor_id
+WHERE i.estado = 'visible';
+
+CREATE VIEW v_boleta AS
+SELECT p.ciclo_id, p.unidad_territorial_id, p.numero_sorteo, p.id AS proyecto_id, p.folio,
+       p.titulo, p.descripcion, r.nombre_es AS rubro, p.costo_estimado,
+       (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid
+FROM proyectos p JOIN rubros r ON r.id = p.rubro_id
+WHERE p.numero_sorteo IS NOT NULL AND p.estado_moderacion = 'visible';
+
+CREATE VIEW v_ficha_proyecto AS
+SELECT p.id, p.folio, p.ciclo_id, c.nombre AS ciclo, c.anio_simulado,
+       a.id AS alcaldia_id, a.nombre AS alcaldia, ut.id AS unidad_territorial_id, ut.nombre AS unidad_territorial,
+       p.titulo, p.descripcion, p.rubro_id, r.nombre_es AS rubro, p.costo_estimado, cu.presupuesto_asignado,
+       p.calle, p.numero, p.referencias, p.latitud, p.longitud, p.estado_ubicacion,
+       (SELECT a.uuid FROM archivos a WHERE a.id = p.imagen_archivo_id AND a.eliminado_en IS NULL) AS imagen_uuid,
+       p.estatus, p.numero_sorteo, p.avance_porcentaje, p.monto_ejercido,
+       IF(c.resultados_publicados_en IS NOT NULL, rp.total_votos, NULL) AS total_votos,
+       (SELECT COUNT(*) FROM reporte_fotos f JOIN reportes re ON re.id = f.reporte_id
+          JOIN archivos a ON a.id = f.archivo_id
+         WHERE re.proyecto_id = p.id AND re.estatus <> 'eliminado' AND a.eliminado_en IS NULL) AS total_fotos,
+       (SELECT ROUND(AVG(ca.puntuacion), 2) FROM calificaciones ca WHERE ca.proyecto_id = p.id) AS calificacion_promedio
+FROM proyectos p
+JOIN ciclos c ON c.id = p.ciclo_id
+JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN rubros r ON r.id = p.rubro_id
+JOIN ciclo_unidades cu ON cu.ciclo_id = p.ciclo_id AND cu.unidad_territorial_id = p.unidad_territorial_id
+LEFT JOIN resultados_proyecto rp ON rp.proyecto_id = p.id
+WHERE p.estado_moderacion = 'visible' AND p.estatus <> 'retirado';
+
+CREATE VIEW v_galeria_proyecto AS
+SELECT re.proyecto_id, f.id AS foto_id, a.uuid AS archivo_uuid, a.tipo_mime, a.ancho_px, a.alto_px,
+       re.id AS reporte_id, re.tipo, re.descripcion, re.estatus, f.subida_en
+FROM reporte_fotos f
+JOIN reportes re ON re.id = f.reporte_id
+JOIN archivos a ON a.id = f.archivo_id
+WHERE re.estatus <> 'eliminado' AND a.eliminado_en IS NULL;
+
+CREATE VIEW v_reportes AS
+SELECT re.id, re.proyecto_id, p.folio, p.titulo AS proyecto, ut.alcaldia_id, a.nombre AS alcaldia,
+       re.tipo, re.descripcion, re.estatus, re.respuesta, re.creado_en, re.autor_id, u.nombre_completo AS autor,
+       (SELECT COUNT(*) FROM comentarios_reporte cr WHERE cr.reporte_id = re.id AND cr.estado = 'visible') AS total_comentarios
+FROM reportes re
+JOIN proyectos p ON p.id = re.proyecto_id
+JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN usuarios u ON u.id = re.autor_id
+WHERE re.estatus <> 'eliminado';
+
+CREATE VIEW v_resultados_consulta AS
+SELECT c.id AS ciclo_id, c.nombre AS ciclo, c.resultados_publicados_en, a.nombre AS alcaldia,
+       ut.clave AS clave_ut, ut.nombre AS unidad_territorial, p.numero_sorteo, p.folio, p.titulo,
+       r.nombre_es AS rubro, rp.total_votos, rp.posicion, COALESCE(ru.proyecto_ganador_id = p.id, FALSE) AS ganador,
+       ru.caso_especial, ru.metodo
+FROM resultados_proyecto rp
+JOIN proyectos p ON p.id = rp.proyecto_id
+JOIN ciclos c ON c.id = rp.ciclo_id
+JOIN unidades_territoriales ut ON ut.id = rp.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN rubros r ON r.id = p.rubro_id
+JOIN resultados_unidad ru ON ru.ciclo_id = rp.ciclo_id AND ru.unidad_territorial_id = rp.unidad_territorial_id;
+
+CREATE VIEW v_unidades_mapa AS
+SELECT ut.id, ut.clave, ut.nombre, ut.tipo, a.id AS alcaldia_id, a.nombre AS alcaldia,
+       ut.latitud, ut.longitud, ut.limite_geojson, ut.origen, ut.sincronizado_en
+FROM unidades_territoriales ut JOIN alcaldias a ON a.id = ut.alcaldia_id
+WHERE ut.activa;
+
+CREATE VIEW v_estado_integraciones AS
+SELECT f.id, f.clave, f.nombre, f.proveedor, f.tipo, f.entidad_destino, f.activa, f.frecuencia_minutos,
+       f.ultima_sincronizacion_exitosa,
+       (SELECT sy.estado FROM sincronizaciones sy WHERE sy.fuente_id = f.id ORDER BY sy.iniciada_en DESC LIMIT 1) AS ultimo_estado,
+       (SELECT sy.iniciada_en FROM sincronizaciones sy WHERE sy.fuente_id = f.id ORDER BY sy.iniciada_en DESC LIMIT 1) AS ultimo_intento,
+       (SELECT sy.con_error FROM sincronizaciones sy WHERE sy.fuente_id = f.id ORDER BY sy.iniciada_en DESC LIMIT 1) AS ultimos_errores,
+       IF(f.frecuencia_minutos IS NULL, NULL,
+          DATE_ADD(COALESCE(f.ultima_sincronizacion_exitosa, NOW()), INTERVAL f.frecuencia_minutos MINUTE)) AS proxima_sincronizacion
+FROM fuentes_externas f;
+
+CREATE VIEW v_atribuciones AS
+SELECT clave, nombre, proveedor, atribucion, licencia
+FROM fuentes_externas WHERE activa AND atribucion IS NOT NULL;
+
+CREATE VIEW v_est_participacion AS
+SELECT cu.ciclo_id, ut.alcaldia_id, a.nombre AS alcaldia, ut.id AS unidad_territorial_id,
+       ut.nombre AS unidad_territorial, ci.genero,
+       CASE WHEN TIMESTAMPDIFF(YEAR, ci.fecha_nacimiento, CURDATE()) < 30 THEN '18-29'
+            WHEN TIMESTAMPDIFF(YEAR, ci.fecha_nacimiento, CURDATE()) < 45 THEN '30-44'
+            WHEN TIMESTAMPDIFF(YEAR, ci.fecha_nacimiento, CURDATE()) < 60 THEN '45-59'
+            ELSE '60+' END AS rango_edad,
+       COUNT(*) AS registrados,
+       COUNT(pa.ciudadano_id) AS votantes
+FROM ciclo_unidades cu
+JOIN unidades_territoriales ut ON ut.id = cu.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN ciudadanos ci ON ci.unidad_territorial_id = cu.unidad_territorial_id
+LEFT JOIN participaciones pa ON pa.ciclo_id = cu.ciclo_id AND pa.ciudadano_id = ci.usuario_id
+GROUP BY cu.ciclo_id, ut.alcaldia_id, a.nombre, ut.id, ut.nombre, ci.genero, rango_edad;
+
+CREATE VIEW v_est_participacion_general AS
+SELECT ciclo_id, SUM(registrados) AS registrados, SUM(votantes) AS votantes,
+       ROUND(100 * SUM(votantes) / NULLIF(SUM(registrados), 0), 2) AS porcentaje
+FROM v_est_participacion GROUP BY ciclo_id;
+
+CREATE VIEW v_est_proyectos AS
+SELECT p.ciclo_id, ut.alcaldia_id, a.nombre AS alcaldia, p.unidad_territorial_id, p.rubro_id, r.nombre_es AS rubro,
+       SUM(p.estatus <> 'retirado')        AS registrados,
+       SUM(d.resultado = 'viable')         AS viables,
+       SUM(d.resultado = 'no_viable')      AS no_viables,
+       COUNT(ru.proyecto_ganador_id)       AS ganadores
+FROM proyectos p
+JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN rubros r ON r.id = p.rubro_id
+LEFT JOIN dictamenes d ON d.proyecto_id = p.id AND d.emitido_en IS NOT NULL
+LEFT JOIN resultados_unidad ru ON ru.proyecto_ganador_id = p.id
+GROUP BY p.ciclo_id, ut.alcaldia_id, a.nombre, p.unidad_territorial_id, p.rubro_id, r.nombre_es;
+
+CREATE VIEW v_est_seguimiento AS
+SELECT p.ciclo_id, ut.alcaldia_id, a.nombre AS alcaldia, p.unidad_territorial_id, p.rubro_id, r.nombre_es AS rubro,
+       p.id AS proyecto_id, p.folio, p.estatus, p.avance_porcentaje, p.monto_ejercido, cu.presupuesto_asignado,
+       (SELECT COUNT(*) FROM reportes re WHERE re.proyecto_id = p.id AND re.estatus <> 'eliminado') AS reportes,
+       (SELECT COUNT(*) FROM reportes re WHERE re.proyecto_id = p.id AND re.tipo = 'irregularidad'
+                                           AND re.estatus <> 'eliminado') AS irregularidades,
+       (SELECT COUNT(*) FROM reportes re WHERE re.proyecto_id = p.id AND re.estatus = 'atendido') AS reportes_atendidos,
+       (SELECT ROUND(AVG(ca.puntuacion), 2) FROM calificaciones ca WHERE ca.proyecto_id = p.id) AS calificacion_promedio,
+       (SELECT COUNT(*) FROM calificaciones ca WHERE ca.proyecto_id = p.id) AS total_calificaciones
+FROM proyectos p
+JOIN resultados_unidad ru ON ru.proyecto_ganador_id = p.id
+JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id
+JOIN alcaldias a ON a.id = ut.alcaldia_id
+JOIN rubros r ON r.id = p.rubro_id
+JOIN ciclo_unidades cu ON cu.ciclo_id = p.ciclo_id AND cu.unidad_territorial_id = p.unidad_territorial_id;
+
+CREATE VIEW v_bitacora AS
+SELECT b.id, b.realizada_en, b.usuario_id, u.nombre_completo AS responsable, b.rol,
+       b.alcaldia_id, a.nombre AS alcaldia, b.ciclo_id, b.accion, b.entidad, b.entidad_id, b.detalle
+FROM bitacora b
+LEFT JOIN usuarios u ON u.id = b.usuario_id
+LEFT JOIN alcaldias a ON a.id = b.alcaldia_id;
+
+INSERT INTO parametros_sistema (clave, valor, tipo, descripcion) VALUES
+  ('sesion_minutos_inactividad', '15', 'entero', 'Cierre automático de sesión por inactividad (RNF)'),
+  ('login_intentos_max', '5', 'entero', 'Intentos fallidos antes de bloquear temporalmente la cuenta'),
+  ('login_minutos_bloqueo', '15', 'entero', 'Minutos de bloqueo tras exceder los intentos'),
+  ('imagen_tamano_max_bytes', '5242880', 'entero', 'Tamaño máximo de imágenes: 5 MB (RNF)'),
+  ('reporte_fotos_max', '5', 'entero', 'Fotografías máximas por reporte de Foto Denuncia'),
+  ('presupuesto_porcentaje_ley', '4', 'decimal', 'Porcentaje del presupuesto de las alcaldías (art. 117 LPC CDMX)'),
+  ('correo_remitente', 'no-responder@prepar.mx', 'texto', 'Remitente de los correos del sistema'),
+  ('nominatim_user_agent', 'Prepar-Simulador/1.0 (contacto@prepar.mx)', 'texto',
+   'Identificación obligatoria para usar Nominatim (cambiar por un correo real del equipo)'),
+  ('aviso_simulador_es', 'Simulador educativo sin validez oficial. No tiene relación con el IECM ni con las alcaldías.', 'texto',
+   'Aviso visible en todas las páginas (RNF)'),
+  ('aviso_simulador_en', 'Educational simulator with no official validity. Not affiliated with IECM or the boroughs.', 'texto',
+   'Notice shown on every page (RNF)');
+
+INSERT INTO fuentes_externas (clave, nombre, proveedor, tipo, entidad_destino, url_base, recurso, formato,
+                              autenticacion, variable_credencial, frecuencia_minutos, limite_por_segundo,
+                              atribucion, licencia, activa) VALUES
+  ('datos_cdmx_alcaldias', 'Límites de las alcaldías', 'Portal de Datos Abiertos CDMX', 'datos', 'alcaldias',
+   'https://datos.cdmx.gob.mx/api/3/action/datastore_search', NULL, 'geojson', 'ninguna', NULL, 43200, NULL,
+   'Fuente: Portal de Datos Abiertos de la Ciudad de México', NULL, TRUE),
+  ('datos_cdmx_unidades', 'Colonias / unidades territoriales', 'Portal de Datos Abiertos CDMX', 'datos', 'unidades_territoriales',
+   'https://datos.cdmx.gob.mx/api/3/action/datastore_search', NULL, 'geojson', 'ninguna', NULL, 43200, NULL,
+   'Fuente: Portal de Datos Abiertos de la Ciudad de México', NULL, TRUE),
+  ('datos_cdmx_delitos', 'Incidencia delictiva por colonia', 'Portal de Datos Abiertos CDMX (FGJ)', 'datos', 'indicadores_unidad',
+   'https://datos.cdmx.gob.mx/api/3/action/datastore_search', NULL, 'json', 'ninguna', NULL, 10080, NULL,
+   'Fuente: Fiscalía General de Justicia, Portal de Datos Abiertos CDMX', NULL, TRUE),
+  ('indice_desarrollo_social', 'Índice de pobreza / desarrollo social por colonia', 'Evalúa CDMX', 'datos', 'indicadores_unidad',
+   'https://datos.cdmx.gob.mx/api/3/action/datastore_search', NULL, 'json', 'ninguna', NULL, 43200, NULL,
+   'Fuente: Evalúa CDMX', NULL, TRUE),
+  ('inegi_poblacion', 'Población (Censo de Población y Vivienda)', 'INEGI', 'datos', 'indicadores_unidad',
+   'https://www.inegi.org.mx/app/api/', NULL, 'json', 'token', 'INEGI_TOKEN', 43200, NULL,
+   'Fuente: INEGI', NULL, FALSE),
+  ('directorio_alcaldias', 'Directorio de alcaldías y sedes de atención', 'Portal de Datos Abiertos CDMX', 'datos', 'directorio',
+   'https://datos.cdmx.gob.mx/api/3/action/datastore_search', NULL, 'json', 'ninguna', NULL, 10080, NULL,
+   'Fuente: Portal de Datos Abiertos de la Ciudad de México', NULL, TRUE),
+  ('nominatim', 'Geocodificación de direcciones', 'OpenStreetMap Nominatim', 'geocodificacion', 'geocodificaciones',
+   'https://nominatim.openstreetmap.org/search', NULL, 'json', 'ninguna', NULL, NULL, 1.00,
+   '© OpenStreetMap contributors', 'ODbL', TRUE),
+  ('osm_mosaicos', 'Mapa base (mosaicos)', 'OpenStreetMap', 'mapa', NULL,
+   'https://tile.openstreetmap.org/{z}/{x}/{y}.png', NULL, 'png', 'ninguna', NULL, NULL, NULL,
+   '© OpenStreetMap contributors', 'ODbL', TRUE),
+  ('correo', 'Envío de correos', 'Brevo', 'correo', 'correos_salida',
+   'https://api.brevo.com/v3/smtp/email', NULL, 'json', 'api_key', 'CORREO_API_KEY', NULL, NULL,
+   NULL, NULL, FALSE);
+
+INSERT INTO indicadores (clave, nombre_es, nombre_en, unidad_medida, descripcion) VALUES
+  ('poblacion', 'Población', 'Population', 'personas', 'Población residente de la unidad territorial'),
+  ('poblacion_flotante', 'Población flotante', 'Floating population', 'personas', 'Personas que transitan o trabajan en la unidad'),
+  ('indice_pobreza', 'Índice de pobreza', 'Poverty index', 'índice 0–1', 'Debe guardarse normalizado de 0 (menor) a 1 (mayor pobreza)'),
+  ('incidencia_delictiva', 'Incidencia delictiva', 'Crime incidence', 'delitos', 'Número de delitos del periodo; se normaliza al crear el ciclo');
+
+INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUES
+  ('1.0', 'Tus datos de fecha de nacimiento, género y residencia se usan únicamente para estadísticas agregadas del simulador. Prepar es un simulador educativo sin validez oficial.',
+   'Your date of birth, gender and residence are used only for aggregated statistics of the simulator. Prepar is an educational simulator with no official validity.',
+   '2026-01-01');
+
+INSERT INTO avisos_privacidad (version, texto_es, texto_en, vigente_desde) VALUES
+  ('2.0', 'Aviso de privacidad integral de Prepar
+
+1. Responsable. El equipo de Prepar, simulador educativo del Presupuesto Participativo de la Ciudad de México, es responsable del tratamiento de tus datos personales. Contacto: equipoprepar@gmail.com.
+
+2. Datos que tratamos. Nombre, correo electrónico, contraseña (se guarda solo cifrada con bcrypt, nadie puede leerla), fecha de nacimiento, género, colonia, barrio o pueblo donde vives, foto de perfil si decides subirla, y lo que publiques en el simulador: ideas, comentarios, proyectos, reportes y fotos. No tratamos datos personales sensibles. Tu voto es secreto: se guarda separado de tu cuenta y no puede vincularse contigo.
+
+3. Finalidades. Crear y proteger tu cuenta, confirmar que el correo es tuyo, permitirte participar en el foro, registrar proyectos y votar en la simulación, enviarte avisos del simulador y elaborar estadísticas agregadas y anónimas. Todas son necesarias para el servicio; no usamos tus datos para publicidad ni para otros fines.
+
+4. Transferencias y encargados. No vendemos ni transferimos tus datos. Para operar usamos servicios que los procesan solo por nuestra cuenta: el alojamiento del sitio, la base de datos, el proveedor de envío de correos y, si eliges entrar con Google, Google (de quien solo recibimos tu nombre y tu correo verificado). Las direcciones de los proyectos, no las de las personas, se ubican en el mapa con OpenStreetMap.
+
+5. Derechos ARCO. Puedes acceder a tus datos y rectificarlos en cualquier momento desde «Mi perfil». Para cancelarlos usa «Eliminar mi cuenta» en «Mi perfil»: se borran tu nombre, correo, fecha de nacimiento, género, foto y sesiones; tus votos ya son anónimos y se conservan para no alterar los resultados, y lo que publicaste queda a nombre de «Cuenta eliminada». Para oponerte a algún tratamiento o hacer cualquier otra solicitud ARCO, escribe a equipoprepar@gmail.com con tu nombre, el correo de tu cuenta y lo que solicitas; te responderemos en los plazos que establece la ley.
+
+6. Revocación del consentimiento. Puedes revocar tu consentimiento en cualquier momento eliminando tu cuenta, y dejar de recibir correos de avisos desde «Mi perfil».
+
+7. Seguridad. Contraseñas cifradas, conexión segura (HTTPS), sesiones que caducan por inactividad, verificación del correo y bitácora de las acciones administrativas.
+
+8. Cambios a este aviso. Cualquier cambio se publicará en esta página con su nueva versión y fecha.
+
+9. Marco legal. Ley Federal de Protección de Datos Personales en Posesión de los Particulares, publicada en el Diario Oficial de la Federación el 20 de marzo de 2025. La autoridad en la materia es la Secretaría de Anticorrupción y Buen Gobierno.',
+   'Prepar comprehensive privacy notice
+
+1. Data controller. The Prepar team, an educational simulator of Mexico City''s Participatory Budget, is responsible for processing your personal data. Contact: equipoprepar@gmail.com.
+
+2. Data we process. Name, email, password (stored only encrypted with bcrypt, nobody can read it), date of birth, gender, the neighborhood where you live, a profile photo if you choose to upload one, and what you publish in the simulator: ideas, comments, projects, reports and photos. We do not process sensitive personal data. Your vote is secret: it is stored separately from your account and cannot be linked to you.
+
+3. Purposes. Creating and protecting your account, confirming that the email is yours, letting you take part in the forum, register projects and vote in the simulation, sending you simulator notices and producing aggregated, anonymous statistics. All of them are necessary for the service; we do not use your data for advertising or any other purpose.
+
+4. Transfers and processors. We do not sell or transfer your data. To operate we use services that process it only on our behalf: site hosting, the database, the email delivery provider and, if you choose to sign in with Google, Google (from which we only receive your name and verified email). Project addresses, not personal addresses, are placed on the map with OpenStreetMap.
+
+5. ARCO rights. You can access and correct your data at any time from «My profile». To cancel it, use «Delete my account» in «My profile»: your name, email, date of birth, gender, photo and sessions are erased; your votes are already anonymous and are kept so results are not altered, and what you published remains under «Deleted account». To object to any processing or make any other ARCO request, write to equipoprepar@gmail.com with your name, your account email and your request; we will reply within the time limits set by law.
+
+6. Withdrawing consent. You can withdraw your consent at any time by deleting your account, and stop receiving notice emails from «My profile».
+
+7. Security. Encrypted passwords, secure connection (HTTPS), sessions that expire after inactivity, email verification and a log of administrative actions.
+
+8. Changes to this notice. Any change will be published on this page with its new version and date.
+
+9. Legal framework. Mexico''s Federal Law on the Protection of Personal Data Held by Private Parties, published in the Official Gazette of the Federation on March 20, 2025. The competent authority is the Ministry of Anti-Corruption and Good Government.',
+   '2026-11-01');
+
+INSERT INTO terminos_condiciones (version, texto_es, texto_en, vigente_desde) VALUES
+  ('1.0', 'Términos y condiciones de uso de Prepar
+
+1. Qué es Prepar. Prepar es un simulador educativo del Presupuesto Participativo de la Ciudad de México. No tiene validez oficial ni relación con el IECM ni con las alcaldías: los proyectos, votos, montos y resultados son de práctica.
+
+2. Tu cuenta. Debes tener 18 años o más y dar datos verdaderos. Tu cuenta es personal: no compartas tu contraseña. Eres responsable de lo que se haga con ella. Solo puedes tener una cuenta de ciudadano.
+
+3. Uso correcto. Publica ideas, comentarios, proyectos y fotos relacionados con tu colonia y con respeto. Está prohibido publicar insultos, discriminación, datos personales de otras personas, publicidad, contenido falso o fotos que no sean tuyas o que no tengas permiso de usar.
+
+4. Moderación. Los funcionarios pueden ocultar o eliminar publicaciones y reportes que no cumplan estas reglas, siempre con un motivo que queda en la bitácora. El Administrador puede suspender cuentas que las incumplan.
+
+5. Fotos y contenidos. Conservas la autoría de lo que subes, pero autorizas a Prepar a mostrarlo dentro del simulador. Solo se aceptan imágenes JPG o PNG.
+
+6. Privacidad. Tus datos se tratan como explica el Aviso de privacidad. Tu voto es secreto: el sistema guarda que participaste, pero no por quién votaste.
+
+7. Cambios. Si estos términos cambian, te pediremos aceptarlos de nuevo la próxima vez que inicies sesión.',
+   'Prepar Terms and Conditions of Use
+
+1. What Prepar is. Prepar is an educational simulator of Mexico City''s Participatory Budget. It has no official validity and no relation to the IECM or the boroughs: projects, votes, amounts and results are for practice.
+
+2. Your account. You must be 18 or older and give truthful information. Your account is personal: do not share your password. You are responsible for what is done with it. You may only have one resident account.
+
+3. Proper use. Post ideas, comments, projects and photos related to your neighborhood, respectfully. Insults, discrimination, other people''s personal data, advertising, false content or photos that are not yours or that you have no permission to use are forbidden.
+
+4. Moderation. Officials may hide or delete posts and reports that break these rules, always with a reason recorded in the activity log. The Administrator may suspend accounts that break them.
+
+5. Photos and content. You keep authorship of what you upload, but you allow Prepar to show it inside the simulator. Only JPG or PNG images are accepted.
+
+6. Privacy. Your data is handled as explained in the Privacy notice. Your vote is secret: the system records that you took part, but not who you voted for.
+
+7. Changes. If these terms change, we will ask you to accept them again the next time you sign in.',
+   '2026-01-01');
+
+INSERT INTO alcaldias (clave, nombre) VALUES
+  ('AOB', 'Álvaro Obregón'),        ('AZC', 'Azcapotzalco'),
+  ('BJU', 'Benito Juárez'),         ('COY', 'Coyoacán'),
+  ('CUJ', 'Cuajimalpa de Morelos'), ('CUH', 'Cuauhtémoc'),
+  ('GAM', 'Gustavo A. Madero'),     ('IZC', 'Iztacalco'),
+  ('IZP', 'Iztapalapa'),            ('MAC', 'La Magdalena Contreras'),
+  ('MHI', 'Miguel Hidalgo'),        ('MAL', 'Milpa Alta'),
+  ('TLH', 'Tláhuac'),               ('TLP', 'Tlalpan'),
+  ('VCA', 'Venustiano Carranza'),   ('XOC', 'Xochimilco');
+
+INSERT INTO unidades_territoriales (alcaldia_id, clave, nombre, tipo, latitud, longitud)
+SELECT a.id, v.clave, v.nombre, v.tipo, v.lat, v.lng
+FROM (
+  SELECT 'AOB' alc, 'AOB-001' clave, 'San Ángel' nombre, 'colonia' tipo, 19.3467 lat, -99.1900 lng
+  UNION ALL SELECT 'AOB','AOB-002','Olivar de los Padres','colonia',19.3330,-99.2170
+  UNION ALL SELECT 'AZC','AZC-001','Clavería','colonia',19.4710,-99.1850
+  UNION ALL SELECT 'AZC','AZC-002','San Álvaro','colonia',19.4590,-99.1830
+  UNION ALL SELECT 'BJU','BJU-001','Narvarte Poniente','colonia',19.3960,-99.1560
+  UNION ALL SELECT 'BJU','BJU-002','Del Valle Centro','colonia',19.3850,-99.1650
+  UNION ALL SELECT 'COY','COY-001','Del Carmen','colonia',19.3500,-99.1620
+  UNION ALL SELECT 'COY','COY-002','Santa Úrsula Coapa','pueblo_originario',19.3050,-99.1430
+  UNION ALL SELECT 'CUJ','CUJ-001','Cuajimalpa','pueblo_originario',19.3570,-99.2990
+  UNION ALL SELECT 'CUJ','CUJ-002','El Contadero','pueblo_originario',19.3440,-99.2900
+  UNION ALL SELECT 'CUH','CUH-001','Roma Norte','colonia',19.4190,-99.1620
+  UNION ALL SELECT 'CUH','CUH-002','Guerrero','colonia',19.4420,-99.1450
+  UNION ALL SELECT 'GAM','GAM-001','Lindavista','colonia',19.4880,-99.1300
+  UNION ALL SELECT 'GAM','GAM-002','San Felipe de Jesús','colonia',19.4930,-99.0720
+  UNION ALL SELECT 'IZC','IZC-001','Agrícola Oriental','colonia',19.3950,-99.0700
+  UNION ALL SELECT 'IZC','IZC-002','Santa Anita','barrio',19.3950,-99.1240
+  UNION ALL SELECT 'IZP','IZP-001','San Lorenzo Tezonco','pueblo_originario',19.3080,-99.0670
+  UNION ALL SELECT 'IZP','IZP-002','Unidad Habitacional Vicente Guerrero','unidad_habitacional',19.3570,-99.0560
+  UNION ALL SELECT 'MAC','MAC-001','San Jerónimo Lídice','colonia',19.3230,-99.2220
+  UNION ALL SELECT 'MAC','MAC-002','La Magdalena','pueblo_originario',19.2990,-99.2440
+  UNION ALL SELECT 'MHI','MHI-001','Tacubaya','colonia',19.4030,-99.1870
+  UNION ALL SELECT 'MHI','MHI-002','Anáhuac','colonia',19.4400,-99.1800
+  UNION ALL SELECT 'MAL','MAL-001','Villa Milpa Alta','pueblo_originario',19.1920,-99.0230
+  UNION ALL SELECT 'MAL','MAL-002','San Pedro Atocpan','pueblo_originario',19.2010,-99.0490
+  UNION ALL SELECT 'TLH','TLH-001','San Francisco Tlaltenco','pueblo_originario',19.2930,-99.0230
+  UNION ALL SELECT 'TLH','TLH-002','Del Mar','colonia',19.2960,-99.0540
+  UNION ALL SELECT 'TLP','TLP-001','Tlalpan Centro','colonia',19.2920,-99.1700
+  UNION ALL SELECT 'TLP','TLP-002','San Andrés Totoltepec','pueblo_originario',19.2470,-99.1780
+  UNION ALL SELECT 'VCA','VCA-001','Moctezuma 2a Sección','colonia',19.4290,-99.1000
+  UNION ALL SELECT 'VCA','VCA-002','Jardín Balbuena','colonia',19.4180,-99.1150
+  UNION ALL SELECT 'XOC','XOC-001','Barrio La Asunción','barrio',19.2620,-99.1050
+  UNION ALL SELECT 'XOC','XOC-002','Santa Cruz Acalpixca','pueblo_originario',19.2580,-99.0740
+) v
+JOIN alcaldias a ON a.clave = v.alc
+ORDER BY v.clave;
+
+INSERT INTO fases (clave, orden, nombre_es, nombre_en, que_ocurre_es, que_puedes_hacer_es, que_ocurre_en, que_puedes_hacer_en) VALUES
+  ('convocatoria', 1, 'Convocatoria', 'Call for participation',
+   'El IECM publica la convocatoria con las bases, fechas, requisitos, rubros y el presupuesto de cada unidad territorial.',
+   'Consulta el calendario del ciclo y el presupuesto asignado a tu unidad territorial.',
+   'The Electoral Institute publishes the call with rules, dates, requirements, categories and each territorial unit''s budget.',
+   'Check the cycle calendar and the budget assigned to your territorial unit.'),
+  ('diagnostico_registro', 2, 'Diagnóstico y Registro', 'Assessment and Registration',
+   'Los vecinos se reúnen en asambleas para identificar necesidades y registran sus proyectos.',
+   'Publica, comenta y apoya ideas en el Foro Vecinal y registra formalmente tu proyecto.',
+   'Neighbors meet to identify needs and register their projects.',
+   'Post, comment and support ideas in the Neighborhood Forum and register your project.'),
+  ('dictaminacion', 3, 'Dictaminación', 'Feasibility review',
+   'El Órgano Dictaminador de cada alcaldía evalúa la viabilidad técnica, jurídica, ambiental y financiera de los proyectos.',
+   'Da seguimiento al dictamen de tu proyecto; recibirás una notificación con el resultado.',
+   'Each borough''s review board assesses the technical, legal, environmental and financial feasibility of projects.',
+   'Follow your project''s review; you will be notified of the result.'),
+  ('sorteo_difusion', 4, 'Sorteo y Difusión', 'Draw and Promotion',
+   'Se sortea el número con el que cada proyecto viable aparecerá en la boleta y se difunden los proyectos.',
+   'Conoce la boleta de tu unidad territorial y los proyectos que podrás votar.',
+   'A draw assigns each feasible project its number on the ballot, and projects are promoted.',
+   'Review your territorial unit''s ballot and the projects you can vote for.'),
+  ('consulta', 5, 'Consulta', 'Vote',
+   'La ciudadanía vota por internet o en mesas receptoras por un proyecto de su unidad territorial.',
+   'Emite tu voto único y secreto y descarga tu comprobante de participación.',
+   'Residents vote online or at polling stations for one project in their territorial unit.',
+   'Cast your single secret vote and download your participation receipt.'),
+  ('resultados', 6, 'Resultados y Asamblea de Información', 'Results and Information Assembly',
+   'Se computan los votos, se resuelven los casos especiales y se informan los proyectos ganadores.',
+   'Consulta los proyectos ganadores en el Mapa de Proyectos.',
+   'Votes are counted, special cases are resolved and winning projects are announced.',
+   'See the winning projects on the Project Map.'),
+  ('ejecucion_seguimiento', 7, 'Ejecución y Seguimiento', 'Execution and Monitoring',
+   'La alcaldía ejecuta los proyectos ganadores con el presupuesto asignado.',
+   'Revisa el avance de las obras y sube fotografías o reportes en Foto Denuncia.',
+   'The borough carries out the winning projects with the assigned budget.',
+   'Check progress and upload photos or reports in Photo Report.'),
+  ('evaluacion', 8, 'Evaluación y Rendición de Cuentas', 'Evaluation and Accountability',
+   'Se informa el avance y el gasto de los proyectos en una asamblea de rendición de cuentas.',
+   'Califica del 1 al 5 el cumplimiento del proyecto de tu unidad territorial.',
+   'Progress and spending are reported in an accountability assembly.',
+   'Rate from 1 to 5 how well your territorial unit''s project was delivered.');
+
+INSERT INTO rubros (nombre_es, nombre_en, descripcion) VALUES
+  ('Mejoramiento de espacios públicos', 'Public space improvement',
+   'Parques, plazas, áreas verdes, banquetas y mobiliario urbano.'),
+  ('Infraestructura urbana, obras y servicios', 'Urban infrastructure, works and services',
+   'Obras de infraestructura y servicios para la comunidad.'),
+  ('Actividades recreativas, deportivas y culturales', 'Recreational, sports and cultural activities',
+   'Talleres, eventos y equipamiento recreativo, deportivo y cultural.');
+
+INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso)
+SELECT r.id, e.orden, e.nombre_es, e.nombre_en, e.peso FROM rubros r JOIN (
+  SELECT 'Mejoramiento de espacios públicos' AS rubro, 1 AS orden, 'Planeación y permisos' AS nombre_es, 'Planning and permits' AS nombre_en, 10 AS peso
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 2, 'Compra de materiales o contratación', 'Materials purchase or contracting', 20
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 3, 'Preparación del sitio', 'Site preparation', 15
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 4, 'Trabajos principales', 'Main works', 35
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 5, 'Detalles finales y limpieza', 'Finishing touches and cleanup', 10
+  UNION ALL SELECT 'Mejoramiento de espacios públicos', 6, 'Entrega a los vecinos', 'Handover to residents', 10
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 1, 'Proyecto ejecutivo y permisos', 'Detailed design and permits', 15
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 2, 'Licitación o contratación', 'Tender or contracting', 15
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 3, 'Inicio de obra', 'Construction start', 10
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 4, 'Obra al 50 %', 'Works 50 % done', 25
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 5, 'Obra terminada', 'Works finished', 25
+  UNION ALL SELECT 'Infraestructura urbana, obras y servicios', 6, 'Pruebas y entrega', 'Testing and handover', 10
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 1, 'Planeación y calendario', 'Planning and schedule', 15
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 2, 'Contratación de instructores o compra de equipo', 'Hiring instructors or buying equipment', 25
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 3, 'Difusión con los vecinos', 'Outreach to residents', 10
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 4, 'Actividades en curso', 'Activities under way', 35
+  UNION ALL SELECT 'Actividades recreativas, deportivas y culturales', 5, 'Cierre y evaluación', 'Closing and evaluation', 15
+) e ON e.rubro = r.nombre_es;
+
+INSERT INTO etapas_rubro (rubro_id, orden, nombre_es, nombre_en, peso) VALUES
+  (NULL, 1, 'Planeación y permisos', 'Planning and permits', 15),
+  (NULL, 2, 'Contratación o compras', 'Contracting or purchases', 20),
+  (NULL, 3, 'Inicio de los trabajos', 'Work start', 15),
+  (NULL, 4, 'Trabajos principales', 'Main works', 35),
+  (NULL, 5, 'Entrega a los vecinos', 'Handover to residents', 15);
+
+INSERT INTO criterios_dictamen (clave, orden, nombre_es, nombre_en, descripcion) VALUES
+  ('viabilidad_tecnica',       1, 'Viabilidad técnica',    'Technical feasibility',     'El proyecto puede realizarse técnicamente en el sitio propuesto.'),
+  ('viabilidad_juridica',      2, 'Viabilidad jurídica',   'Legal feasibility',         'No contraviene la normatividad ni el uso de suelo.'),
+  ('viabilidad_ambiental',     3, 'Viabilidad ambiental',  'Environmental feasibility', 'No genera daño ambiental.'),
+  ('viabilidad_financiera',    4, 'Viabilidad financiera', 'Financial feasibility',     'El costo estimado es congruente con el alcance.'),
+  ('impacto_comunitario',      5, 'Impacto comunitario',   'Community impact',          'Atiende una necesidad de la comunidad.'),
+  ('beneficio_colectivo',      6, 'Beneficio colectivo',   'Collective benefit',        'Beneficia a la colectividad y no a particulares.'),
+  ('costo_dentro_presupuesto', 7, 'Costo no mayor al presupuesto de la unidad territorial',
+                                  'Cost within the unit''s budget', 'El costo no excede el presupuesto asignado.'),
+  ('no_sustituye_servicios',   8, 'No sustituye servicios de la alcaldía', 'Does not replace borough services',
+   'No sustituye alumbrado, limpia, poda o pavimentación a cargo de la alcaldía.');
+
+INSERT INTO directorio (alcaldia_id, tipo, cargo, temas)
+SELECT id, 'alcaldia', CONCAT('Alcaldía ', nombre), 'Presupuesto participativo, atención ciudadana'
+FROM alcaldias;
+
+INSERT INTO directorio_ciudad (orden, institucion, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web, fuente_nombre, fuente_url, consultado_en) VALUES
+  (10, 'Gobierno de la Ciudad de México', 'Jefa de Gobierno de la Ciudad de México', 'Clara Marina Brugada Molina',
+   'Atención ciudadana del Gobierno de la Ciudad', 'Plaza de la Constitución 2, Col. Centro, C.P. 06000, Cuauhtémoc (Antiguo Palacio del Ayuntamiento)',
+   '5553458000', 'atencionciudadanajg@cdmx.gob.mx', 'https://www.jefaturadegobierno.cdmx.gob.mx',
+   'Jefatura de Gobierno de la CDMX, directorio oficial', 'https://www.jefaturadegobierno.cdmx.gob.mx/dependencia/directorio', '2026-10-31'),
+  (20, 'Instituto Electoral de la Ciudad de México (IECM)', 'Oficinas centrales del IECM', 'Patricia Avendaño (consejera presidenta)',
+   'Organiza la consulta de presupuesto participativo y la elección de las COPACO', 'Huizaches 25, Col. Rancho Los Colorines, C.P. 14386, Tlalpan',
+   '5554833800', NULL, 'https://www.iecm.mx',
+   'IECM, directorio institucional', 'https://www.iecm.mx/acerca-del-iecm/directorio/', '2026-10-31'),
+  (30, 'Instituto Electoral de la Ciudad de México (IECM)', 'CITIECM: dudas sobre la consulta', NULL,
+   'Línea gratuita 800 433 3222 · WhatsApp 56 6051 0709 · Participatel 55 2652 0989', NULL,
+   '8004333222', NULL, 'https://www.iecm.mx',
+   'IECM, Convocatoria Única COPACO 2026 y Consulta de Presupuesto Participativo 2026 y 2027 (PDF)', 'https://siproe2026.iecm.mx/downloads/Convocatoria_Unica_2026_y_2027_Verion_IECM-ACU-CG-013-2026.pdf', '2026-10-31'),
+  (40, 'Tribunal Electoral de la Ciudad de México (TECDMX)', 'Oficinas del Tribunal Electoral', NULL,
+   'Resuelve las inconformidades sobre la consulta de presupuesto participativo y la elección de las COPACO', 'Magdalena 21, Col. Del Valle Centro, C.P. 03100, Benito Juárez',
+   '5553404600', NULL, 'https://www.tecdmx.org.mx',
+   'TECDMX, página de contacto', 'https://www.tecdmx.org.mx/index.php/contacto/', '2026-11-10'),
+  (50, 'Congreso de la Ciudad de México', 'Palacio Legislativo de Donceles', NULL,
+   'Aprueba la Ley de Participación Ciudadana y el presupuesto de la Ciudad, del que sale el presupuesto participativo', 'Donceles esq. Allende s/n, Col. Centro Histórico, C.P. 06010, Cuauhtémoc',
+   '5551301980', NULL, 'https://www.congresocdmx.gob.mx',
+   'Portal turístico oficial de la CDMX, ficha del Palacio Legislativo de Donceles', 'https://mexicocity.cdmx.gob.mx/venues/legislative-palace-donceles/', '2026-11-10'),
+  (60, 'Secretaría de la Contraloría General de la CDMX', 'Quejas y denuncias sobre servidores públicos', NULL,
+   'Vigila el uso de los recursos públicos y recibe quejas sobre obras y servidores públicos', 'Av. Arcos de Belén 2, Col. Doctores, C.P. 06720, Cuauhtémoc',
+   '5556279700', NULL, 'https://contraloria.cdmx.gob.mx',
+   'Secretaría de la Contraloría General, documento oficial del 1 de septiembre de 2025', 'https://regulaciones.cdmx.gob.mx/mejora/public/regulacionPdf/1486', '2026-11-10'),
+  (70, 'Locatel (Gobierno de la Ciudad de México)', 'Atención ciudadana las 24 horas', NULL,
+   'Información de trámites y programas, reportes de servicios urbanos y orientación médica, legal y psicológica', NULL,
+   '5556581111', NULL, NULL,
+   'Portal oficial de la CDMX, ¿Qué es Locatel?', 'https://mexicocity.cdmx.gob.mx/e/emergency/about-locatel/', '2026-11-10');
+
+UPDATE directorio d JOIN alcaldias a ON a.id = d.alcaldia_id JOIN (
+  SELECT 'AOB' clave, 'Calle Canario esq. Calle 10, Col. Tolteca, C.P. 01150' direccion, NULL telefono, NULL correo, 'https://aao.cdmx.gob.mx' web,
+         'Portal de Turismo de la CDMX, ficha del edificio de la Alcaldía' fuente, 'https://mexicocity.cdmx.gob.mx/venues/alcaldia-alvaro-obregon/' url
+  UNION ALL SELECT 'AZC', NULL, NULL, NULL, 'https://azcapotzalco.cdmx.gob.mx', 'Sitio oficial de la Alcaldía Azcapotzalco', 'https://azcapotzalco.cdmx.gob.mx'
+  UNION ALL SELECT 'BJU', 'Municipio Libre esq. División del Norte, Col. Santa Cruz Atoyac', '5589584000', NULL, 'https://alcaldiabenitojuarez.gob.mx',
+         'Sitio oficial de la Alcaldía Benito Juárez', 'https://alcaldiabenitojuarez.gob.mx/'
+  UNION ALL SELECT 'COY', NULL, NULL, NULL, 'https://coyoacan.cdmx.gob.mx', 'Sitio oficial de la Alcaldía Coyoacán', 'https://coyoacan.cdmx.gob.mx'
+  UNION ALL SELECT 'CUH', 'Aldama y Mina s/n, Col. Buenavista, C.P. 06350', '5524523100', NULL, 'https://cuauhtemoc.cdmx.gob.mx',
+         'Alcaldía Cuauhtémoc, directorio oficial', 'https://cuauhtemoc.cdmx.gob.mx/inicio/directorio/'
+  UNION ALL SELECT 'GAM', NULL, NULL, NULL, 'https://gamadero.cdmx.gob.mx', 'Sitio oficial de la Alcaldía Gustavo A. Madero', 'https://gamadero.cdmx.gob.mx'
+  UNION ALL SELECT 'IZC', 'Av. Río Churubusco s/n, Col. Gabriel Ramos Millán, C.P. 08000', '5556543333', NULL, 'https://www.iztacalco.cdmx.gob.mx',
+         'Alcaldía Iztacalco, página oficial de atención ciudadana', 'https://www.iztacalco.cdmx.gob.mx/alcaldia'
+  UNION ALL SELECT 'IZP', 'Aldama 63, Col. San Lucas, C.P. 09000', '5566516600', NULL, 'https://iztapalapa.cdmx.gob.mx',
+         'Alcaldía Iztapalapa, directorio oficial', 'https://iztapalapa.cdmx.gob.mx/directorio/'
+  UNION ALL SELECT 'MAC', NULL, NULL, NULL, 'https://mcontreras.gob.mx', 'Sitio oficial de la Alcaldía La Magdalena Contreras', 'https://mcontreras.gob.mx'
+  UNION ALL SELECT 'MAL', 'Av. México esq. Constitución s/n, C.P. 12000', '5558623150', 'contacto@milpa-alta.cdmx.gob.mx', 'https://www.milpa-alta.cdmx.gob.mx',
+         'Alcaldía Milpa Alta, sitio oficial (transparencia)', 'https://www.milpa-alta.cdmx.gob.mx/trans_cdmx.html'
+  UNION ALL SELECT 'TLH', NULL, NULL, NULL, 'https://www.tlahuac.cdmx.gob.mx', 'Sitio oficial de la Alcaldía Tláhuac', 'https://www.tlahuac.cdmx.gob.mx'
+  UNION ALL SELECT 'TLP', NULL, NULL, NULL, 'https://tlalpan.cdmx.gob.mx', 'Sitio oficial de la Alcaldía Tlalpan', 'https://tlalpan.cdmx.gob.mx'
+) v ON v.clave = a.clave
+SET d.direccion = COALESCE(v.direccion, d.direccion), d.telefono = COALESCE(v.telefono, d.telefono), d.correo = COALESCE(v.correo, d.correo),
+    d.sitio_web = v.web, d.fuente_nombre = v.fuente, d.fuente_url = v.url, d.consultado_en = '2026-10-31'
+WHERE d.tipo = 'alcaldia';
+
+INSERT INTO directorio (alcaldia_id, tipo, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web, fuente_nombre, fuente_url, consultado_en)
+SELECT a.id, v.tipo, v.cargo, v.nombre, v.temas, v.direccion, v.telefono, v.correo, NULL, v.fuente, v.url, '2026-10-31'
+FROM (
+  SELECT 'AOB' clave, 'titular' tipo, 'Alcalde de Álvaro Obregón' cargo, 'Javier Joaquín López Casarín' nombre, 'Gobierno de la alcaldía 2024-2027' temas,
+         NULL direccion, NULL telefono, NULL correo, 'Forbes México, alcaldes de la CDMX 2024-2027' fuente,
+         'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/' url
+  UNION ALL SELECT 'AZC', 'titular', 'Alcaldesa de Azcapotzalco', 'Nancy Marlene Núñez Reséndiz', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'BJU', 'titular', 'Alcalde de Benito Juárez', 'Luis Alberto Mendoza Acevedo', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Sitio oficial de la Alcaldía Benito Juárez', 'https://alcaldiabenitojuarez.gob.mx/'
+  UNION ALL SELECT 'COY', 'titular', 'Alcalde de Coyoacán', 'José Giovani Gutiérrez Aguilar', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'CUJ', 'titular', 'Alcalde de Cuajimalpa de Morelos', 'Carlos Orvañanos Rea', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'CUH', 'titular', 'Alcaldesa de Cuauhtémoc', 'Alessandra Rojo de la Vega', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Alcaldía Cuauhtémoc, boletín oficial (junio de 2026)', 'https://cuauhtemoc.cdmx.gob.mx/wp-content/uploads/2026/06/618.-EN-CUAUHTÉMOC-SE-GOBIERNA-EN-LA-CALLE-ALE-ROJO-DE-LA-VEGA-SE-REÚNE-CON-VECINOS-DE-SAN-SIMÓN.pdf'
+  UNION ALL SELECT 'GAM', 'titular', 'Alcalde de Gustavo A. Madero', 'Ricardo Janecarlo Lozano Reynoso', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'IZC', 'titular', 'Alcaldesa de Iztacalco', 'María de Lourdes Paz Reyes', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'IZP', 'titular', 'Alcaldesa de Iztapalapa', 'Aleida Alavez Ruiz', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'MAC', 'titular', 'Alcalde de La Magdalena Contreras', 'José Fernando Mercado Guaida', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Excélsior, La Magdalena Contreras avanza en recuperación de barrancas', 'https://www.excelsior.com.mx/ciudad-de-mexico/magdalena-contreras-barrancas'
+  UNION ALL SELECT 'MHI', 'titular', 'Alcalde de Miguel Hidalgo', 'Mauricio Tabe Echartea', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'MAL', 'titular', 'Alcalde de Milpa Alta', 'José Octavio Rivero Villaseñor', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'TLH', 'titular', 'Alcaldesa de Tláhuac', 'Araceli Berenice Hernández Calderón', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'TLP', 'titular', 'Alcaldesa de Tlalpan', 'Gabriela Osorio Hernández', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'VCA', 'titular', 'Alcaldesa de Venustiano Carranza', 'Evelyn Parra Álvarez', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'XOC', 'titular', 'Alcaldesa de Xochimilco', 'Circe Camacho Bastida', 'Gobierno de la alcaldía 2024-2027', NULL, NULL, NULL,
+         'Forbes México, alcaldes de la CDMX 2024-2027', 'https://forbes.com.mx/estos-son-los-16-alcaldes-de-la-cdmx-para-el-periodo-2024-2027/'
+  UNION ALL SELECT 'AZC', 'sede_atencion', 'IECM · Dirección Distrital 3', 'Marco Antonio Vanegas López', 'Presupuesto participativo, COPACO, consulta ciudadana',
+         'Av. 22 de Febrero 251, Col. Santa María Malinalco, C.P. 02050', '5553537926', 'distrito3@iecm.mx',
+         'IECM, directorio del Distrito 3 (cabecera Azcapotzalco)', 'https://www.iecm.mx/acerca-del-iecm/directorio/directorio-del-distrito-3-cabecera-delegacional-azcapotzalco/'
+  UNION ALL SELECT 'CUH', 'sede_atencion', 'IECM · Dirección Distrital 9', 'Alejandro Noriega González', 'Presupuesto participativo, COPACO, consulta ciudadana',
+         'Maple 80, Col. Santa María Insurgentes, C.P. 06430', '5555977238', 'distrito9@iecm.mx',
+         'IECM, directorio del Distrito 9 (cabecera Cuauhtémoc)', 'https://www.iecm.mx/acerca-del-iecm/directorio/directorio-del-distrito-9-cabecera-delegacional-cuauhtemoc/'
+  UNION ALL SELECT 'VCA', 'sede_atencion', 'IECM · Dirección Distrital 10', 'Isaac Sergio Mendoza García', 'Presupuesto participativo, COPACO, consulta ciudadana',
+         'Manuel Rivera Cambas 61, Col. Jardín Balbuena, C.P. 15900', '5557046708', 'distrito10@iecm.mx',
+         'IECM, directorio del Distrito 10 (cabecera Venustiano Carranza)', 'https://www.iecm.mx/acerca-del-iecm/directorio/directorio-del-distrito-10-cabecera-delegacional-venustiano-carranza/'
+  UNION ALL SELECT 'MHI', 'sede_atencion', 'IECM · Dirección Distrital 13', 'Verónica Muñoz Durán', 'Presupuesto participativo, COPACO, consulta ciudadana',
+         'Constitución 35, Col. Escandón, C.P. 11800', '5553997244', 'distrito13@iecm.mx',
+         'IECM, directorio del Distrito 13 (cabecera Miguel Hidalgo)', 'https://www.iecm.mx/acerca-del-iecm/directorio/directorio-del-distrito-13-cabecera-delegacional-miguel-hidalgo/'
+  UNION ALL SELECT 'COY', 'sede_atencion', 'IECM · Dirección Distrital 26', 'Citlali Alejandra Aldaz Echeverría', 'Presupuesto participativo, COPACO, consulta ciudadana',
+         'Holanda 21, Col. San Diego Churubusco, C.P. 04120', '5554833800', 'distrito26@iecm.mx',
+         'IECM, directorio del Distrito 26 (cabecera Coyoacán)', 'https://www.iecm.mx/acerca-del-iecm/directorio/directorio-del-distrito-26-cabecera-delegacional-coyoacan/'
+) v JOIN alcaldias a ON a.clave = v.clave;
+
