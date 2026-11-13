@@ -444,6 +444,7 @@ router.get('/func/seguimiento', soloFuncionario, requiereFuncion('seguimiento'),
     const etapas = await etapasObra.etapasDeVarios(con, proyectos.map((p) => p.id));
     for (const p of proyectos) {
       p.etapas = etapas.get(Number(p.id)) || [];
+      p.limite = Number(p.costo_estimado) > 0 ? Number(p.costo_estimado) : Number(p.presupuesto_asignado);
       p.avance_financiero = etapasObra.avanceFinanciero(p.monto_ejercido, p.costo_estimado, p.presupuesto_asignado);
       p.alerta_gasto = etapasObra.alerta(p.avance_porcentaje, p.avance_financiero);
     }
@@ -452,9 +453,11 @@ router.get('/func/seguimiento', soloFuncionario, requiereFuncion('seguimiento'),
   res.json(filas);
 }));
 
+const pesos = (n) => `$${Number(n).toLocaleString('es-MX', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+
 async function obraBloqueada(con, id, alcaldiaId) {
   const p = await con.uno(
-    `SELECT p.id, p.estatus, p.monto_ejercido, ut.alcaldia_id FROM proyectos p
+    `SELECT p.id, p.estatus, p.monto_ejercido, p.costo_estimado, ut.alcaldia_id FROM proyectos p
      JOIN unidades_territoriales ut ON ut.id = p.unidad_territorial_id WHERE p.id = ? FOR UPDATE`, [id]);
   if (!p) throw noEncontrado('El proyecto no existe');
   if (Number(p.alcaldia_id) !== Number(alcaldiaId)) throw prohibido('El proyecto no es de tu alcaldía');
@@ -466,13 +469,19 @@ router.post('/func/seguimiento/:id/avance', soloFuncionario, requiereFuncion('se
   const id = v.id(req.params.id, 'el proyecto');
   const b = v.cuerpo(req);
   const monto = v.decimal(b.monto_ejercido, { campo: 'el monto ejercido', min: 0 });
-  const estatus = v.opcion(b.estatus, ESTATUS_GANADOR, { campo: 'el estatus' });
+  const estatusPedido = v.opcion(b.estatus, ESTATUS_GANADOR, { campo: 'el estatus', requerido: false });
   const nota = v.texto(b.nota, { campo: 'la nota para los vecinos', max: L.nota, requerido: false, letras: 3, multilinea: true });
-  const justif = estatus === 'inejecutable'
+  const justif = estatusPedido === 'inejecutable'
     ? v.texto(b.justificacion_inejecutable, { campo: 'la justificación de por qué es inejecutable', max: L.justificacion, min: 10, letras: 6, multilinea: true })
     : null;
   await db.conUsuario(req.usuario.id, (con) => con.transaccion(async () => {
-    await obraBloqueada(con, id, req.usuario.alcaldiaId);
+    const p = await obraBloqueada(con, id, req.usuario.alcaldiaId);
+    const estatus = estatusPedido || p.estatus;
+    const limite = Number(p.costo_estimado);
+    if (limite > 0 && monto > limite) {
+      const resta = Math.max(0, limite - Number(p.monto_ejercido));
+      throw peticionInvalida(`No se puede registrar más de ${pesos(limite)}, que es el límite de este proyecto. Te quedan ${pesos(resta)}`);
+    }
     const porcentaje = etapasObra.porcentaje(await etapasObra.etapasDe(con, id));
     if (estatus === 'concluido' && porcentaje < 100) throw peticionInvalida('Para marcar el proyecto como concluido deben estar cumplidas todas sus etapas');
     await con.q(

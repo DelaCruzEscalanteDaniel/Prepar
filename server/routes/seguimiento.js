@@ -34,7 +34,7 @@ router.get('/ciclos', conSesion, asincrono(async (req, res) => {
 router.get('/mapa/proyectos', conSesion, asincrono(async (req, res) => {
   const ciclo = v.id(req.query.ciclo, 'el ciclo', false);
   const alcaldia = v.id(req.query.alcaldia, 'la alcaldía', false);
-  const ut = v.id(req.query.unidad, 'la unidad territorial', false);
+  const ut = v.id(req.query.unidad, 'la colonia', false);
   const rubro = v.id(req.query.rubro, 'el rubro', false);
   const estatus = v.opcion(req.query.estatus, ESTATUS, { campo: 'el estatus', requerido: false });
   const datos = await db.conSistema(async (con) => {
@@ -83,7 +83,7 @@ router.get('/foto-denuncia/proyectos', conSesion, asincrono(async (req, res) => 
     const c = await cicloPorDefecto(con, ciclo);
     if (!c) return { ciclo_id: null, proyectos: [] };
     const proyectos = await con.q(
-      `SELECT p.id, p.folio, p.titulo, p.estatus, p.avance_porcentaje, p.monto_ejercido, cu.presupuesto_asignado,
+      `SELECT p.id, p.folio, p.titulo, p.estatus, p.avance_porcentaje, p.monto_ejercido, cu.presupuesto_asignado, p.rubro_id,
               ut.id AS unidad_territorial_id, ut.nombre AS unidad_territorial, a.id AS alcaldia_id, a.nombre AS alcaldia,
               (SELECT ROUND(AVG(ca.puntuacion), 2) FROM calificaciones ca WHERE ca.proyecto_id = p.id) AS calificacion_promedio,
               (SELECT COUNT(*) FROM calificaciones ca WHERE ca.proyecto_id = p.id) AS total_calificaciones,

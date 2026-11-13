@@ -1,14 +1,16 @@
 (function () {
   'use strict';
   var P = window.Prepar;
-  var ganadores = [];
+  var obras = [];
   var fase = null;
+  var obra = null;
   var pagina = 1;
   var reportes = [];
   var total = 0;
   var fotos = [];
+  var usuario = null;
   var ESTRELLA = 'm12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z';
-  var MEDALLAS = ['#F4C861', '#CBD5E1', '#E08E6D'];
+  var COLOR_AVANCE = { concluido: '#2A9D8F', inejecutable: '#94A3B8' };
 
   function corto(nombre) {
     var p = String(nombre || '').trim().split(/\s+/);
@@ -16,39 +18,126 @@
   }
   function fechaCorta(s) { var f = P.fecha(s); return f.replace(/ \d{4}$/, ''); }
 
-  function estrellas(p) {
-    var puede = fase === 'evaluacion' && Number(p.es_de_mi_unidad) === 1;
-    var mi = Number(p.mi_calificacion) || 0;
-    return P.html`<span class="estrellas-maq" role="group" aria-label="${P.t('Tu calificación para {t}', { t: p.titulo })}">${[1, 2, 3, 4, 5].map(function (n) {
-      return P.html`<button type="button" class="estrella" data-calificar="${p.id}" data-valor="${n}" aria-label="${P.t('{n} de 5', { n: n })}" ${puede ? '' : P.seguro('disabled')}>
-        ${P.seguro('<svg width="22" height="22" viewBox="0 0 24 24" fill="' + (n <= mi ? '#F4C861' : 'none') + '" stroke="#F4C861" stroke-width="1.5" aria-hidden="true"><path d="' + ESTRELLA + '"></path></svg>')}</button>`;
+  function pintaEstrellas(valor, tam, id, puede) {
+    return P.html`<span class="estrellas-maq" role="group" aria-label="${P.t('Tu calificación')}">${[1, 2, 3, 4, 5].map(function (n) {
+      var svg = '<svg width="' + tam + '" height="' + tam + '" viewBox="0 0 24 24" fill="' + (n <= valor ? '#F4C861' : 'none') + '" stroke="#F4C861" stroke-width="1.5" aria-hidden="true"><path d="' + ESTRELLA + '"></path></svg>';
+      return id ? P.html`<button type="button" class="estrella" data-calificar="${id}" data-valor="${n}" aria-label="${P.t('{n} de 5', { n: n })}" ${puede ? '' : P.seguro('disabled')}>${P.seguro(svg)}</button>`
+        : P.seguro(svg);
     })}</span>`;
   }
+  function puedeCalificar(o) { return fase === 'evaluacion' && Number(o.es_de_mi_unidad) === 1; }
+  var RUBRO_CORTO = { 1: 'Espacios públicos', 2: 'Infraestructura', 3: 'Actividades' };
+  function colorRubro(o) { return P.colorRubro(o); }
+  function nombreRubro(o) { return P.t(RUBRO_CORTO[Number(o.rubro_id)] || ''); }
 
-  function pintarRanking() {
-    P.$('#nota-ranking').textContent = fase === 'evaluacion'
-      ? P.t('Toca las estrellas para calificar el proyecto de tu colonia. El ranking se actualiza con tu calificación.')
-      : P.t('La calificación se abre en la fase de Evaluación y Rendición de Cuentas. Mientras tanto puedes ver el ranking.');
-    P.poner(P.$('#ranking'), ganadores.length ? ganadores.map(function (p, i) {
-      var mi = Number(p.mi_calificacion) || 0;
-      return P.html`<li class="${mi ? 'calificado' : ''}">
-        <div class="fila arriba" style="gap:10px;flex-wrap:nowrap"><span class="pos-rank h" style="background:${MEDALLAS[i] || '#475569'}">#${i + 1}</span>
-          <span class="columna" style="gap:2px;min-width:0"><strong style="font-size:15px">${p.titulo}</strong>
-            <span class="tenue" style="font-size:12px">${p.unidad_territorial} · ${p.calificacion_promedio ? P.html`<strong class="amarillo">${P.numero(p.calificacion_promedio, 1)} ★</strong> · ${P.t('{n} calificaciones', { n: p.total_calificaciones })}` : P.t('Sin calificaciones')}</span></span></div>
-        <div class="fila" style="gap:6px"><span class="tenue" style="font-size:12px">Tu calificación:</span>${estrellas(p)}
-          ${mi ? P.html`<span class="ok-texto" style="font-size:12px;font-weight:700">${P.t('✓ {n} de 5 guardada', { n: mi })}</span>` : ''}</div>
-        <button type="button" class="enlace-boton pequeno" data-ver-proyecto="${p.id}" style="align-self:flex-start">${P.t('Ver reportes ({n})', { n: p.total_reportes })}</button>
-      </li>`;
-    }) : P.html`<p class="vacio">Todavía no hay proyectos ganadores. Aparecerán al publicarse los resultados de la consulta.</p>`);
-    var ops = ganadores.map(function (p) { return P.html`<option value="${p.id}">${p.folio} · ${p.titulo}</option>`; });
-    P.poner(P.$('#f-proyecto'), P.html`<option value="">Todos</option>${ops}`);
-    P.poner(P.$('#rep-proyecto'), ganadores.length ? ops : P.html`<option value="">Aún no hay proyectos ganadores</option>`);
-    var pre = P.param('proyecto');
-    if (pre) { P.$('#f-proyecto').value = pre; P.$('#rep-proyecto').value = pre; }
-    P.$('#publicar-rep').disabled = !ganadores.length;
-    P.$('#rep-espera').hidden = !!ganadores.length;
-    P.$$('#form-rep input, #form-rep select, #form-rep textarea').forEach(function (x) { x.disabled = !ganadores.length || (x.id === 'fotos-rep' && fotos.length >= 5); });
-    P.$('#form-rep').classList.toggle('apagado', !ganadores.length);
+  function tarjetaObra(o) {
+    var av = Number(o.avance_porcentaje) || 0;
+    var prom = Number(o.calificacion_promedio) || 0;
+    var c = colorRubro(o);
+    return P.html`<a class="tarjeta obra-card" href="#obra-${o.id}" style="border-top:6px solid ${c}">
+      <div class="fila entre" style="gap:8px"><span class="etq" style="background:color-mix(in srgb, ${c} 12%, transparent);color:${c}">${nombreRubro(o)}</span><span class="etq">${P.textoEstatus(o.estatus)}</span></div>
+      <strong class="obra-card-titulo">${o.titulo}</strong>
+      <span class="tenue" style="font-size:14px">${o.unidad_territorial}${Number(o.es_de_mi_unidad) ? P.html` · <strong class="acento-texto">${P.t('tu colonia')}</strong>` : ''}</span>
+      <div class="fila entre"><span class="pequeno">${P.t('Avance')}</span><strong>${P.numero(av, 0)} %</strong></div>
+      <span class="barra-obra"><span style="width:${Math.min(100, av)}%;background:${COLOR_AVANCE[o.estatus] || '#F4C861'}"></span></span>
+      <div class="fila entre pequeno"><span class="fila" style="gap:6px">${pintaEstrellas(Math.round(prom), 16)}<span class="tenue">${prom ? P.numero(prom, 1) : P.t('Sin calificar')}</span></span>
+        <span class="tenue">${P.t(Number(o.total_reportes) === 1 ? '{n} reporte' : '{n} reportes', { n: o.total_reportes })}</span></div>
+      <span class="acento-texto" style="font-weight:700;font-size:14px">${P.t('Ver obra')} →</span></a>`;
+  }
+
+  function pintarLista() {
+    P.poner(P.$('#obras'), obras.length ? obras.map(tarjetaObra)
+      : P.html`<div class="mensaje info"><span><strong>Todavía no hay obras ganadoras en tu alcaldía.</strong> Aparecen cuando se publican los resultados de la consulta (fase 6) y se vigilan en la fase 7 · Ejecución y seguimiento.</span></div>`);
+  }
+
+  function cargarObras() {
+    var q = usuario && usuario.alcaldiaId ? { alcaldia: usuario.alcaldiaId } : {};
+    return P.get('/api/foto-denuncia/proyectos' + P.qs(q)).then(function (d) {
+      fase = d.fase;
+      obras = d.proyectos.slice().sort(function (a, b) {
+        return (Number(b.es_de_mi_unidad) - Number(a.es_de_mi_unidad)) || ((Number(b.calificacion_promedio) || 0) - (Number(a.calificacion_promedio) || 0)) || String(a.folio).localeCompare(String(b.folio));
+      });
+      pintarLista();
+    }, function (e) { P.poner(P.$('#obras'), P.html`<p class="mensaje error">${e.message}</p>`); });
+  }
+
+  function pintarCalificacion() {
+    var o = obra;
+    var mi = Number(o.mi_calificacion) || 0;
+    var prom = Number(o.calificacion_promedio) || 0;
+    P.poner(P.$('#obra-estrellas'), pintaEstrellas(mi, 30, o.id, puedeCalificar(o)));
+    var nota = prom ? P.t('Promedio de los vecinos: {p} ({n} calificaciones).', { p: P.numero(prom, 1), n: o.total_calificaciones }) : P.t('Todavía nadie la ha calificado.');
+    if (!puedeCalificar(o)) nota += ' ' + P.t(Number(o.es_de_mi_unidad) ? 'Podrás calificarla en la fase 8 · Evaluación y Rendición de Cuentas.' : 'Solo califican los vecinos de esa colonia.');
+    else if (mi) nota += ' ' + P.t('Tu calificación: {n} de 5.', { n: mi });
+    P.$('#obra-calif-nota').textContent = nota;
+  }
+
+  function abrirObra(id) {
+    var o = obras.find(function (x) { return x.id === id; });
+    if (!o) { location.hash = ''; return; }
+    obra = o;
+    P.$('#vista-lista').hidden = true;
+    P.$('#vista-obra').hidden = false;
+    var c = colorRubro(o);
+    P.poner(P.$('#obra-rubro'), P.html`<span class="etq" style="align-self:flex-start;background:color-mix(in srgb, ${c} 12%, transparent);color:${c}">${nombreRubro(o)}</span>`);
+    P.$('#obra-titulo').textContent = o.titulo;
+    P.$('#obra-lugar').textContent = o.unidad_territorial + ', ' + o.alcaldia + ' · ' + P.t('Folio {f}', { f: o.folio });
+    var av = Number(o.avance_porcentaje) || 0;
+    P.$('#obra-pct').textContent = P.numero(av, 0) + ' %';
+    var barra = P.$('#obra-barra');
+    barra.style.width = Math.min(100, av) + '%';
+    barra.style.background = COLOR_AVANCE[o.estatus] || '#F4C861';
+    P.poner(P.$('#obra-pasos'), P.html`<li class="tenue pequeno">${P.t('Cargando…')}</li>`);
+    pintarCalificacion();
+    P.get('/api/mapa/proyectos/' + id).then(function (f) {
+      if (!obra || obra.id !== id) return;
+      P.poner(P.$('#obra-pasos'), (f.etapas || []).length ? f.etapas.map(function (e) {
+        var hecha = !!e.cumplida_en;
+        return P.html`<li class="${hecha ? 'hecha' : ''}"><span class="paso-marca" aria-hidden="true">${hecha ? '✓' : e.orden}</span><span>${P.idioma() === 'en' && e.nombre_en ? e.nombre_en : e.nombre_es}</span></li>`;
+      }) : P.html`<li class="tenue pequeno">${P.t('El funcionario aún no registra pasos de esta obra.')}</li>`);
+    }, function () { P.poner(P.$('#obra-pasos'), ''); });
+    cargarReportes(true);
+    window.scrollTo(0, 0);
+  }
+
+  function verLista() {
+    obra = null;
+    P.$('#vista-obra').hidden = true;
+    P.$('#vista-lista').hidden = false;
+  }
+
+  function segunDireccion() {
+    var m = /^#obra-(\d+)$/.exec(location.hash);
+    if (m) abrirObra(Number(m[1])); else verLista();
+  }
+
+  function cargarReportes(reiniciar) {
+    if (!obra) return Promise.resolve();
+    if (reiniciar) { pagina = 1; reportes = []; }
+    var id = obra.id;
+    return P.get('/api/foto-denuncia/reportes' + P.qs({ proyecto: id, pagina: pagina })).then(function (d) {
+      if (!obra || obra.id !== id) return;
+      total = d.total;
+      reportes = reportes.concat(d.reportes);
+      P.$('#t-reportes').textContent = P.t('Reportes de vecinos ({n})', { n: total });
+      P.poner(P.$('#reportes'), reportes.length ? reportes.map(tarjetaReporte)
+        : P.html`<p class="vacio">${P.t('Nadie ha subido fotos de esta obra. ¡Sé la primera persona!')}</p>`);
+      P.$('#mas-rep').hidden = reportes.length >= total;
+    }, function (e) { P.poner(P.$('#reportes'), P.html`<p class="mensaje error">${e.message}</p>`); });
+  }
+
+  function abrirVentana() {
+    if (!obra) return;
+    P.$('#rep-obra').textContent = obra.titulo;
+    P.$('#ventana-foto').hidden = false;
+    var t = P.$('#form-rep textarea');
+    setTimeout(function () { P.$('#zona-fotos').focus && P.$('#fotos-rep').focus(); }, 30);
+    return t;
+  }
+  function cerrarVentana() {
+    P.$('#ventana-foto').hidden = true;
+    P.poner(P.$('#msg-rep'), '');
+    var b = P.$('#abrir-foto'); if (b) b.focus();
   }
 
   function tarjetaReporte(r) {
@@ -58,7 +147,6 @@
         ${r.fotos.length > 1 ? P.html`<span class="mas-fotos">+${r.fotos.length - 1}</span>` : ''}</div>
       <div class="columna crece" style="padding:16px;gap:8px;min-width:0">
         <div class="fila" style="gap:8px">${P.estatus(r.tipo)}<span class="etq oscura">${P.textoEstatus(r.estatus)}</span></div>
-        <strong>${r.proyecto}</strong>
         <span class="texto-2" style="line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere">${r.descripcion}</span>
         <span class="tenue" style="font-size:13px">${corto(r.autor)} · ${fechaCorta(r.creado_en)}</span>
         ${r.respuesta ? P.html`<div class="respuesta-func"><strong>Respuesta del funcionario:</strong> ${r.respuesta}</div>` : ''}
@@ -67,19 +155,6 @@
           <button type="submit" class="btn2">Comentar</button></form>
         ${Number(r.total_comentarios) ? P.html`<button type="button" class="enlace-boton pequeno" data-reporte="${r.id}" style="align-self:flex-start">${P.t('Ver comentarios ({n})', { n: r.total_comentarios })}</button>` : ''}
       </div></article>`;
-  }
-
-  function cargarReportes(reiniciar) {
-    if (reiniciar) { pagina = 1; reportes = []; }
-    var f = P.datosForm(P.$('#filtros-rep'));
-    f.pagina = pagina;
-    return P.get('/api/foto-denuncia/reportes' + P.qs(f)).then(function (d) {
-      total = d.total;
-      reportes = reportes.concat(d.reportes);
-      P.poner(P.$('#reportes'), reportes.length ? reportes.map(tarjetaReporte) : P.html`<p class="vacio">No hay reportes con estos filtros</p>`);
-      P.$('#total-rep').textContent = P.t('{n} reporte(s)', { n: total });
-      P.$('#mas-rep').hidden = reportes.length >= total;
-    }, function (e) { P.poner(P.$('#reportes'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
 
   function verReporte(id) {
@@ -108,7 +183,7 @@
     }));
     var n = fotos.length;
     var lleno = n >= MAX_FOTOS;
-    P.$('#cuenta-fotos').textContent = P.t('{n} de 5 fotos · mínimo 1, máximo 5', { n: n });
+    P.$('#cuenta-fotos').textContent = n ? P.t('{n} de 5 fotos', { n: n }) : P.t('de 1 a 5 fotos (JPG o PNG)');
     P.$('#cuenta-fotos').className = 'ayuda ' + (lleno ? 'alerta-texto' : (n ? 'ok-texto' : ''));
     P.$('#texto-zona').textContent = P.t(lleno ? 'Ya tienes 5 fotos (el máximo). Quita una para cambiarla.' : (n ? 'Agregar más fotos' : 'Toca aquí para elegir fotos'));
     P.$('#fotos-rep').disabled = lleno;
@@ -119,20 +194,15 @@
       <ul style="margin:4px 0 0;padding-left:18px">${lista.map(function (x) { return P.html`<li>${x}</li>`; })}</ul></span></div>` : '');
   }
 
-  function cargarGanadores() {
-    return P.get('/api/foto-denuncia/proyectos').then(function (d) { ganadores = d.proyectos; fase = d.fase; pintarRanking(); },
-      function (e) { P.poner(P.$('#ranking'), P.html`<p class="mensaje error">${e.message}</p>`); });
-  }
-
-  P.pagina(function () {
-    P.catalogos().then(function (cat) {
-      P.poner(P.$('#f-alcaldia'), P.html`<option value="">Todas</option>${cat.alcaldias.map(function (a) { return P.html`<option value="${a.id}">${a.nombre}</option>`; })}`);
-    });
-    var filtros = P.$('#filtros-rep');
-    filtros.addEventListener('change', function () { cargarReportes(true); });
-    filtros.addEventListener('submit', function (e) { e.preventDefault(); cargarReportes(true); });
-    P.$('#limpiar-rep').addEventListener('click', function () { filtros.reset(); cargarReportes(true); });
+  P.pagina(function (ctx) {
+    usuario = ctx.usuario;
     P.$('#mas-rep').addEventListener('click', function () { pagina += 1; cargarReportes(false); });
+    P.$('#volver-obras').addEventListener('click', function (e) { e.preventDefault(); location.hash = ''; history.replaceState(null, '', location.pathname); verLista(); });
+    window.addEventListener('hashchange', segunDireccion);
+    P.$('#abrir-foto').addEventListener('click', abrirVentana);
+    P.$('#cerrar-foto').addEventListener('click', cerrarVentana);
+    P.$('#ventana-foto').addEventListener('click', function (e) { if (e.target.id === 'ventana-foto') cerrarVentana(); });
+    document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && !P.$('#ventana-foto').hidden) cerrarVentana(); });
 
     pintarPrevias();
     P.$('#previas-rep').addEventListener('click', function (e) {
@@ -171,18 +241,20 @@
       var form = e.target;
       var d = P.datosForm(form);
       var msg = P.$('#msg-rep');
-      var err = !d.proyecto_id ? 'Elige el proyecto' : (!fotos.length ? 'Agrega al menos una fotografía'
+      var err = !obra ? 'Elige una obra' : (!fotos.length ? 'Agrega al menos una fotografía'
         : (fotos.some(function (f) { return !f.uuid; }) ? 'Espera a que terminen de subir las fotos'
-          : (Array.from(d.descripcion).length < 10 ? 'La descripción debe tener al menos 10 caracteres' : null)));
+          : (Array.from(d.descripcion || '').length < 10 ? 'Escribe qué se ve en la foto (al menos 10 caracteres)' : null)));
       if (err) { P.poner(msg, P.html`<div class="mensaje error" role="alert">${P.t(err)}</div>`); return; }
       P.poner(msg, '');
       P.accion(P.$('#publicar-rep'), function () {
-        return P.post('/api/foto-denuncia/reportes', { proyecto_id: Number(d.proyecto_id), tipo: d.tipo, descripcion: d.descripcion, fotos: fotos.map(function (f) { return f.uuid; }) })
+        return P.post('/api/foto-denuncia/reportes', { proyecto_id: obra.id, tipo: d.tipo, descripcion: d.descripcion, fotos: fotos.map(function (f) { return f.uuid; }) })
           .then(function (r) {
             fotos = []; pintarPrevias(); mostrarRechazos([]);
-            form.querySelector('textarea').value = '';
-            form.querySelector('textarea').dispatchEvent(new Event('input'));
-            cargarReportes(true); cargarGanadores();
+            form.reset();
+            cerrarVentana();
+            obra.total_reportes = Number(obra.total_reportes) + 1;
+            cargarReportes(true);
+            cargarObras();
             return r;
           });
       }, { destino: msg });
@@ -191,17 +263,21 @@
     document.addEventListener('click', function (e) {
       var est = e.target.closest('[data-calificar]');
       if (est && !est.disabled) {
-        var id = est.getAttribute('data-calificar');
+        var id = Number(est.getAttribute('data-calificar'));
         var valor = Number(est.getAttribute('data-valor'));
         P.accion(est, function () {
-          return P.post('/api/foto-denuncia/proyectos/' + id + '/calificacion', { puntuacion: valor, comentario: null }).then(function (r) { cargarGanadores(); return r; });
+          return P.post('/api/foto-denuncia/proyectos/' + id + '/calificacion', { puntuacion: valor, comentario: null }).then(function (r) {
+            return cargarObras().then(function () {
+              var o = obras.find(function (x) { return x.id === id; });
+              if (o && obra && obra.id === id) { obra = o; pintarCalificacion(); }
+              return r;
+            });
+          });
         });
         return;
       }
       var r = e.target.closest('[data-reporte]');
-      if (r) { verReporte(r.getAttribute('data-reporte')); return; }
-      var v = e.target.closest('[data-ver-proyecto]');
-      if (v) { P.$('#f-proyecto').value = v.getAttribute('data-ver-proyecto'); cargarReportes(true); P.$('#filtros-rep').scrollIntoView({ behavior: 'smooth' }); }
+      if (r) verReporte(r.getAttribute('data-reporte'));
     });
     P.$('#reportes').addEventListener('submit', function (e) {
       var f = e.target.closest('[data-comentar]');
@@ -213,6 +289,13 @@
         return P.post('/api/foto-denuncia/reportes/' + f.getAttribute('data-comentar') + '/comentarios', { contenido: t }).then(function (x) { cargarReportes(true); return x; });
       });
     });
-    return cargarGanadores().then(function () { return cargarReportes(true); });
+    return P.catalogos().then(function (cat) {
+      var alc = cat.alcaldias.find(function (a) { return a.id === usuario.alcaldiaId; });
+      if (alc) P.$('#titulo-obras').textContent = P.t('Obras ganadoras · {a}', { a: alc.nombre });
+    }, function () {}).then(cargarObras).then(function () {
+      var pre = Number(P.param('proyecto'));
+      if (pre && !location.hash) { history.replaceState(null, '', location.pathname + '#obra-' + pre); }
+      segunDireccion();
+    });
   });
 }());

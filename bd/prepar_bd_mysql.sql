@@ -1380,12 +1380,15 @@ END$$
 
 CREATE TRIGGER tg_avances_bi BEFORE INSERT ON avances_proyecto FOR EACH ROW
 BEGIN
-  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT;
-  SELECT estatus, unidad_territorial_id, ciclo_id INTO v_estatus, v_ut, v_ciclo FROM proyectos WHERE id = NEW.proyecto_id;
+  DECLARE v_estatus VARCHAR(20); DECLARE v_ut INT; DECLARE v_ciclo INT; DECLARE v_costo DECIMAL(14,2);
+  SELECT estatus, unidad_territorial_id, ciclo_id, costo_estimado INTO v_estatus, v_ut, v_ciclo, v_costo FROM proyectos WHERE id = NEW.proyecto_id;
   CALL sp_requiere_ciclo_activo(v_ciclo);
   CALL sp_requiere_funcionario_ut('seguimiento', v_ut);
   IF v_estatus NOT IN ('ganador','en_ejecucion','concluido','inejecutable') THEN
     CALL sp_error('Solo se registra avance de proyectos ganadores');
+  END IF;
+  IF v_costo > 0 AND NEW.monto_ejercido > v_costo THEN
+    CALL sp_error(CONCAT('No se puede registrar más de $', FORMAT(v_costo, 2), ', que es el límite de este proyecto'));
   END IF;
   IF (SELECT orden FROM fases WHERE id = (SELECT fase_actual_id FROM ciclos
          WHERE id = (SELECT ciclo_id FROM proyectos WHERE id = NEW.proyecto_id)))
@@ -2479,8 +2482,8 @@ INSERT INTO fuentes_externas (clave, nombre, proveedor, tipo, entidad_destino, u
   ('osm_mosaicos', 'Mapa base (mosaicos)', 'OpenStreetMap', 'mapa', NULL,
    'https://tile.openstreetmap.org/{z}/{x}/{y}.png', NULL, 'png', 'ninguna', NULL, NULL, NULL,
    '© OpenStreetMap contributors', 'ODbL', TRUE),
-  ('correo', 'Envío de correos', 'Por definir (p. ej. Brevo, Resend o SendGrid)', 'correo', 'correos_salida',
-   'https://api.proveedor-de-correo.com', NULL, 'json', 'api_key', 'CORREO_API_KEY', NULL, NULL,
+  ('correo', 'Envío de correos', 'Brevo', 'correo', 'correos_salida',
+   'https://api.brevo.com/v3/smtp/email', NULL, 'json', 'api_key', 'CORREO_API_KEY', NULL, NULL,
    NULL, NULL, FALSE);
 
 INSERT INTO indicadores (clave, nombre_es, nombre_en, unidad_medida, descripcion) VALUES

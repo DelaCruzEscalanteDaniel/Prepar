@@ -35,7 +35,7 @@ async function contexto(con, u) {
 
 function exigirParticipacion(ctx, fase) {
   if (!ctx.ciclo) throw conflicto('No hay un ciclo de simulación activo');
-  if (!ctx.participa) throw conflicto('Tu unidad territorial no participa en el ciclo activo');
+  if (!ctx.participa) throw conflicto('Tu colonia no participa en el ciclo activo');
   if (fase && ctx.ciclo.fase !== fase) {
     const nombres = { diagnostico_registro: 'Diagnóstico y Registro', consulta: 'Consulta', evaluacion: 'Evaluación y Rendición de Cuentas' };
     throw conflicto(`Esta acción solo está disponible en la fase "${nombres[fase] || fase}"`);
@@ -505,7 +505,7 @@ router.get('/votacion/comprobante', soloCiudadano, asincrono(async (req, res) =>
     bloques: [
       { tipo: 'destacado', etiqueta: 'Folio del comprobante', valor: datos.p.folio_comprobante },
       { tipo: 'dato', etiqueta: 'Participante', valor: u.nombre },
-      { tipo: 'dato', etiqueta: 'Unidad territorial', valor: `${datos.p.unidad}, ${datos.p.alcaldia}` },
+      { tipo: 'dato', etiqueta: 'Colonia', valor: `${datos.p.unidad}, ${datos.p.alcaldia}` },
       { tipo: 'dato', etiqueta: 'Fecha y hora', valor: `${datos.p.participo_en} (hora de la CDMX)` },
       { tipo: 'dato', etiqueta: 'Ciclo', valor: `${datos.ciclo.nombre} (${datos.ciclo.anio_simulado})` },
       { tipo: 'parrafo', texto: 'Este comprobante acredita que la persona participó en la consulta. Por ser un voto secreto, no indica el proyecto elegido.', color: '#475569' },

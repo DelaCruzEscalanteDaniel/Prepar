@@ -83,7 +83,7 @@
 
   function filtros() {
     var d = P.datosForm(P.$('#form-filtros'));
-    return { q: d.q, colonia: d.colonia, rubro: d.rubro, desde: d.desde, hasta: d.hasta, min_apoyos: d.min_apoyos, orden: d.orden };
+    return { colonia: d.colonia, rubro: d.rubro, orden: 'apoyos' };
   }
 
   function cargar(reiniciar) {
@@ -215,12 +215,9 @@
       if (location.hash === '#registrar') { var r = P.$('#registrar'); if (r) r.scrollIntoView({ behavior: 'smooth' }); }
     });
 
-    var recargar = P.debounce(function () { cargar(true); }, 350);
     var ff = P.$('#form-filtros');
     ff.addEventListener('submit', function (e) { e.preventDefault(); cargar(true); });
-    ff.addEventListener('input', function (e) { if (e.target.name === 'q') recargar(); });
-    ff.addEventListener('change', function (e) { if (['colonia', 'rubro', 'orden'].indexOf(e.target.name) >= 0) cargar(true); });
-    P.$('#limpiar').addEventListener('click', function () { ff.reset(); cargar(true); });
+    ff.addEventListener('change', function () { cargar(true); });
     P.$('#mas').addEventListener('click', function () { pagina += 1; cargar(false); });
 
     var formIdea = P.$('#form-idea');

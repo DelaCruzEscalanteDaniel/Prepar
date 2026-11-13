@@ -2,59 +2,34 @@
 const config = require('../config');
 const db = require('../db');
 const log = require('./log');
-const smtp = require('./smtp');
+const BREVO = 'https://api.brevo.com/v3/smtp/email';
 
-const esSmtp = () => ['gmail', 'smtp'].includes(config.correo.proveedor);
 function configurado() {
-  const c = config.correo;
-  if (esSmtp()) return !!(c.smtp.host && c.smtp.usuario && c.smtp.contrasena);
-  return !!(c.proveedor && c.apiKey && c.remitente);
+  return !!(config.correo.apiKey && config.correo.remitente);
 }
 function faltante() {
-  const c = config.correo;
-  if (!c.proveedor) return 'No hay proveedor de correo configurado (CORREO_PROVEEDOR)';
-  if (esSmtp()) {
-    if (!c.smtp.host) return 'Falta CORREO_SMTP_HOST';
-    if (!c.smtp.usuario) return 'Falta CORREO_SMTP_USUARIO (tu correo)';
-    if (!c.smtp.contrasena) return 'Falta CORREO_SMTP_CONTRASENA (la contraseña de aplicación)';
-    return null;
-  }
-  if (!['resend', 'brevo'].includes(c.proveedor)) return `Proveedor de correo no válido: ${c.proveedor} (usa gmail, smtp, resend o brevo)`;
-  if (!c.apiKey) return 'Falta CORREO_API_KEY';
-  if (!c.remitente) return 'Falta CORREO_REMITENTE';
+  if (!config.correo.apiKey) return 'Falta CORREO_API_KEY (la clave de la API de Brevo)';
+  if (!config.correo.remitente) return 'Falta CORREO_REMITENTE (el correo que verificaste en Brevo)';
   return null;
+}
+function remitente() {
+  const r = config.correo.remitente.trim();
+  const m = /^(.*)<([^>]+)>$/.exec(r);
+  return m ? { email: m[2].trim(), name: m[1].trim().replace(/^"|"$/g, '') || 'Prepar' } : { email: r, name: 'Prepar' };
 }
 
 async function enviarUno(c) {
-  if (esSmtp()) {
-    const s = config.correo.smtp;
-    const r = await smtp.enviar({ host: s.host, puerto: s.puerto, usuario: s.usuario, contrasena: s.contrasena, sinTls: s.sinTls,
-      remitente: config.correo.remitente.includes('@') ? config.correo.remitente : `Prepar <${s.usuario}>`, para: c.destinatario, asunto: c.asunto, texto: c.cuerpo });
-    const id = /id=?\s*([\w.@-]+)/i.exec(r);
-    return id ? id[1].slice(0, 100) : null;
-  }
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 10000);
   try {
-    let r;
-    if (config.correo.proveedor === 'resend') {
-      r = await fetch('https://api.resend.com/emails', {
-        method: 'POST', signal: ctrl.signal,
-        headers: { Authorization: `Bearer ${config.correo.apiKey}`, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ from: config.correo.remitente, to: [c.destinatario], subject: c.asunto, text: c.cuerpo }),
-      });
-    } else if (config.correo.proveedor === 'brevo') {
-      r = await fetch('https://api.brevo.com/v3/smtp/email', {
-        method: 'POST', signal: ctrl.signal,
-        headers: { 'api-key': config.correo.apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify({ sender: { email: config.correo.remitente, name: 'Prepar' }, to: [{ email: c.destinatario }], subject: c.asunto, textContent: c.cuerpo }),
-      });
-    } else {
-      throw new Error(`Proveedor de correo no soportado: ${config.correo.proveedor}`);
-    }
+    const r = await fetch(BREVO, {
+      method: 'POST', signal: ctrl.signal,
+      headers: { 'api-key': config.correo.apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ sender: remitente(), to: [{ email: c.destinatario }], subject: c.asunto, textContent: c.cuerpo }),
+    });
     const datos = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(`HTTP ${r.status} ${JSON.stringify(datos).slice(0, 200)}`);
-    return String(datos.id || datos.messageId || '').slice(0, 100) || null;
+    if (!r.ok) throw new Error(`Brevo respondió ${r.status}: ${String(datos.message || JSON.stringify(datos)).slice(0, 200)}`);
+    return String(datos.messageId || '').slice(0, 100) || null;
   } finally {
     clearTimeout(t);
   }
@@ -117,4 +92,4 @@ async function enviarPrueba(destino) {
 }
 
 module.exports = {
-  SQL_OCULTAR_TEMPORAL, procesarCola, configurado, faltante, avisar, enviarPrueba, esSmtp };
+  SQL_OCULTAR_TEMPORAL, procesarCola, configurado, faltante, avisar, enviarPrueba };

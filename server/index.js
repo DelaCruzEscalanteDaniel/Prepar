@@ -40,6 +40,7 @@ servidor.listen(config.puerto, async () => {
   if (ok) {
     log.info('Conexión con MySQL correcta');
     await require('./lib/migraciones').migrar().catch(() => {});
+    await require('./lib/adminPruebas').asegurar().catch((e) => log.error('No se pudo preparar la cuenta de administrador de pruebas:', e.message));
     await ciclosIniciales.asegurar();
     await require('./lib/cicloDemostracion').asegurar();
   }

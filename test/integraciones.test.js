@@ -306,108 +306,50 @@ test('datos abiertos: portal caído, espera antes de reintentar, fuentes que no 
   assert.equal((await admin.post('/api/admin/integraciones/inegi_poblacion/sincronizar')).estado, 409);
 });
 
-test('cola de correos: envío correcto, reintentos y sin proveedor', async () => {
+test('cola de correos con Brevo: envío correcto, reintentos y sin configurar', async () => {
   const pendientes = async () => (await A.db.conSistema((c) => c.uno("SELECT COUNT(*) AS n FROM correos_salida WHERE estado = 'pendiente'"))).n;
   await A.db.conSistema((c) => c.call('sp_encolar_correo', [null, 'alguien@correo.mx', 'Prueba', 'Hola', 'prueba']));
-  assert.equal(await correo.procesarCola(), 0, 'sin proveedor no envía nada');
-  Object.assign(config.correo, { proveedor: 'resend', apiKey: 'clave', remitente: 'Prepar <no-responder@prepar.mx>' });
-  simular(async () => respuesta({ id: 'msg-1' }));
+  assert.equal(correo.configurado(), false);
+  assert.match(correo.faltante(), /CORREO_API_KEY/);
+  assert.equal(await correo.procesarCola(), 0, 'sin clave no envía nada');
+  Object.assign(config.correo, { apiKey: 'clave-brevo', remitente: 'Prepar <equipo@prepar.mx>' });
+  let pedido = null;
+  simular(async (u, op) => { pedido = { u, op }; return respuesta({ messageId: '<msg-1@brevo>' }, 201); });
   const antes = await pendientes();
   const enviados = await correo.procesarCola();
   assert.ok(enviados >= 1 && enviados <= 20);
   assert.equal(await pendientes(), Math.max(0, antes - enviados));
+  assert.equal(pedido.u, 'https://api.brevo.com/v3/smtp/email');
+  assert.equal(pedido.op.headers['api-key'], 'clave-brevo');
+  const cuerpo = JSON.parse(pedido.op.body);
+  assert.deepEqual(cuerpo.sender, { email: 'equipo@prepar.mx', name: 'Prepar' }, 'el remitente «Nombre <correo>» se separa');
+  assert.ok(cuerpo.to[0].email && cuerpo.subject && cuerpo.textContent);
+
   await A.db.conSistema((c) => c.q("UPDATE correos_salida SET estado = 'cancelado' WHERE estado = 'pendiente'"));
   await A.db.conSistema((c) => c.call('sp_encolar_correo', [null, 'falla@correo.mx', 'Prueba', 'Hola', 'prueba']));
-  Object.assign(config.correo, { proveedor: 'brevo' });
-  simular(async () => respuesta({ message: 'error' }, 500));
+  simular(async () => respuesta({ message: 'Key not found' }, 401));
   for (let i = 0; i < 3; i += 1) await correo.procesarCola();
-  const f = await A.db.conSistema((c) => c.uno("SELECT estado, intentos FROM correos_salida WHERE destinatario = 'falla@correo.mx'"));
-  assert.deepEqual(f, { estado: 'fallido', intentos: 3 }, 'tras 3 intentos queda como fallido');
-  Object.assign(config.correo, { proveedor: 'otro' });
-  await A.db.conSistema((c) => c.call('sp_encolar_correo', [null, 'otro@correo.mx', 'Prueba', 'Hola', 'prueba']));
-  await correo.procesarCola();
-  const o = await A.db.conSistema((c) => c.uno("SELECT intentos, ultimo_error FROM correos_salida WHERE destinatario = 'otro@correo.mx'"));
-  assert.match(o.ultimo_error, /no soportado/);
-  Object.assign(config.correo, { proveedor: '', apiKey: '', remitente: '' });
-});
+  const f = await A.db.conSistema((c) => c.uno("SELECT estado, intentos, ultimo_error FROM correos_salida WHERE destinatario = 'falla@correo.mx'"));
+  assert.equal(f.estado, 'fallido', 'tras 3 intentos queda como fallido');
+  assert.equal(f.intentos, 3);
+  assert.match(f.ultimo_error, /Brevo respondió 401: Key not found/);
 
-test('correo por SMTP (Gmail): conversación completa, acentos, error de contraseña y prueba desde el admin', async () => {
-  const net = require('net');
-  const smtp = require('../server/lib/smtp');
-  const recibidos = [];
-  let claveBuena = 'abcdabcdabcdabcd';
-  const servidor = net.createServer((s) => {
-    let modo = 'cmd';
-    let datos = '';
-    let paso = 0;
-    s.write('220 prueba ESMTP\r\n');
-    s.on('data', (b) => {
-      const t = b.toString('utf8');
-      if (modo === 'data') {
-        datos += t;
-        if (datos.endsWith('\r\n.\r\n')) { recibidos.push(datos); modo = 'cmd'; s.write('250 2.0.0 OK id=prueba123\r\n'); }
-        return;
-      }
-      for (const l of t.split('\r\n').filter(Boolean)) {
-        if (paso === 1) { paso = 2; s.write('334 UGFzc3dvcmQ6\r\n'); continue; }
-        if (paso === 2) { paso = 0; s.write(Buffer.from(l, 'base64').toString() === claveBuena ? '235 ok\r\n' : '535 5.7.8 Username and Password not accepted\r\n'); continue; }
-        if (/^EHLO/.test(l)) s.write('250-prueba\r\n250 AUTH LOGIN\r\n');
-        else if (l === 'AUTH LOGIN') { paso = 1; s.write('334 VXNlcm5hbWU6\r\n'); }
-        else if (/^MAIL FROM/.test(l) || /^RCPT TO/.test(l)) s.write('250 ok\r\n');
-        else if (l === 'DATA') { modo = 'data'; datos = ''; s.write('354 adelante\r\n'); }
-        else if (l === 'QUIT') { s.write('221 adiós\r\n'); s.end(); }
-        else s.write('500 ?\r\n');
-      }
-    });
-    s.on('error', () => {});
-  });
-  await new Promise((r) => servidor.listen(0, '127.0.0.1', r));
-  const puerto = servidor.address().port;
-  try {
-    const base = { host: '127.0.0.1', puerto, sinTls: true, usuario: 'equipo@gmail.com', contrasena: claveBuena,
-      remitente: 'Prepar <equipo@gmail.com>', para: 'vecina@correo.mx', asunto: 'Tu contraseña temporal · Prepar', texto: 'Hola, María.\nTu contraseña es: ñandú' };
-    const r = await smtp.enviar(base);
-    assert.match(r, /id=prueba123/);
-    const m = recibidos.pop();
-    assert.match(m, /Subject: =\?UTF-8\?B\?/);
-    const cuerpo = m.split('\r\n\r\n')[1].replace(/\r\n\.\r\n$/, '');
-    assert.match(Buffer.from(cuerpo.replace(/\s+/g, ''), 'base64').toString('utf8'), /ñandú/);
-    const inyectado = smtp.armarMensaje({ ...base, asunto: 'Hola\r\nBcc: espia@x.com' });
-    assert.ok(!/^Bcc:/m.test(inyectado));
-    await assert.rejects(smtp.enviar({ ...base, contrasena: 'equivocada' }), /contraseña de correo incorrectos/);
-
-    Object.assign(config.correo, { proveedor: 'gmail', remitente: 'Prepar <equipo@gmail.com>', apiKey: '' });
-    Object.assign(config.correo.smtp, { host: '127.0.0.1', puerto, usuario: 'equipo@gmail.com', contrasena: claveBuena, sinTls: true });
-    assert.equal(correo.configurado(), true);
-    await A.db.conSistema((c) => c.q("UPDATE correos_salida SET estado = 'cancelado' WHERE estado = 'pendiente'"));
-    await A.db.conSistema((c) => c.call('sp_encolar_correo', [null, 'smtp@correo.mx', 'Prueba SMTP', 'Hola', 'prueba']));
-    assert.equal(await correo.procesarCola(), 1);
-    const enviado = await A.db.conSistema((c) => c.uno("SELECT estado, id_mensaje_externo FROM correos_salida WHERE destinatario = 'smtp@correo.mx'"));
-    assert.equal(enviado.estado, 'enviado');
-
-    const admin = A.cliente();
-    await admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' });
-    const est = await admin.get('/api/admin/correo');
-    assert.equal(est.estado, 200);
-    assert.equal(est.datos.configurado, true);
-    assert.equal(est.datos.proveedor, 'gmail');
-    assert.ok(est.datos.enviados >= 1);
-    assert.ok(est.datos.recientes.every((x) => !/^smtp@/.test(x.destinatario)), 'los correos se muestran ocultos en parte');
-    const pr = await admin.post('/api/admin/correo/prueba', { destinatario: 'yo@correo.mx' });
-    assert.equal(pr.estado, 200);
-    assert.equal((await admin.post('/api/admin/correo/prueba', { destinatario: 'no-es-correo' })).estado, 400);
-    claveBuena = 'otra-clave-distinta';
-    const mal = await admin.post('/api/admin/correo/prueba', { destinatario: 'yo@correo.mx' });
-    assert.equal(mal.estado, 502);
-    assert.match(mal.datos.error, /incorrectos/);
-    config.correo.smtp.contrasena = '';
-    assert.match(correo.faltante(), /CORREO_SMTP_CONTRASENA/);
-    assert.equal((await admin.get('/api/admin/correo')).datos.configurado, false);
-  } finally {
-    Object.assign(config.correo, { proveedor: '', apiKey: '', remitente: '' });
-    Object.assign(config.correo.smtp, { host: '', usuario: '', contrasena: '', sinTls: false, puerto: 465 });
-    await new Promise((r) => servidor.close(r));
-  }
+  const admin = A.cliente();
+  await admin.post('/api/auth/login', { correo: 'admin@prepar.mx', password: 'Admin12345' });
+  const est = await admin.get('/api/admin/correo');
+  assert.equal(est.estado, 200);
+  assert.equal(est.datos.configurado, true);
+  assert.equal(est.datos.proveedor, 'brevo');
+  assert.ok(est.datos.recientes.every((x) => !/^falla@/.test(x.destinatario)), 'los correos se muestran ocultos en parte');
+  simular(async () => respuesta({ messageId: 'x' }, 201));
+  assert.equal((await admin.post('/api/admin/correo/prueba', { destinatario: 'yo@correo.mx' })).estado, 200);
+  assert.equal((await admin.post('/api/admin/correo/prueba', { destinatario: 'no-es-correo' })).estado, 400);
+  simular(async () => respuesta({ message: 'Key not found' }, 401));
+  const mal = await admin.post('/api/admin/correo/prueba', { destinatario: 'yo@correo.mx' });
+  assert.equal(mal.estado, 502);
+  assert.match(mal.datos.error, /Key not found/);
+  Object.assign(config.correo, { apiKey: '', remitente: '' });
+  assert.equal((await admin.get('/api/admin/correo')).datos.configurado, false);
 });
 
 test('una base de una versión anterior se actualiza sola al arrancar (sin reinstalar)', async () => {

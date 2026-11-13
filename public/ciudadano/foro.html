@@ -6,9 +6,9 @@
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
 <meta name="theme-color" content="#F3F6FA">
 <title>Foro vecinal · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -32,20 +32,8 @@
       </div>
     </form>
     <form class="fila filtros-foro" id="form-filtros" novalidate>
-      <label style="flex:2 1 220px">Buscar<input type="search" name="q" maxlength="50" placeholder="Palabra clave"></label>
-      <label style="flex:1 1 180px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
-      <label style="flex:1 1 180px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
-      <label style="flex:1 1 150px">Ordenar<select name="orden"><option value="apoyos">Más apoyadas</option><option value="recientes">Más recientes</option></select></label>
-      <button type="button" class="btn2" id="limpiar">Limpiar filtros</button>
-      <details class="mas-filtros" style="flex:1 1 100%">
-        <summary>Más filtros (fecha y apoyos)</summary>
-        <div class="fila" style="align-items:flex-end">
-          <label style="flex:1 1 160px">Publicada desde<input type="date" name="desde"></label>
-          <label style="flex:1 1 160px">Hasta<input type="date" name="hasta"></label>
-          <label style="flex:1 1 160px">Mínimo de apoyos<input type="number" name="min_apoyos" min="0" max="100000" step="1" inputmode="numeric"></label>
-          <button class="btn2" type="submit">Aplicar</button>
-        </div>
-      </details>
+      <label style="flex:1 1 200px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
+      <label style="flex:1 1 200px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
     </form>
     <span class="tenue pequeno" id="total-ideas"></span>
     <div id="ideas" class="columna" style="gap:16px" aria-live="polite"></div>

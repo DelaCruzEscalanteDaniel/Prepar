@@ -813,9 +813,7 @@ router.get('/admin/correo', asincrono(async (req, res) => {
   const n = (e) => Number((datos.cuenta.find((x) => x.estado === e) || {}).n || 0);
   const c = config.correo;
   res.json({
-    configurado: envioCorreo.configurado(), faltante: envioCorreo.faltante(), proveedor: c.proveedor || null,
-    remitente: envioCorreo.esSmtp() ? (c.remitente || c.smtp.usuario) : c.remitente,
-    servidor: envioCorreo.esSmtp() ? `${c.smtp.host}:${c.smtp.puerto}` : null,
+    configurado: envioCorreo.configurado(), faltante: envioCorreo.faltante(), proveedor: 'brevo', remitente: c.remitente,
     pendientes: n('pendiente'), enviados: n('enviado'), fallidos: n('fallido'),
     ultimoError: datos.ultimo ? datos.ultimo.ultimo_error : null,
     recientes: datos.recientes.map((x) => ({ ...x, destinatario: String(x.destinatario).replace(/^(.{2}).*(@.*)$/, '$1•••$2') })),

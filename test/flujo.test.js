@@ -474,6 +474,14 @@ test('seguimiento, foto denuncia, calificación y mapa', async () => {
   falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: 1, estatus: 'concluido' }), 400, 'concluido sin todas las etapas');
   falla(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: 1, estatus: 'inejecutable' }), 400, 'falta justificación');
   falla(await f.post(`/api/func/seguimiento/${estado.p.p2}/avance`, { monto_ejercido: 1, estatus: 'en_ejecucion' }), 409, 'no es ganador');
+  assert.equal(Number(tras.limite), Number(tras.costo_estimado), 'el límite es el costo aprobado del proyecto');
+  const pasado = await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: Number(tras.costo_estimado) + 1 });
+  falla(pasado, 400, 'no se puede gastar más del costo del proyecto');
+  assert.match(pasado.datos.error, /límite de este proyecto/);
+  const carlos = await db.conSistema((c) => c.uno("SELECT id FROM usuarios WHERE correo = 'carlos@prepar.mx'"));
+  await assert.rejects(db.conUsuario(carlos.id, (c) => c.q('INSERT INTO avances_proyecto (proyecto_id, porcentaje, monto_ejercido, estatus) VALUES (?, 0, ?, ?)',
+    [estado.p.p1, Number(tras.costo_estimado) + 1, 'en_ejecucion'])), /límite de este proyecto/, 'la base también lo rechaza');
+  ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: Number(tras.costo_estimado) }), 'el estatus es opcional y se puede llegar justo al límite');
   ok(await f.post(`/api/func/seguimiento/${estado.p.p1}/avance`, { monto_ejercido: Number(tras.costo_estimado) * 0.9, estatus: 'en_ejecucion' }));
   const obras = await estado.admin.get(`/api/admin/ciclos/${estado.ciclo}/obras`);
   ok(obras);

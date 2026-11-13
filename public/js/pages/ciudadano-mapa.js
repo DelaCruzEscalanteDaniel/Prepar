@@ -10,6 +10,7 @@
   var elegido = null;
   var GANADORES = ['ganador', 'en_ejecucion', 'concluido', 'inejecutable'];
   var CDMX = [19.39, -99.13];
+  var alcaldiaId = null;
 
   function filtros() { return P.datosForm(P.$('#filtros-mapa')); }
   function corto(n) { return P.dinero(n).replace(/\.00$/, ''); }
@@ -75,7 +76,7 @@
     if (!mapa) return;
     var f = filtros();
     var pts = visibles.filter(function (p) { return p.latitud !== null; }).map(function (p) { return [Number(p.latitud), Number(p.longitud)]; });
-    var u = f.unidad && cat.unidades.find(function (x) { return String(x.id) === f.unidad; });
+    var u = f.colonia && cat.unidades.find(function (x) { return x.nombre === f.colonia && Number(x.alcaldia_id) === Number(alcaldiaId); });
     if (u && u.latitud && !pts.length) mapa.setView([Number(u.latitud), Number(u.longitud)], 15);
     else if (pts.length) mapa.fitBounds(pts, { maxZoom: 16, padding: [50, 50] });
     else mapa.setView(CDMX, 11);
@@ -83,15 +84,12 @@
 
   function pintar() {
     var f = filtros();
-    var modo = f.estatus || 'ganadores';
     var soloGanadores = todos.filter(function (p) { return GANADORES.indexOf(p.estatus) >= 0; });
     var aviso = '';
-    if (modo === 'ganadores') {
-      if (soloGanadores.length || !todos.length) visibles = soloGanadores;
-      else { visibles = todos; aviso = P.t('Aún no hay proyectos ganadores en este ciclo; se muestran todos los proyectos registrados.'); }
-    } else if (modo === 'todos') visibles = todos;
-    else visibles = todos.filter(function (p) { return p.estatus === modo; });
-    P.$('#titulo-mapa').textContent = P.t(modo === 'ganadores' && !aviso ? 'Mapa de proyectos ganadores' : 'Mapa de proyectos');
+    if (soloGanadores.length || !todos.length) visibles = soloGanadores;
+    else { visibles = todos; aviso = P.t('Aún no hay proyectos ganadores en este ciclo; se muestran todos los proyectos registrados.'); }
+    if (f.colonia) visibles = visibles.filter(function (p) { return p.unidad_territorial === f.colonia; });
+    P.$('#titulo-mapa').textContent = P.t(!aviso ? 'Mapa de proyectos ganadores' : 'Mapa de proyectos');
     P.poner(P.$('#aviso-mapa'), aviso ? P.html`<div class="mensaje info">${aviso}</div>` : '');
     simbologia.poner([P.filasRubros(cat)]);
     pintarMarcadores();
@@ -107,10 +105,14 @@
 
   function cargar() {
     var f = filtros();
-    var q = { ciclo: f.ciclo, alcaldia: f.alcaldia, unidad: f.unidad, rubro: f.rubro };
+    var q = { alcaldia: alcaldiaId, rubro: f.rubro };
     return P.get('/api/mapa/proyectos' + P.qs(q)).then(function (d) {
       todos = d.proyectos;
-      if (!f.ciclo && d.ciclo_id) P.$('#f-ciclo').value = String(d.ciclo_id);
+      var nombres = [];
+      todos.forEach(function (p) { if (p.unidad_territorial && nombres.indexOf(p.unidad_territorial) < 0) nombres.push(p.unidad_territorial); });
+      nombres.sort(function (a, b) { return a.localeCompare(b, 'es'); });
+      if (f.colonia && nombres.indexOf(f.colonia) < 0) nombres.unshift(f.colonia);
+      P.poner(P.$('#f-colonia'), P.html`<option value="">${P.t('Todas')}</option>${nombres.map(function (n) { return P.html`<option value="${n}" ${n === f.colonia ? P.seguro('selected') : ''}>${n}</option>`; })}`);
       if (elegido && !todos.some(function (p) { return p.id === elegido; })) elegido = null;
       pintar();
     }, function (e) { P.poner(P.$('#lista-mapa'), P.html`<p class="mensaje error">${e.message}</p>`); });
@@ -124,26 +126,12 @@
       simbologia = P.simbologia(mapa, []);
       P.$('#leyenda').hidden = true;
     }
-    P.poner(P.$('#f-estatus'), P.html`<option value="ganadores">Ganadores</option>${['ganador', 'en_ejecucion', 'concluido', 'inejecutable'].map(function (e) {
-      return P.html`<option value="${e}">${P.textoEstatus(e)}</option>`;
-    })}<option value="todos">Todos los proyectos</option>`);
-    return Promise.all([P.catalogos(), P.get('/api/ciclos')]).then(function (r) {
-      cat = r[0];
-      P.poner(P.$('#f-ciclo'), r[1].map(function (c) { return P.html`<option value="${c.id}">${c.nombre}${c.estado === 'activo' ? ' · ' + P.t('activo') : ''}</option>`; }));
-      P.$('#caja-ciclo').hidden = r[1].length < 2;
+    alcaldiaId = ctx.usuario.alcaldiaId || null;
+    return P.catalogos().then(function (c) {
+      cat = c;
       P.poner(P.$('.sel-rubro-filtro'), P.html`<option value="">Todos</option>${cat.rubros.map(function (x) { return P.html`<option value="${x.id}">${P.nombre(x)}</option>`; })}`);
-      var sel = P.selectoresUbicacion(P.$('#f-alcaldia'), P.$('#f-unidad'), cat, { textoAlcaldia: P.t('Todas'), textoUnidad: P.t('Todas'), siempreActivo: false, sinAviso: true });
-      var u = ctx.usuario;
-      if (u.alcaldiaId) sel.fijar(u.alcaldiaId, null);
       var form = P.$('#filtros-mapa');
-      form.addEventListener('change', function (e) { if (e.target.name === 'estatus') pintar(); else cargar(); });
-      P.$('#limpiar-mapa').addEventListener('click', function () {
-        var ciclo = P.$('#f-ciclo').value;
-        form.reset();
-        P.$('#f-alcaldia').dispatchEvent(new Event('change'));
-        P.$('#f-ciclo').value = ciclo;
-        cargar();
-      });
+      form.addEventListener('change', function (e) { if (e.target.name === 'colonia') { elegido = null; pintar(); } else cargar(); });
       P.$('#lista-mapa').addEventListener('click', function (e) {
         var b = e.target.closest('[data-ficha]');
         if (b) { ficha(b.getAttribute('data-ficha')); P.$('#ficha').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); }

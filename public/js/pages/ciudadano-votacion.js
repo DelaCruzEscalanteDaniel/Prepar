@@ -33,7 +33,7 @@
       <div class="caja-comprobante">
         <div><div class="tenue" style="font-size:13px">Folio de participación</div><div class="h" style="font-size:22px;font-weight:800;overflow-wrap:anywhere">${v.folio_comprobante}</div></div>
         <div><div class="tenue" style="font-size:13px">Fecha</div><div style="font-weight:700">${P.fechaLarga(v.participo_en)}${/\d{2}:\d{2}/.test(v.participo_en || '') ? ', ' + v.participo_en.slice(11, 16) : ''}</div></div>
-        <div><div class="tenue" style="font-size:13px">Unidad territorial</div><div style="font-weight:700">${lugar(d)}</div></div>
+        <div><div class="tenue" style="font-size:13px">Colonia</div><div style="font-weight:700">${lugar(d)}</div></div>
       </div>
       <div class="fila"><button type="button" class="btn" id="descargar">Descargar comprobante (PDF)</button><a class="btn2" href="/ciudadano/inicio.html">Volver al inicio</a></div>
     </div>`;

@@ -3,6 +3,7 @@
   var P = window.Prepar;
   var cat = null;
   var cicloId = null;
+  var listaCiclos = null;
   var det = null;
 
   var resumen = null;
@@ -23,18 +24,16 @@
 
   function cargarCiclos(seleccion) {
     return P.get('/api/admin/ciclos').then(function (lista) {
-      var sel = P.$('#sel-ciclo');
+      listaCiclos = lista;
       if (!lista.length) {
-        P.poner(sel, P.html`<option value="">Sin ciclos</option>`);
         P.$('#sub-ciclo').textContent = P.t('Sin ciclos de simulación');
         P.poner(P.$('#detalle'), '');
         P.poner(P.$('#control'), P.html`<div class="tarjeta columna" style="align-items:flex-start"><h2>Aún no hay ciclos</h2><p class="texto-2">Crea el primer ciclo de simulación con sus alcaldías participantes y su presupuesto.</p><button class="btn" data-nuevo>Crear ciclo</button></div>`);
         return;
       }
-      P.poner(sel, lista.map(function (c) { return P.html`<option value="${c.id}">${c.nombre} · ${etiquetaEstado(c)}</option>`; }));
       var activo = lista.find(function (c) { return c.estado === 'activo'; });
       cicloId = seleccion || (activo || lista[0]).id;
-      sel.value = String(cicloId);
+      if (modoDatos) pintarModo();
       return cargarDetalle();
     });
   }
@@ -51,21 +50,24 @@
       function (e) { P.poner(P.$('#modo'), P.html`<p class="mensaje error">${e.message}</p>`); });
   }
   function nombreFase(c) { return c && c.fase ? (P.idioma() === 'en' ? c.fase_en : c.fase_es) : P.t('Sin iniciar'); }
+  function faseDe(c) { return (P.idioma() === 'en' ? c.fase_en : c.fase_es) || P.t('Sin iniciar'); }
   function pintarModo() {
     var m = modoDatos;
     var act = m.activo;
-    var practicaSel = act ? act.id : (m.practicas[0] ? m.practicas[0].id : null);
+    var opciones = listaCiclos || m.practicas;
+    var elegidoId = cicloId || (act ? act.id : (opciones[0] ? opciones[0].id : null));
+    var elegidoC = opciones.find(function (c) { return c.id === elegidoId; });
     P.poner(P.$('#modo'), P.html`
       <div><h2 class="h" id="t-modo" style="margin:0;font-size:22px">Ciclo activo</h2>
         <p class="tenue" style="margin:4px 0 0;font-size:14px">${act ? P.html`${P.t('Activo ahora:')} <strong>${act.nombre}</strong> · ${nombreFase(act)}` : P.t('No hay ningún ciclo activo.')}</p></div>
       <div class="fila" style="gap:10px;align-items:flex-end">
-        ${m.practicas.length ? P.html`<label style="flex:1 1 280px">${P.t('Ciclo')}<select id="ciclo-practica">${m.practicas.map(function (c) {
-          return P.html`<option value="${c.id}" ${c.id === practicaSel ? P.seguro('selected') : ''}>${c.nombre} · ${c.estado === 'activo' ? P.t('Activo') : (c.pausado_en ? P.t('Pausado') : P.t('Borrador'))} · ${nombreFase(c)}</option>`;
+        ${opciones.length ? P.html`<label style="flex:1 1 280px">${P.t('Ciclo')}<select id="ciclo-practica">${opciones.map(function (c) {
+          return P.html`<option value="${c.id}" ${c.id === elegidoId ? P.seguro('selected') : ''}>${c.nombre} · ${etiquetaEstado(c)} · ${faseDe(c)}</option>`;
         })}</select></label>` : P.html`<span class="error-texto" style="font-size:13px">${P.t('Aún no hay ciclos.')}</span>`}
-        <button type="button" class="btn" id="aplicar-modo">${P.t('Activar')}</button>
+        <button type="button" class="btn" id="aplicar-modo" ${elegidoC && elegidoC.estado === 'cerrado' ? P.seguro('disabled') : ''}>${P.t('Activar')}</button>
         <button type="button" class="btn2" data-nuevo>${P.t('Nuevo ciclo')}</button>
       </div>
-      <span class="tenue" style="font-size:13px">${P.t('Solo puede haber un ciclo activo. El que dejes queda pausado con todos sus datos y puedes volver a él cuando quieras.')}</span>`);
+      <span class="tenue" style="font-size:13px">${P.t('Elige un ciclo para verlo abajo. «Activar» lo pone en marcha para todos; el que estaba activo queda pausado con sus datos.')}</span>`);
   }
   function aplicarModo(boton) {
     var cuerpo = { modo: modoElegido };
@@ -559,8 +561,13 @@
       var d = e.target;
       if (d && d.getAttribute && d.getAttribute('data-plegable')) abiertos[d.getAttribute('data-plegable')] = d.open;
     }, true);
-    P.$('#sel-ciclo').addEventListener('change', function (e) { cicloId = Number(e.target.value); cargarDetalle(); });
-    P.$('#nuevo-ciclo').addEventListener('click', function () { formCiclo(null); });
+    P.$('#modo').addEventListener('change', function (e) {
+      if (e.target.id !== 'ciclo-practica') return;
+      cicloId = Number(e.target.value);
+      var c = (listaCiclos || []).find(function (x) { return x.id === cicloId; });
+      P.$('#aplicar-modo').disabled = !!(c && c.estado === 'cerrado');
+      cargarDetalle();
+    });
     document.addEventListener('click', function (e) {
       var t = e.target;
       if (t.closest('[data-nuevo]')) { formCiclo(null); return; }

@@ -20,50 +20,54 @@
     }) : P.html`<p class="vacio">No hay proyectos ganadores en tu alcaldía todavía</p>`);
   }
   function nombreEtapa(e) { return P.idioma() === 'en' && e.nombre_en ? e.nombre_en : e.nombre_es; }
-  function listaEtapas(o, editable) {
+  function abierta(o) { return faseOk && o.estatus !== 'concluido' && o.estatus !== 'inejecutable'; }
+  function listaPasos(o) {
     var siguiente = o.etapas.find(function (e) { return !e.cumplida_en; });
-    var abierta = editable && faseOk && o.estatus !== 'concluido' && o.estatus !== 'inejecutable';
-    return P.html`<ol class="etapas-obra">${o.etapas.map(function (e) {
+    return P.html`<ol class="pasos-obra">${o.etapas.map(function (e) {
       var hecha = !!e.cumplida_en;
       var toca = !hecha && siguiente && siguiente.id === e.id;
       return P.html`<li class="${hecha ? 'hecha' : (toca ? 'siguiente' : 'pendiente')}">
-        <span class="etapa-marca" aria-hidden="true">${hecha ? '✓' : e.orden}</span>
-        <div class="columna" style="gap:4px;min-width:0;flex:1">
-          <div class="fila entre" style="gap:8px"><strong>${nombreEtapa(e)}</strong><span class="etq">+${P.numero(e.peso, 0)} %</span></div>
-          ${hecha ? P.html`<span class="pequeno texto-2">${P.t('Cumplida el {f}', { f: P.fecha(e.cumplida_en) })} · ${e.evidencia}</span>` : ''}
-          ${toca && abierta ? P.html`<div class="columna" style="gap:8px;margin-top:4px">
-            <textarea rows="2" maxlength="250" data-evidencia="${e.id}" aria-label="${P.t('Evidencia de la etapa')}" placeholder="${P.t('¿Qué se hizo? Ej.: se firmó el contrato con la empresa y se compró el material')}"></textarea>
-            <div class="fila" style="gap:8px"><button type="button" class="btn" data-cumplir="${e.id}">Marcar como cumplida</button><span class="pequeno tenue">${P.t('Las etapas se cumplen en orden.')}</span></div></div>` : ''}
+        <span class="paso-marca" aria-hidden="true">${hecha ? '✓' : e.orden}</span>
+        <div class="columna" style="gap:8px;min-width:0;flex:1">
+          <div class="fila entre" style="gap:8px"><strong>${nombreEtapa(e)}</strong>${hecha ? P.html`<span class="pequeno tenue">${P.fecha(e.cumplida_en)}</span>` : ''}</div>
+          ${hecha && e.evidencia ? P.html`<span class="pequeno texto-2">${e.evidencia}</span>` : ''}
+          ${toca && abierta(o) ? P.html`<div class="paso-caja columna">
+            <label style="margin:0">¿Qué se hizo?<input type="text" maxlength="250" data-evidencia="${e.id}" placeholder="${P.t('Ej.: se colocaron las bancas y las luminarias')}"></label>
+            <button type="button" class="btn" data-cumplir="${e.id}" style="align-self:flex-start">✓ ${P.t('Ya se terminó este paso')}</button></div>` : ''}
         </div></li>`;
     })}</ol>`;
+  }
+  function tarjetaDinero(o) {
+    var limite = Number(o.limite) || 0;
+    var gastado = Number(o.monto_ejercido) || 0;
+    var pct = limite > 0 ? Math.min(100, (gastado / limite) * 100) : 0;
+    var editable = abierta(o);
+    return P.html`<form class="dinero-obra columna" id="form-gasto" novalidate>
+      <strong>Dinero de la obra</strong>
+      <div class="fila entre" style="gap:8px"><span class="texto-2">${P.t('Gastado')} <strong class="texto">${P.dinero(gastado)}</strong> ${P.t('de')} <strong class="texto">${P.dinero(limite)}</strong></span><strong>${P.numero(pct, 0)} %</strong></div>
+      <span class="barra-obra"><span style="width:${pct}%;background:var(--acento)"></span></span>
+      <span class="pequeno tenue">${P.t('Quedan {r}', { r: P.dinero(Math.max(0, limite - gastado)) })} · ${P.t('El límite es el costo aprobado en el dictamen')}</span>
+      ${o.alerta_gasto ? P.html`<div class="mensaje alerta" role="status">${P.t('Ya se gastó el {g} % del dinero, pero la obra va en {a} %. Revisa que los pasos estén al día.', { g: P.numero(pct, 0), a: P.numero(Number(o.avance_porcentaje), 0) })}</div>` : ''}
+      ${editable ? P.html`<div class="fila" style="gap:10px;flex-wrap:nowrap;align-items:center">
+        <input type="number" name="monto_ejercido" min="0" max="${limite}" step="0.01" value="${gastado}" aria-label="${P.t('Total gastado hasta hoy')}" style="flex:1;margin:0">
+        <button type="submit" class="btn2">Actualizar gasto</button></div>
+        <span id="msg-gasto" aria-live="polite"></span>` : ''}
+    </form>`;
   }
   function pintarPanel() {
     var pn = P.$('#panel-avance');
     pn.hidden = !sel;
     if (!sel) return;
     var av = Number(sel.avance_porcentaje);
-    var fin = Number(sel.avance_financiero);
-    P.poner(pn, P.html`<h2 class="h" style="margin:0;font-size:22px">${sel.titulo}</h2>
-      <div class="columna" style="gap:10px">
+    P.poner(pn, P.html`<div class="fila entre" style="gap:8px;align-items:center"><h2 class="h" style="margin:0;font-size:22px">${sel.titulo}</h2><span class="etq">${P.textoEstatus(sel.estatus)}</span></div>
+      <div class="columna" style="gap:8px">
         <div class="fila entre" style="gap:8px"><span>${P.t('Avance de la obra')}</span><strong class="monto-avance" style="margin:0" data-contar="${av}" data-sufijo=" %">${P.numero(av, 0)} %</strong></div>
         <span class="barra-obra grande"><span class="crecer" style="width:${Math.min(100, av)}%;background:${COLOR[sel.estatus] || '#F4C861'}"></span></span>
-        <div class="fila entre pequeno texto-2" style="gap:8px"><span>${P.t('Dinero ejercido')}</span><span>${P.numero(fin, 0)} %</span></div>
-        <span class="barra-obra"><span class="crecer" style="width:${Math.min(100, fin)}%;background:var(--tenue)"></span></span>
-        ${sel.alerta_gasto ? P.html`<div class="mensaje alerta" role="status">${P.t('Alerta: ya se ejerció el {g} % del dinero, pero la obra va en {a} %. Revisa que el avance esté al día.', { g: P.numero(fin, 0), a: P.numero(av, 0) })}</div>` : ''}
-        <p class="pequeno tenue" style="margin:0">${P.t('El avance se calcula solo con las etapas cumplidas. Cada etapa tiene un peso fijo según el rubro del proyecto.')}</p>
       </div>
-      <h3 class="h" style="margin:4px 0 0;font-size:17px">${P.t('Etapas de la obra')}</h3>
-      ${listaEtapas(sel, true)}
-      <form class="columna" id="form-avance" style="gap:14px" novalidate>
-        <div class="fila arriba" style="gap:12px">
-          <label style="flex:1 1 180px">Monto ejercido<input type="number" name="monto_ejercido" min="0" step="0.01" value="${Number(sel.monto_ejercido)}" ${faseOk ? '' : P.seguro('disabled')}><span class="tenue" style="font-weight:400;font-size:13px">${P.t('Asignado')}: ${P.dinero(sel.presupuesto_asignado)}</span></label>
-          <label style="flex:1 1 180px">Estatus<select name="estatus" ${faseOk ? '' : P.seguro('disabled')}>${['ganador', 'en_ejecucion', 'concluido', 'inejecutable'].map(function (e) { return P.html`<option value="${e}" ${e === sel.estatus ? P.seguro('selected') : ''} ${e === 'concluido' && av < 100 && sel.estatus !== 'concluido' ? P.seguro('disabled') : ''}>${P.textoEstatus(e)}</option>`; })}</select></label>
-        </div>
-        <label>Nota para los vecinos <span class="opcional">(opcional)</span><textarea name="nota" rows="2" maxlength="250" placeholder="Ej.: se terminó la colocación de gradas" ${faseOk ? '' : P.seguro('disabled')}></textarea></label>
-        <label data-just hidden>Justificación de por qué es inejecutable<textarea name="justificacion_inejecutable" maxlength="500" rows="3"></textarea></label>
-        ${sel.ultima_nota ? P.html`<span class="pequeno texto-2">${P.t('Última nota')} (${P.fecha(sel.ultimo_avance)}): ${sel.ultima_nota}</span>` : ''}
-        <div class="fila" style="gap:10px"><button type="submit" class="btn" ${faseOk ? '' : P.seguro('disabled')}>Guardar avance</button><span id="msg-av" aria-live="polite"></span></div>
-      </form>`);
+      <h3 class="h" style="margin:4px 0 0;font-size:17px">${P.t('Pasos de la obra')}</h3>
+      ${listaPasos(sel)}
+      ${tarjetaDinero(sel)}
+      ${abierta(sel) ? P.html`<button type="button" class="enlace-peligro" id="inejecutable">${P.t('¿La obra no se puede hacer? Márcala como inejecutable')}</button>` : ''}`);
     P.animarNumeros(pn);
   }
   function elegir(id) {
@@ -120,7 +124,7 @@
       var etapa = b.getAttribute('data-cumplir');
       var caja = P.$('[data-evidencia="' + etapa + '"]', pn);
       var t = caja.value.trim();
-      if (Array.from(t).length < 10) { P.aviso('Escribe la evidencia de la etapa (al menos 10 caracteres)', 'error'); P.sacudir(caja); caja.focus(); return; }
+      if (Array.from(t).length < 10) { P.aviso('Escribe qué se hizo en este paso (al menos 10 caracteres)', 'error'); P.sacudir(caja); caja.focus(); return; }
       var id = sel.id;
       P.accion(b, function () {
         return P.post('/api/func/seguimiento/' + id + '/etapa', { etapa_id: Number(etapa), evidencia: t }).then(function (r) {
@@ -128,33 +132,38 @@
         });
       });
     });
-    pn.addEventListener('change', function (e) {
-      if (e.target.name !== 'estatus') return;
-      var f = e.target.form;
-      P.$('[data-just]', f).hidden = e.target.value !== 'inejecutable';
+    pn.addEventListener('click', function (e) {
+      var b = e.target.closest('#inejecutable');
+      if (!b) return;
+      var id = sel.id;
+      var monto = Number(sel.monto_ejercido) || 0;
+      P.pedirTexto(P.t('Marcar como inejecutable'), P.t('¿Por qué no se puede hacer la obra?'), { max: 500, min: 10, si: 'Marcar como inejecutable', peligro: true }).then(function (t) {
+        if (!t) return;
+        P.accion(b, function () {
+          return P.post('/api/func/seguimiento/' + id + '/avance', { monto_ejercido: monto, estatus: 'inejecutable', justificacion_inejecutable: t })
+            .then(function (r) { return cargarObras().then(function () { P.aviso(r.mensaje, 'ok'); return null; }); });
+        });
+      });
     });
     pn.addEventListener('submit', function (e) {
       e.preventDefault();
       var f = e.target;
-      var d = P.datosForm(f);
-      var pct = Number(sel.avance_porcentaje);
-      var err = !(Number(d.monto_ejercido) >= 0) || d.monto_ejercido === '' ? 'Indica el monto ejercido'
-        : (d.estatus === 'concluido' && pct < 100 ? 'Para marcar el proyecto como concluido deben estar cumplidas todas sus etapas'
-          : (d.estatus === 'inejecutable' && Array.from(d.justificacion_inejecutable || '').length < 10 ? 'Escribe la justificación (al menos 10 caracteres)' : null));
-      if (err) { P.poner(P.$('#msg-av'), P.html`<span class="error-campo">${P.t(err)}</span>`); P.sacudir(f); return; }
-      if (Number(d.monto_ejercido) > Number(sel.presupuesto_asignado)) P.aviso('Aviso: el monto ejercido supera el presupuesto asignado', 'error');
+      var campo = f.querySelector('[name=monto_ejercido]');
+      var msg = P.$('#msg-gasto');
+      var monto = campo.value === '' ? NaN : Number(campo.value);
+      var limite = Number(sel.limite) || 0;
+      campo.classList.remove('invalido');
+      if (!(monto >= 0)) { P.poner(msg, P.html`<span class="error-campo">${P.t('Escribe cuánto se ha gastado hasta hoy')}</span>`); campo.classList.add('invalido'); P.sacudir(campo); return; }
+      if (limite > 0 && monto > limite) {
+        P.poner(msg, P.html`<span class="error-campo" style="font-weight:600">${P.t('No se puede registrar más de {l}, que es el límite de este proyecto. Te quedan {r}.', { l: P.dinero(limite), r: P.dinero(Math.max(0, limite - Number(sel.monto_ejercido))) })}</span>`);
+        campo.classList.add('invalido'); P.sacudir(campo); campo.focus(); return;
+      }
       var id = sel.id;
       P.accion(f.querySelector('[type=submit]'), function () {
-        return P.post('/api/func/seguimiento/' + id + '/avance', {
-          monto_ejercido: Number(d.monto_ejercido), estatus: d.estatus, nota: d.nota || null,
-          justificacion_inejecutable: d.estatus === 'inejecutable' ? d.justificacion_inejecutable : null,
-        }).then(function () {
-          return cargarObras().then(function () {
-            P.poner(P.$('#msg-av'), P.html`<span role="status" class="ok-texto" style="font-weight:600">✓ ${P.t('Guardado. Los vecinos ya ven el nuevo avance en el mapa.')}</span>`);
-            return null;
-          });
+        return P.post('/api/func/seguimiento/' + id + '/avance', { monto_ejercido: monto }).then(function () {
+          return cargarObras().then(function () { P.aviso('Gasto actualizado. Los vecinos ya lo ven', 'ok'); return null; });
         });
-      }, { destino: P.$('#msg-av') });
+      }, { destino: msg });
     });
     P.$('#reportes').addEventListener('click', function (e) {
       var a = e.target.closest('[data-atender]');

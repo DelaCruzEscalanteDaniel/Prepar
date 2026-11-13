@@ -637,7 +637,6 @@
     { id: 'sorteo', url: '/funcionario/sorteo.html', icono: 'sorteo', texto: 'Sorteo y casos especiales', sub: 'Boletas, empates y desempates', funciones: ['dictaminacion', 'consulta'], cuenta: 'casos' },
     { id: 'mapa', url: '/funcionario/mapa.html', icono: 'mapa', texto: 'Mapa y ubicaciones', sub: 'Mover y ajustar proyectos en el mapa', cuenta: 'sin_ubicar' },
     { id: 'seguimiento', url: '/funcionario/seguimiento.html', icono: 'camara', texto: 'Seguimiento de obras', sub: 'Avances y reportes de vecinos', funciones: ['seguimiento'], cuenta: 'reportes' },
-    { id: 'directorio', url: '/funcionario/directorio.html', icono: 'libro', texto: 'Directorio', sub: 'Datos de contacto de tu alcaldía' },
     { id: 'perfil', url: '/funcionario/perfil.html', icono: 'perfil', texto: 'Mi perfil', sub: 'Foto, datos y contraseña' },
   ];
   var MENU_ADMIN = [
@@ -681,7 +680,7 @@
       ? P.html`<a class="btn chico" href="${P.panelDe(usuario.rol)}">Ir a mi panel</a>`
       : P.html`<a class="btn2 chico" href="/login.html">Iniciar sesión</a><a class="btn chico" href="/registro.html">Crear cuenta</a>`;
     return P.html`<header class="encabezado"><div class="fila">
-      <a class="marca" href="/"><img src="/img/logo.png" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
+      <a class="marca" href="/"><img src="/img/logo.png?v=castor2" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
       <div class="acciones">${botonesHerramientas()}${acceso}</div>
     </div></header>`;
   }
@@ -691,7 +690,7 @@
     var f = P.faseActiva(estado);
     var activa = pagina === 'proyectos' ? 'foro' : pagina;
     return P.html`<div class="cabecera-fija"><header class="encabezado"><div class="fila">
-      <a class="marca" href="/ciudadano/inicio.html"><img src="/img/logo.png" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
+      <a class="marca" href="/ciudadano/inicio.html"><img src="/img/logo.png?v=castor2" alt="Logo de Prepar"><span>Pre<span class="par">par</span></span></a>
       <div class="acciones">
         <div class="campana-c" style="position:relative"><button type="button" class="herr" data-accion="notificaciones" aria-label="Notificaciones" aria-expanded="false">${P.seguro(ICONOS.campana)}<span class="globo" hidden></span></button></div>
         <button type="button" class="herr boton-menu-c" data-accion="menu-c" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu-c">${P.seguro(ICONOS.menu)}</button>
@@ -721,7 +720,7 @@
     });
     return P.html`<aside class="lateral" aria-label="Menú">
       <div class="fila entre">
-        <a class="marca" href="${P.panelDe(u.rol)}"><img src="/img/logo.png" alt="Logo de Prepar"><span style="display:flex;flex-direction:column;line-height:1">
+        <a class="marca" href="${P.panelDe(u.rol)}"><img src="/img/logo.png?v=castor2" alt="Logo de Prepar"><span style="display:flex;flex-direction:column;line-height:1">
           <span>Pre<span class="par">par</span></span><span class="rol">${rolTexto}</span></span></a>
         <button type="button" class="herr boton-menu" data-accion="menu" aria-label="Abrir menú" aria-expanded="false">${P.seguro(ICONOS.menu)}</button>
       </div>

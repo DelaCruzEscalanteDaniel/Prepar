@@ -6,9 +6,9 @@
 <meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
 <meta name="theme-color" content="#F3F6FA">
 <title>Mapa de proyectos · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/css/app.css">
 </head>
@@ -16,12 +16,8 @@
 <main id="principal" class="contenido" tabindex="-1" style="gap:16px;padding-top:24px">
 <h1 class="titulo-pagina" id="titulo-mapa" style="font-size:32px;margin:0">Mapa de proyectos ganadores</h1>
 <form id="filtros-mapa" class="fila" style="align-items:flex-end;gap:10px" novalidate>
-  <label style="flex:1 1 160px" id="caja-ciclo" hidden>Ciclo<select name="ciclo" id="f-ciclo"></select></label>
-  <label style="flex:1 1 160px">Alcaldía<select name="alcaldia" id="f-alcaldia"></select></label>
-  <label style="flex:1 1 160px">Unidad territorial<select name="unidad" id="f-unidad"></select></label>
-  <label style="flex:1 1 160px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
-  <label style="flex:1 1 160px">Estatus<select name="estatus" id="f-estatus"></select></label>
-  <button type="button" class="btn2" id="limpiar-mapa">Limpiar filtros</button>
+  <label style="flex:1 1 220px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
+  <label style="flex:1 1 220px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
 </form>
 <div id="aviso-mapa"></div>
 <div class="fila" style="gap:16px;align-items:stretch">

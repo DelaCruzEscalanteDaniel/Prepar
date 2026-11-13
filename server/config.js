@@ -61,17 +61,13 @@ module.exports = {
   confiarProxy: entero(env.CONFIAR_PROXY, produccion ? 1 : 0),
   verificacionGoogle: (env.GOOGLE_VERIFICACION || '').trim().replace(/^.*\//, ''),
   verificarCorreo: env.VERIFICAR_CORREO === 'false' ? false : (env.VERIFICAR_CORREO === 'true' ? true : 'auto'),
+  adminPruebas: {
+    correo: (env.ADMIN_PRUEBAS_CORREO || '').trim().toLowerCase(),
+    password: env.ADMIN_PRUEBAS_PASSWORD || '',
+  },
   correo: {
-    proveedor: (env.CORREO_PROVEEDOR || '').trim().toLowerCase(),
-    apiKey: env.CORREO_API_KEY || '',
-    remitente: env.CORREO_REMITENTE || env.CORREO_SMTP_USUARIO || '',
-    smtp: {
-      host: env.CORREO_SMTP_HOST || ((env.CORREO_PROVEEDOR || '').trim().toLowerCase() === 'gmail' ? 'smtp.gmail.com' : ''),
-      puerto: entero(env.CORREO_SMTP_PUERTO, 465),
-      usuario: env.CORREO_SMTP_USUARIO || '',
-      contrasena: (env.CORREO_SMTP_CONTRASENA || '').replace(/\s+/g, ''),
-      sinTls: env.CORREO_SMTP_TLS === 'false',
-    },
+    apiKey: (env.CORREO_API_KEY || '').trim(),
+    remitente: (env.CORREO_REMITENTE || '').trim(),
   },
   tareasProgramadas: env.TAREAS_PROGRAMADAS !== 'false',
   geocodificacion: env.GEOCODIFICACION !== 'false',

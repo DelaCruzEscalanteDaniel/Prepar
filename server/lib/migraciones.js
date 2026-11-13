@@ -192,6 +192,22 @@ const PASOS = [
       await con.q(bloqueDelScript('CREATE TRIGGER tg_apoyos_bi'));
     },
   },
+  {
+    nombre: 'el gasto de una obra no puede pasar del costo aprobado del proyecto',
+    falta: async (con) => !(await con.uno(
+      "SELECT 1 AS si FROM information_schema.TRIGGERS WHERE TRIGGER_SCHEMA = DATABASE() AND TRIGGER_NAME = 'tg_avances_bi' AND ACTION_STATEMENT LIKE '%v_costo%'")),
+    aplicar: async (con) => {
+      await con.q('DROP TRIGGER IF EXISTS tg_avances_bi');
+      await con.q(bloqueDelScript('CREATE TRIGGER tg_avances_bi'));
+    },
+  },
+  {
+    nombre: 'los correos se envían con la API de Brevo',
+    falta: async (con) => !!(await con.uno("SELECT 1 AS si FROM fuentes_externas WHERE clave = 'correo' AND url_base <> 'https://api.brevo.com/v3/smtp/email'")),
+    aplicar: async (con) => {
+      await con.q("UPDATE fuentes_externas SET proveedor = 'Brevo', url_base = 'https://api.brevo.com/v3/smtp/email' WHERE clave = 'correo'");
+    },
+  },
 ];
 
 async function migrar() {
