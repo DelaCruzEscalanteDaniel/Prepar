@@ -1501,3 +1501,777 @@ BEGIN
 END$$
 
 DELIMITER ;
+
+DELIMITER $$
+
+CREATE PROCEDURE sp_iniciar_sesion(IN p_usuario INT, IN p_token_hash CHAR(64))
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = p_usuario AND estado = 'activa') THEN
+    CALL sp_error('La cuenta no está activa');
+  END IF;
+  IF EXISTS (SELECT 1 FROM usuarios WHERE id = p_usuario AND bloqueado_hasta > NOW()) THEN
+    CALL sp_error('Demasiados intentos fallidos. Intenta de nuevo en unos minutos');
+  END IF;
+  UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id = p_usuario;
+  INSERT INTO sesiones (usuario_id, token_hash) VALUES (p_usuario, p_token_hash);
+  SELECT u.id, u.rol, u.nombre_completo, u.idioma,
+         (SELECT debe_cambiar_password FROM funcionarios WHERE usuario_id = u.id) AS debe_cambiar_password
+  FROM usuarios u WHERE u.id = p_usuario;
+END$$
+
+CREATE PROCEDURE sp_login_fallido(IN p_correo VARCHAR(50))
+BEGIN
+  DECLARE v_max INT; DECLARE v_minutos INT;
+  SET v_max     = COALESCE((SELECT CAST(valor AS UNSIGNED) FROM parametros_sistema WHERE clave = 'login_intentos_max'), 5);
+  SET v_minutos = COALESCE((SELECT CAST(valor AS UNSIGNED) FROM parametros_sistema WHERE clave = 'login_minutos_bloqueo'), 15);
+  UPDATE usuarios
+     SET intentos_fallidos = LEAST(intentos_fallidos + 1, 100),
+         bloqueado_hasta   = IF(intentos_fallidos >= v_max, NOW() + INTERVAL v_minutos MINUTE, bloqueado_hasta)
+   WHERE correo = LOWER(p_correo);
+END$$
+
+CREATE PROCEDURE sp_validar_sesion(IN p_token_hash CHAR(64))
+BEGIN
+  DECLARE v_minutos INT;
+  SET v_minutos = COALESCE((SELECT CAST(valor AS UNSIGNED) FROM parametros_sistema
+                            WHERE clave = 'sesion_minutos_inactividad'), 15);
+  UPDATE sesiones SET cerrada_en = NOW()
+   WHERE token_hash = p_token_hash AND cerrada_en IS NULL
+     AND ultima_actividad < NOW() - INTERVAL v_minutos MINUTE;
+  UPDATE sesiones SET ultima_actividad = NOW()
+   WHERE token_hash = p_token_hash AND cerrada_en IS NULL;
+  SELECT s.usuario_id, u.rol, u.nombre_completo
+  FROM sesiones s JOIN usuarios u ON u.id = s.usuario_id AND u.estado = 'activa'
+  WHERE s.token_hash = p_token_hash AND s.cerrada_en IS NULL;
+END$$
+
+CREATE PROCEDURE sp_cerrar_sesion(IN p_token_hash CHAR(64))
+BEGIN
+  UPDATE sesiones SET cerrada_en = NOW() WHERE token_hash = p_token_hash AND cerrada_en IS NULL;
+END$$
+
+CREATE PROCEDURE sp_solicitar_recuperacion(IN p_correo VARCHAR(50), IN p_token_hash CHAR(64))
+BEGIN
+  DECLARE v_id INT;
+  SET v_id = (SELECT id FROM usuarios WHERE correo = LOWER(p_correo) AND estado = 'activa');
+  IF v_id IS NOT NULL THEN
+    INSERT INTO tokens_recuperacion (usuario_id, token_hash, expira_en)
+    VALUES (v_id, p_token_hash, NOW() + INTERVAL 1 HOUR);
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_restablecer_password(IN p_token_hash CHAR(64), IN p_nuevo_hash VARCHAR(255))
+BEGIN
+  DECLARE v_id INT; DECLARE v_token BIGINT;
+  SELECT id, usuario_id INTO v_token, v_id FROM tokens_recuperacion
+   WHERE token_hash = p_token_hash AND usado_en IS NULL AND expira_en > NOW();
+  IF v_id IS NULL THEN CALL sp_error('El enlace no es válido o ya expiró'); END IF;
+  UPDATE tokens_recuperacion SET usado_en = NOW() WHERE id = v_token;
+  UPDATE usuarios SET password_hash = p_nuevo_hash WHERE id = v_id;
+END$$
+
+CREATE PROCEDURE sp_cambiar_password(IN p_nuevo_hash VARCHAR(255))
+BEGIN
+  IF @usuario_id IS NULL THEN CALL sp_error('Indica el usuario con SET @usuario_id'); END IF;
+  UPDATE usuarios SET password_hash = p_nuevo_hash WHERE id = @usuario_id;
+END$$
+
+CREATE PROCEDURE sp_registrar_ciudadano(IN p_nombre VARCHAR(50), IN p_correo VARCHAR(50),
+       IN p_password_hash VARCHAR(255), IN p_fecha_nacimiento DATE, IN p_genero VARCHAR(20),
+       IN p_unidad_territorial INT, IN p_acepta_aviso BOOLEAN)
+BEGIN
+  DECLARE v_id INT;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  IF NOT COALESCE(p_acepta_aviso, FALSE) THEN
+    CALL sp_error('Debes aceptar el aviso de privacidad para crear tu cuenta');
+  END IF;
+  IF p_fecha_nacimiento > DATE_SUB(CURDATE(), INTERVAL 18 YEAR) THEN
+    CALL sp_error('Solo pueden registrarse personas mayores de 18 años');
+  END IF;
+  IF EXISTS (SELECT 1 FROM usuarios WHERE correo = LOWER(p_correo)) THEN
+    CALL sp_error('Ya existe una cuenta con ese correo');
+  END IF;
+  START TRANSACTION;
+    INSERT INTO usuarios (rol, nombre_completo, correo, password_hash)
+    VALUES ('ciudadano', TRIM(p_nombre), LOWER(p_correo), p_password_hash);
+    SET v_id = (SELECT id FROM usuarios WHERE correo = LOWER(p_correo));
+    INSERT INTO ciudadanos (usuario_id, fecha_nacimiento, genero, unidad_territorial_id,
+                            aviso_privacidad_aceptado_en, aviso_privacidad_version)
+    VALUES (v_id, p_fecha_nacimiento, p_genero, p_unidad_territorial, NOW(),
+            (SELECT version FROM avisos_privacidad WHERE vigente_desde <= CURDATE()
+             ORDER BY vigente_desde DESC LIMIT 1));
+  COMMIT;
+  SELECT v_id AS usuario_id;
+END$$
+
+CREATE PROCEDURE sp_registrar_funcionario(IN p_nombre VARCHAR(50), IN p_correo VARCHAR(50),
+       IN p_password_temporal_hash VARCHAR(255), IN p_alcaldia SMALLINT, IN p_funciones VARCHAR(200))
+BEGIN
+  DECLARE v_id INT;
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+  CALL sp_requiere_admin();
+  IF EXISTS (SELECT 1 FROM usuarios WHERE correo = LOWER(p_correo)) THEN
+    CALL sp_error('Ya existe una cuenta con ese correo');
+  END IF;
+  START TRANSACTION;
+    INSERT INTO usuarios (rol, nombre_completo, correo, password_hash)
+    VALUES ('funcionario', TRIM(p_nombre), LOWER(p_correo), p_password_temporal_hash);
+    SET v_id = (SELECT id FROM usuarios WHERE correo = LOWER(p_correo));
+    INSERT INTO funcionarios (usuario_id, alcaldia_id, registrado_por) VALUES (v_id, p_alcaldia, @usuario_id);
+    CALL sp_asignar_funciones(v_id, p_alcaldia, p_funciones);
+  COMMIT;
+  CALL sp_bitacora('funcionario_registrar', 'funcionarios', v_id, NULL,
+                   JSON_OBJECT('correo', p_correo, 'alcaldia_id', p_alcaldia, 'funciones', p_funciones));
+  SELECT v_id AS usuario_id;
+END$$
+
+CREATE PROCEDURE sp_asignar_funciones(IN p_funcionario INT, IN p_alcaldia SMALLINT, IN p_funciones VARCHAR(200))
+BEGIN
+  CALL sp_requiere_admin();
+  UPDATE funcionarios SET alcaldia_id = p_alcaldia WHERE usuario_id = p_funcionario;
+  DELETE FROM funcionario_funciones WHERE funcionario_id = p_funcionario;
+  INSERT INTO funcionario_funciones (funcionario_id, funcion)
+  SELECT p_funcionario, f.funcion
+  FROM (SELECT 'directorio' AS funcion UNION ALL SELECT 'moderacion' UNION ALL SELECT 'revision_registros'
+        UNION ALL SELECT 'dictaminacion' UNION ALL SELECT 'consulta' UNION ALL SELECT 'seguimiento') f
+  WHERE FIND_IN_SET(f.funcion, REPLACE(p_funciones, ' ', '')) > 0;
+  CALL sp_bitacora('funcionario_editar', 'funcionarios', p_funcionario, NULL,
+                   JSON_OBJECT('alcaldia_id', p_alcaldia, 'funciones', p_funciones));
+END$$
+
+CREATE PROCEDURE sp_crear_administrador(IN p_nombre VARCHAR(50), IN p_correo VARCHAR(50), IN p_password_hash VARCHAR(255))
+BEGIN
+  CALL sp_requiere_admin();
+  INSERT INTO usuarios (rol, nombre_completo, correo, password_hash)
+  VALUES ('administrador', TRIM(p_nombre), LOWER(p_correo), p_password_hash);
+  SELECT id AS usuario_id FROM usuarios WHERE correo = LOWER(p_correo);
+END$$
+
+CREATE PROCEDURE sp_crear_ciclo(IN p_nombre VARCHAR(50), IN p_anio SMALLINT, IN p_presupuesto DECIMAL(14,2),
+       IN p_alcaldias VARCHAR(100), IN p_unidades VARCHAR(500), IN p_origen_indices VARCHAR(9))
+BEGIN
+  DECLARE v_ciclo INT; DECLARE v_ut INT; DECLARE v_max_delitos DECIMAL(16,4);
+  DECLARE v_poblacion DECIMAL(16,4); DECLARE v_flotante DECIMAL(16,4);
+  DECLARE v_pobreza DECIMAL(16,4); DECLARE v_delitos DECIMAL(16,4); DECLARE v_vueltas INT DEFAULT 0;
+  CALL sp_requiere_admin();
+  IF p_alcaldias IS NULL AND p_unidades IS NULL THEN
+    CALL sp_error('Indica las alcaldías o unidades territoriales participantes');
+  END IF;
+  IF p_origen_indices NOT IN ('api', 'aleatorio', 'manual') THEN
+    CALL sp_error('Origen de índices no válido: usa api, aleatorio o manual');
+  END IF;
+  INSERT INTO ciclos (nombre, anio_simulado, presupuesto_total, creado_por, fase_actual_id, origen_indices)
+  VALUES (p_nombre, p_anio, p_presupuesto, @usuario_id, (SELECT id FROM fases ORDER BY orden LIMIT 1), p_origen_indices);
+  SET v_ciclo = LAST_INSERT_ID();
+
+  INSERT INTO ciclo_unidades (ciclo_id, unidad_territorial_id, poblacion, poblacion_flotante,
+                              indice_pobreza, indice_delictivo, es_pueblo_originario)
+  SELECT v_ciclo, ut.id,
+         IF(p_origen_indices = 'aleatorio', FLOOR(2000 + RAND() * 18000), 0),
+         IF(p_origen_indices = 'aleatorio', FLOOR(RAND() * 5000), 0),
+         IF(p_origen_indices = 'aleatorio', ROUND(RAND(), 4), 0),
+         IF(p_origen_indices = 'aleatorio', ROUND(RAND(), 4), 0),
+         ut.tipo = 'pueblo_originario'
+  FROM unidades_territoriales ut
+  WHERE ut.activa
+    AND (FIND_IN_SET(ut.alcaldia_id, REPLACE(COALESCE(p_alcaldias, ''), ' ', '')) > 0
+      OR FIND_IN_SET(ut.id, REPLACE(COALESCE(p_unidades, ''), ' ', '')) > 0);
+
+  IF p_origen_indices = 'api' THEN
+    SET v_max_delitos = (SELECT MAX(vi.incidencia_delictiva_actual) FROM v_indicadores_recientes vi
+                         WHERE vi.unidad_territorial_id IN (SELECT unidad_territorial_id FROM ciclo_unidades
+                                                            WHERE ciclo_id = v_ciclo));
+    SET v_ut = (SELECT MIN(unidad_territorial_id) FROM ciclo_unidades WHERE ciclo_id = v_ciclo);
+    WHILE v_ut IS NOT NULL AND v_vueltas < 100000 DO
+      SET v_vueltas = v_vueltas + 1;
+      SET v_poblacion = (SELECT poblacion_actual FROM v_indicadores_recientes WHERE unidad_territorial_id = v_ut);
+      SET v_flotante  = (SELECT poblacion_flotante_actual FROM v_indicadores_recientes WHERE unidad_territorial_id = v_ut);
+      SET v_pobreza   = (SELECT indice_pobreza_actual FROM v_indicadores_recientes WHERE unidad_territorial_id = v_ut);
+      SET v_delitos   = (SELECT incidencia_delictiva_actual FROM v_indicadores_recientes WHERE unidad_territorial_id = v_ut);
+      UPDATE ciclo_unidades
+         SET poblacion          = COALESCE(FLOOR(v_poblacion), 0),
+             poblacion_flotante = COALESCE(FLOOR(v_flotante), 0),
+             indice_pobreza     = CASE WHEN v_pobreza IS NULL OR v_pobreza < 0 THEN 0
+                                       WHEN v_pobreza > 1 THEN 1 ELSE v_pobreza END,
+             indice_delictivo   = IF(v_max_delitos > 0, ROUND(COALESCE(v_delitos, 0) / v_max_delitos, 4), 0)
+       WHERE ciclo_id = v_ciclo AND unidad_territorial_id = v_ut;
+      SET v_ut = (SELECT MIN(unidad_territorial_id) FROM ciclo_unidades
+                  WHERE ciclo_id = v_ciclo AND unidad_territorial_id > v_ut);
+    END WHILE;
+  END IF;
+
+  CALL sp_bitacora('ciclo_crear', 'ciclos', v_ciclo, v_ciclo,
+                   JSON_OBJECT('nombre', p_nombre, 'anio', p_anio, 'presupuesto', p_presupuesto,
+                               'origen_indices', p_origen_indices));
+  SELECT v_ciclo AS ciclo_id;
+END$$
+
+CREATE PROCEDURE sp_calcular_presupuesto(IN p_ciclo INT)
+BEGIN
+  DECLARE v_total DECIMAL(14,2); DECLARE v_pct DECIMAL(7,4); DECLARE v_n INT;
+  DECLARE v_max_pob DECIMAL(14,4); DECLARE v_max_flot DECIMAL(14,4); DECLARE v_suma DECIMAL(14,6);
+  DECLARE v_resto DECIMAL(14,2);
+  CALL sp_requiere_admin();
+  SELECT presupuesto_total, porcentaje_partes_iguales / 100 INTO v_total, v_pct
+    FROM ciclos WHERE id = p_ciclo AND estado <> 'cerrado';
+  IF v_total IS NULL THEN CALL sp_error('Ciclo inexistente o cerrado'); END IF;
+  SELECT COUNT(*), NULLIF(MAX(poblacion), 0), NULLIF(MAX(poblacion_flotante), 0)
+    INTO v_n, v_max_pob, v_max_flot FROM ciclo_unidades WHERE ciclo_id = p_ciclo;
+  IF v_n = 0 THEN CALL sp_error('El ciclo no tiene unidades territoriales participantes'); END IF;
+
+  SELECT SUM((indice_pobreza + indice_delictivo + COALESCE(poblacion / v_max_pob, 0)
+              + COALESCE(poblacion_flotante / v_max_flot, 0) + IF(es_pueblo_originario, 1, 0)) / 5)
+    INTO v_suma FROM ciclo_unidades WHERE ciclo_id = p_ciclo;
+
+  UPDATE ciclo_unidades
+     SET presupuesto_asignado = ROUND(
+           v_total * v_pct / v_n
+         + IF(v_suma > 0,
+              v_total * (1 - v_pct) * ((indice_pobreza + indice_delictivo + COALESCE(poblacion / v_max_pob, 0)
+                + COALESCE(poblacion_flotante / v_max_flot, 0) + IF(es_pueblo_originario, 1, 0)) / 5) / v_suma,
+              v_total * (1 - v_pct) / v_n), 2)
+   WHERE ciclo_id = p_ciclo;
+
+  SET v_resto = v_total - (SELECT SUM(presupuesto_asignado) FROM ciclo_unidades WHERE ciclo_id = p_ciclo);
+  UPDATE ciclo_unidades SET presupuesto_asignado = presupuesto_asignado + v_resto
+   WHERE ciclo_id = p_ciclo ORDER BY presupuesto_asignado DESC LIMIT 1;
+
+  CALL sp_bitacora('presupuesto_calcular', 'ciclos', p_ciclo, p_ciclo, NULL);
+  SELECT unidad_territorial_id, presupuesto_asignado FROM ciclo_unidades WHERE ciclo_id = p_ciclo ORDER BY 1;
+END$$
+
+CREATE PROCEDURE sp_cambiar_fase(IN p_ciclo INT, IN p_fase VARCHAR(30))
+BEGIN
+  DECLARE v_fase SMALLINT; DECLARE v_estado VARCHAR(10); DECLARE v_votacion BOOLEAN; DECLARE v_anterior VARCHAR(30);
+  CALL sp_requiere_admin();
+  SELECT estado, votacion_abierta INTO v_estado, v_votacion FROM ciclos WHERE id = p_ciclo;
+  IF v_estado IS NULL OR v_estado = 'cerrado' THEN CALL sp_error('Ciclo inexistente o cerrado'); END IF;
+  SET v_fase = (SELECT id FROM fases WHERE clave = p_fase);
+  IF v_fase IS NULL THEN CALL sp_error(CONCAT('Fase inexistente: ', p_fase)); END IF;
+  IF v_votacion THEN CALL sp_error('Cierra la votación antes de cambiar de fase'); END IF;
+  IF v_estado = 'borrador' AND EXISTS (SELECT 1 FROM ciclo_unidades
+                                       WHERE ciclo_id = p_ciclo AND presupuesto_asignado IS NULL) THEN
+    CALL sp_error('Calcula la distribución del presupuesto antes de activar el ciclo');
+  END IF;
+  SET v_anterior = (SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = p_ciclo));
+  UPDATE ciclos SET fase_actual_id = v_fase, estado = 'activo' WHERE id = p_ciclo;
+  CALL sp_bitacora('fase_cambiar', 'ciclos', p_ciclo, p_ciclo, JSON_OBJECT('de', v_anterior, 'a', p_fase));
+END$$
+
+CREATE PROCEDURE sp_cerrar_ciclo(IN p_ciclo INT)
+BEGIN
+  CALL sp_requiere_admin();
+  IF COALESCE((SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = p_ciclo AND c.estado = 'activo')), '') <> COALESCE((SELECT clave FROM fases ORDER BY orden DESC LIMIT 1), '-') THEN
+    CALL sp_error('Solo puede cerrarse un ciclo activo que llegó a su última fase');
+  END IF;
+  UPDATE ciclos SET estado = 'cerrado', cerrado_en = NOW(), votacion_abierta = FALSE WHERE id = p_ciclo;
+  CALL sp_bitacora('ciclo_cerrar', 'ciclos', p_ciclo, p_ciclo, NULL);
+END$$
+
+CREATE PROCEDURE sp_realizar_sorteo(IN p_ciclo INT, IN p_ut INT)
+BEGIN
+  DECLARE v_id BIGINT; DECLARE v_n SMALLINT DEFAULT 0;
+  CALL sp_requiere_funcionario('dictaminacion', (SELECT alcaldia_id FROM unidades_territoriales WHERE id = p_ut));
+  IF COALESCE((SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = p_ciclo AND c.estado = 'activo')), '') <> 'sorteo_difusion' THEN
+    CALL sp_error('El sorteo solo se realiza en la fase de Sorteo y Difusión');
+  END IF;
+  IF EXISTS (SELECT 1 FROM sorteos WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut) THEN
+    CALL sp_error('El sorteo de esta unidad territorial ya se realizó');
+  END IF;
+  IF EXISTS (SELECT 1 FROM proyectos WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut
+               AND estatus IN ('registrado','en_dictaminacion') AND estado_moderacion = 'visible') THEN
+    CALL sp_error('Aún hay proyectos de esta unidad territorial sin dictamen');
+  END IF;
+
+  SET @interno = 1;
+  sorteo: LOOP
+    SET v_id = (SELECT id FROM proyectos
+                WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut AND estatus = 'viable'
+                  AND estado_moderacion = 'visible' AND numero_sorteo IS NULL
+                ORDER BY RAND() LIMIT 1);
+    IF v_id IS NULL THEN LEAVE sorteo; END IF;
+    SET v_n = v_n + 1;
+    UPDATE proyectos SET numero_sorteo = v_n, estatus = 'en_consulta' WHERE id = v_id;
+  END LOOP;
+  SET @interno = 0;
+
+  INSERT INTO sorteos (ciclo_id, unidad_territorial_id, funcionario_id, boleta_publicada_en)
+  VALUES (p_ciclo, p_ut, (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id), NOW());
+  CALL sp_bitacora('sorteo_realizar', 'sorteos', p_ut, p_ciclo, JSON_OBJECT('proyectos', v_n));
+  SELECT numero_sorteo, id AS proyecto_id, folio, titulo FROM proyectos
+  WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut AND numero_sorteo IS NOT NULL
+  ORDER BY numero_sorteo;
+END$$
+
+CREATE PROCEDURE sp_abrir_votacion(IN p_ciclo INT)
+BEGIN
+  CALL sp_requiere_admin();
+  IF COALESCE((SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = p_ciclo AND c.estado = 'activo')), '') <> 'consulta' THEN
+    CALL sp_error('La votación solo puede abrirse en la fase de Consulta');
+  END IF;
+  IF (SELECT computo_realizado_en FROM ciclos WHERE id = p_ciclo) IS NOT NULL THEN
+    CALL sp_error('El cómputo de este ciclo ya se realizó');
+  END IF;
+  UPDATE ciclos SET votacion_abierta = TRUE, votacion_abierta_en = COALESCE(votacion_abierta_en, NOW())
+   WHERE id = p_ciclo;
+  CALL sp_bitacora('votacion_abrir', 'ciclos', p_ciclo, p_ciclo, NULL);
+END$$
+
+CREATE PROCEDURE sp_emitir_voto(IN p_proyecto BIGINT)
+BEGIN
+  DECLARE v_ciclo INT; DECLARE v_ut INT; DECLARE v_anio SMALLINT; DECLARE v_folio VARCHAR(20);
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+
+  IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id AND rol = 'ciudadano' AND estado = 'activa') THEN
+    CALL sp_error('Solo un Ciudadano con cuenta activa puede votar');
+  END IF;
+  SELECT id, anio_simulado INTO v_ciclo, v_anio FROM ciclos WHERE estado = 'activo';
+  SET v_ut = (SELECT unidad_territorial_id FROM ciudadanos WHERE usuario_id = @usuario_id);
+  IF COALESCE((SELECT clave FROM fases WHERE id = (SELECT c.fase_actual_id FROM ciclos c WHERE c.id = v_ciclo)), '') <> 'consulta'
+     OR NOT (SELECT votacion_abierta FROM ciclos WHERE id = v_ciclo) THEN
+    CALL sp_error('La recepción de votos no está abierta');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id = p_proyecto AND ciclo_id = v_ciclo AND unidad_territorial_id = v_ut
+                   AND estatus = 'en_consulta' AND estado_moderacion = 'visible') THEN
+    CALL sp_error('El proyecto no está en la boleta de tu unidad territorial');
+  END IF;
+  IF EXISTS (SELECT 1 FROM participaciones WHERE ciclo_id = v_ciclo AND ciudadano_id = @usuario_id) THEN
+    CALL sp_error('Ya emitiste tu voto en este ciclo');
+  END IF;
+
+  SET v_folio = CONCAT('CP-', v_anio, '-', UPPER(LEFT(SHA2(CONCAT(UUID(), RAND()), 256), 10)));
+  START TRANSACTION;
+    INSERT INTO participaciones (ciclo_id, ciudadano_id, unidad_territorial_id, folio_comprobante)
+    VALUES (v_ciclo, @usuario_id, v_ut, v_folio);
+    INSERT INTO votos (id, ciclo_id, unidad_territorial_id, proyecto_id)
+    VALUES (LEFT(SHA2(CONCAT(UUID(), RAND()), 256), 32), v_ciclo, v_ut, p_proyecto);
+  COMMIT;
+  SELECT folio_comprobante, participo_en FROM participaciones
+  WHERE ciclo_id = v_ciclo AND ciudadano_id = @usuario_id;
+END$$
+
+CREATE PROCEDURE sp_contar_votos(IN p_ciclo INT)
+BEGIN
+  CALL sp_requiere_admin();
+  IF (SELECT votacion_abierta FROM ciclos WHERE id = p_ciclo) OR (SELECT votacion_cerrada_en FROM ciclos WHERE id = p_ciclo) IS NULL THEN
+    CALL sp_error('La votación debe estar cerrada para contar los votos');
+  END IF;
+  IF (SELECT resultados_publicados_en FROM ciclos WHERE id = p_ciclo) IS NOT NULL THEN
+    CALL sp_error('Los resultados ya fueron publicados');
+  END IF;
+
+  DELETE FROM resultados_unidad   WHERE ciclo_id = p_ciclo;
+  DELETE FROM resultados_proyecto WHERE ciclo_id = p_ciclo;
+
+  INSERT INTO resultados_proyecto (proyecto_id, ciclo_id, unidad_territorial_id, total_votos, posicion)
+  SELECT x.id, x.ciclo_id, x.unidad_territorial_id, x.total,
+         RANK() OVER (PARTITION BY x.unidad_territorial_id ORDER BY x.total DESC)
+  FROM (SELECT p.id, p.ciclo_id, p.unidad_territorial_id,
+               (SELECT COUNT(*) FROM votos v WHERE v.proyecto_id = p.id) AS total
+        FROM proyectos p
+        WHERE p.ciclo_id = p_ciclo AND p.estatus = 'en_consulta' AND p.estado_moderacion = 'visible') x;
+
+  INSERT INTO resultados_unidad (ciclo_id, unidad_territorial_id, total_votos, caso_especial, proyecto_ganador_id, metodo)
+  SELECT p_ciclo, a.ut, a.total, a.caso,
+         IF(a.caso IS NULL, a.primero, NULL),
+         IF(a.caso IS NULL, 'votacion', NULL)
+  FROM (SELECT rp.unidad_territorial_id AS ut,
+               SUM(rp.total_votos) AS total,
+               CASE WHEN COUNT(*) = 1 THEN 'unico_viable'
+                    WHEN SUM(rp.total_votos) = 0 THEN 'sin_votos'
+                    WHEN SUM(rp.posicion = 1) > 1 THEN 'empate' END AS caso,
+               MIN(IF(rp.posicion = 1, rp.proyecto_id, NULL)) AS primero
+        FROM resultados_proyecto rp WHERE rp.ciclo_id = p_ciclo
+        GROUP BY rp.unidad_territorial_id) a;
+
+  UPDATE ciclos SET computo_realizado_en = NOW() WHERE id = p_ciclo;
+  CALL sp_bitacora('votos_contar', 'ciclos', p_ciclo, p_ciclo, NULL);
+  SELECT COUNT(*) AS unidades, SUM(caso_especial IS NOT NULL) AS casos_especiales
+  FROM resultados_unidad WHERE ciclo_id = p_ciclo;
+END$$
+
+CREATE PROCEDURE sp_cerrar_votacion(IN p_ciclo INT)
+BEGIN
+  CALL sp_requiere_admin();
+  IF NOT COALESCE((SELECT votacion_abierta FROM ciclos WHERE id = p_ciclo), FALSE) THEN
+    CALL sp_error('La votación no está abierta');
+  END IF;
+  UPDATE ciclos SET votacion_abierta = FALSE, votacion_cerrada_en = NOW() WHERE id = p_ciclo;
+  CALL sp_bitacora('votacion_cerrar', 'ciclos', p_ciclo, p_ciclo, NULL);
+  CALL sp_contar_votos(p_ciclo);
+END$$
+
+CREATE PROCEDURE sp_resolver_caso_especial(IN p_ciclo INT, IN p_ut INT, IN p_metodo VARCHAR(20),
+                                           IN p_justificacion VARCHAR(500), IN p_proyecto BIGINT)
+BEGIN
+  DECLARE v_caso VARCHAR(20); DECLARE v_ganador BIGINT;
+  CALL sp_requiere_funcionario('consulta', (SELECT alcaldia_id FROM unidades_territoriales WHERE id = p_ut));
+  SELECT caso_especial, proyecto_ganador_id INTO v_caso, v_ganador
+    FROM resultados_unidad WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut;
+  IF v_caso IS NULL THEN CALL sp_error('Esta unidad territorial no es un caso especial'); END IF;
+  IF v_ganador IS NOT NULL THEN CALL sp_error('El caso especial ya fue resuelto'); END IF;
+  IF (SELECT resultados_publicados_en FROM ciclos WHERE id = p_ciclo) IS NOT NULL THEN
+    CALL sp_error('Los resultados ya fueron publicados');
+  END IF;
+
+  IF p_metodo = 'asamblea_seleccion' THEN
+    IF NOT EXISTS (SELECT 1 FROM resultados_proyecto
+                   WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut AND proyecto_id = p_proyecto
+                     AND (v_caso <> 'empate' OR posicion = 1)) THEN
+      CALL sp_error('El proyecto seleccionado no es candidato en este caso especial');
+    END IF;
+    SET v_ganador = p_proyecto;
+  ELSEIF p_metodo = 'asamblea_sorteo' THEN
+    SET v_ganador = (SELECT proyecto_id FROM resultados_proyecto
+                     WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut
+                       AND (v_caso <> 'empate' OR posicion = 1)
+                     ORDER BY RAND() LIMIT 1);
+  ELSE
+    CALL sp_error('Método no válido: usa asamblea_seleccion o asamblea_sorteo');
+  END IF;
+
+  UPDATE resultados_unidad
+     SET proyecto_ganador_id = v_ganador, metodo = p_metodo, justificacion = p_justificacion,
+         resuelto_por = (SELECT usuario_id FROM funcionarios WHERE usuario_id = @usuario_id), resuelto_en = NOW()
+   WHERE ciclo_id = p_ciclo AND unidad_territorial_id = p_ut;
+  CALL sp_bitacora('caso_especial_resolver', 'resultados_unidad', p_ut, p_ciclo,
+                   JSON_OBJECT('metodo', p_metodo, 'ganador', v_ganador));
+  SELECT v_ganador AS proyecto_ganador_id;
+END$$
+
+CREATE PROCEDURE sp_publicar_ganadores(IN p_ciclo INT)
+BEGIN
+  DECLARE v_pendientes INT;
+  CALL sp_requiere_admin();
+  IF (SELECT computo_realizado_en FROM ciclos WHERE id = p_ciclo) IS NULL THEN
+    CALL sp_error('Primero cierra la votación para realizar el cómputo');
+  END IF;
+  IF (SELECT resultados_publicados_en FROM ciclos WHERE id = p_ciclo) IS NOT NULL THEN
+    CALL sp_error('Los resultados ya fueron publicados');
+  END IF;
+  SET v_pendientes = (SELECT COUNT(*) FROM resultados_unidad WHERE ciclo_id = p_ciclo AND proyecto_ganador_id IS NULL);
+  IF v_pendientes > 0 THEN
+    CALL sp_error(CONCAT('Hay ', v_pendientes, ' caso(s) especial(es) sin resolver'));
+  END IF;
+
+  SET @interno = 1;
+  UPDATE proyectos p JOIN resultados_unidad ru ON ru.proyecto_ganador_id = p.id AND ru.ciclo_id = p_ciclo
+     SET p.estatus = 'ganador';
+  SET @interno = 0;
+  UPDATE ciclos SET resultados_publicados_en = NOW() WHERE id = p_ciclo;
+
+  INSERT INTO notificaciones (usuario_id, tipo, titulo, mensaje, proyecto_id)
+  SELECT p.proponente_id, 'proyecto_ganador', '¡Tu proyecto ganó la consulta!',
+         CONCAT('El proyecto ', p.folio, ' resultó ganador en tu unidad territorial.'), p.id
+  FROM proyectos p JOIN resultados_unidad ru ON ru.proyecto_ganador_id = p.id AND ru.ciclo_id = p_ciclo;
+
+  CALL sp_bitacora('ganadores_publicar', 'ciclos', p_ciclo, p_ciclo, NULL);
+  SELECT COUNT(*) AS ganadores FROM resultados_unidad WHERE ciclo_id = p_ciclo;
+END$$
+
+CREATE PROCEDURE sp_guardar_archivo(IN p_categoria VARCHAR(16), IN p_nombre_original VARCHAR(255),
+       IN p_tipo_mime VARCHAR(50), IN p_contenido LONGBLOB, IN p_ancho SMALLINT, IN p_alto SMALLINT,
+       IN p_miniatura MEDIUMBLOB)
+BEGIN
+  DECLARE v_id BIGINT; DECLARE v_uuid CHAR(36); DECLARE v_firma VARCHAR(64);
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN ROLLBACK; RESIGNAL; END;
+
+  IF p_contenido IS NULL OR LENGTH(p_contenido) = 0 THEN CALL sp_error('El archivo está vacío'); END IF;
+  IF p_categoria IN ('imagen_proyecto', 'foto_reporte', 'comprobante') THEN
+    IF @usuario_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id
+                                                 AND rol = 'ciudadano' AND estado = 'activa') THEN
+      CALL sp_error('Solo un Ciudadano con cuenta activa puede subir este archivo');
+    END IF;
+  ELSEIF p_categoria = 'foto_perfil' THEN
+    IF NOT EXISTS (SELECT 1 FROM usuarios WHERE id = @usuario_id AND estado = 'activa') THEN
+      CALL sp_error('Inicia sesión para cambiar tu foto de perfil');
+    END IF;
+  ELSE
+    CALL sp_requiere_admin();
+  END IF;
+
+  SET v_firma = HEX(SUBSTRING(CAST(p_contenido AS BINARY), 1, 8));
+  IF p_tipo_mime = 'image/jpeg' AND LEFT(v_firma, 6) <> 'FFD8FF' THEN
+    CALL sp_error('El archivo no es una imagen JPG válida');
+  ELSEIF p_tipo_mime = 'image/png' AND v_firma <> '89504E470D0A1A0A' THEN
+    CALL sp_error('El archivo no es una imagen PNG válida');
+  ELSEIF p_tipo_mime = 'application/pdf' AND LEFT(v_firma, 10) <> '255044462D' THEN
+    CALL sp_error('El archivo no es un PDF válido');
+  END IF;
+  IF p_categoria IN ('imagen_proyecto', 'foto_reporte', 'imagen_sistema', 'foto_perfil')
+     AND (p_tipo_mime NOT IN ('image/jpeg', 'image/png') OR LENGTH(p_contenido) > 5242880) THEN
+    CALL sp_error('Las imágenes deben ser JPG o PNG de hasta 5 MB');
+  END IF;
+
+  SET v_uuid = UUID();
+  START TRANSACTION;
+    INSERT INTO archivos (uuid, categoria, nombre_original, tipo_mime, tamano_bytes, sha256, ancho_px, alto_px, subido_por)
+    VALUES (v_uuid, p_categoria, LEFT(p_nombre_original, 255), p_tipo_mime, LENGTH(p_contenido),
+            SHA2(p_contenido, 256), p_ancho, p_alto, @usuario_id);
+    SET v_id = (SELECT id FROM archivos WHERE uuid = v_uuid);
+    INSERT INTO archivos_contenido (archivo_id, contenido, miniatura) VALUES (v_id, p_contenido, p_miniatura);
+  COMMIT;
+  SELECT v_id AS archivo_id, v_uuid AS uuid;
+END$$
+
+CREATE PROCEDURE sp_obtener_archivo(IN p_uuid CHAR(36), IN p_miniatura BOOLEAN)
+BEGIN
+  SELECT a.id, a.uuid, a.nombre_original, a.tipo_mime, a.tamano_bytes, a.sha256,
+         IF(p_miniatura AND c.miniatura IS NOT NULL, c.miniatura, c.contenido) AS contenido
+  FROM archivos a JOIN archivos_contenido c ON c.archivo_id = a.id
+  WHERE a.uuid = p_uuid AND a.eliminado_en IS NULL;
+END$$
+
+CREATE PROCEDURE sp_eliminar_archivo(IN p_uuid CHAR(36))
+BEGIN
+  IF @usuario_id IS NOT NULL
+     AND NOT EXISTS (SELECT 1 FROM archivos WHERE uuid = p_uuid AND subido_por = @usuario_id) THEN
+    CALL sp_requiere_funcionario('seguimiento', NULL);
+  END IF;
+  UPDATE archivos SET eliminado_en = NOW() WHERE uuid = p_uuid AND eliminado_en IS NULL;
+END$$
+
+CREATE PROCEDURE sp_registrar_reporte_generado(IN p_ciclo INT, IN p_tipo VARCHAR(20),
+                                               IN p_archivo BIGINT, IN p_filtros JSON)
+BEGIN
+  CALL sp_requiere_admin();
+  INSERT INTO reportes_generados (ciclo_id, tipo, archivo_id, filtros, generado_por)
+  VALUES (p_ciclo, p_tipo, p_archivo, p_filtros, @usuario_id);
+  CALL sp_bitacora(CONCAT('reporte_', p_tipo), 'reportes_generados', p_archivo, p_ciclo, p_filtros);
+END$$
+
+CREATE PROCEDURE sp_encolar_correo(IN p_usuario INT, IN p_destinatario VARCHAR(50), IN p_asunto VARCHAR(150),
+                                   IN p_cuerpo TEXT, IN p_plantilla VARCHAR(40))
+BEGIN
+  INSERT INTO correos_salida (usuario_id, destinatario, asunto, cuerpo, plantilla)
+  VALUES (p_usuario, LOWER(p_destinatario), p_asunto, p_cuerpo, p_plantilla);
+  SELECT MAX(id) AS correo_id FROM correos_salida WHERE destinatario = LOWER(p_destinatario);
+END$$
+
+CREATE PROCEDURE sp_correo_resultado(IN p_correo BIGINT, IN p_enviado BOOLEAN, IN p_fuente_clave VARCHAR(40),
+                                     IN p_id_mensaje_externo VARCHAR(100), IN p_error VARCHAR(500))
+BEGIN
+  UPDATE correos_salida
+     SET intentos = intentos + 1,
+         estado = IF(p_enviado, 'enviado', IF(intentos >= 3, 'fallido', 'pendiente')),
+         enviado_en = IF(p_enviado, NOW(), NULL),
+         fuente_id = (SELECT id FROM fuentes_externas WHERE clave = p_fuente_clave),
+         id_mensaje_externo = p_id_mensaje_externo,
+         ultimo_error = p_error
+   WHERE id = p_correo;
+END$$
+
+CREATE PROCEDURE sp_geocodificacion_buscar(IN p_consulta VARCHAR(300))
+BEGIN
+  DECLARE v_hash CHAR(64);
+  SET v_hash = SHA2(LOWER(TRIM(p_consulta)), 256);
+  UPDATE geocodificaciones SET usos = usos + 1 WHERE consulta_hash = v_hash;
+  SELECT id, exito, latitud, longitud, direccion_encontrada, consultado_en
+  FROM geocodificaciones WHERE consulta_hash = v_hash;
+END$$
+
+CREATE PROCEDURE sp_geocodificacion_guardar(IN p_consulta VARCHAR(300), IN p_exito BOOLEAN,
+       IN p_latitud DECIMAL(9,6), IN p_longitud DECIMAL(9,6), IN p_direccion VARCHAR(300), IN p_respuesta JSON)
+BEGIN
+  DECLARE v_hash CHAR(64);
+  SET v_hash = SHA2(LOWER(TRIM(p_consulta)), 256);
+  INSERT INTO geocodificaciones (consulta_hash, consulta, fuente_id, exito, latitud, longitud, direccion_encontrada, respuesta)
+  VALUES (v_hash, LOWER(TRIM(p_consulta)), (SELECT id FROM fuentes_externas WHERE clave = 'nominatim'),
+          p_exito, p_latitud, p_longitud, p_direccion, p_respuesta)
+  ON DUPLICATE KEY UPDATE exito = p_exito, latitud = p_latitud, longitud = p_longitud,
+                          direccion_encontrada = p_direccion, respuesta = p_respuesta, consultado_en = NOW();
+  SELECT id FROM geocodificaciones WHERE consulta_hash = v_hash;
+END$$
+
+CREATE PROCEDURE sp_sync_iniciar(IN p_fuente_clave VARCHAR(40), IN p_disparada_por VARCHAR(10))
+BEGIN
+  DECLARE v_fuente SMALLINT;
+  IF p_disparada_por = 'manual' THEN CALL sp_requiere_admin(); END IF;
+  SET v_fuente = (SELECT id FROM fuentes_externas WHERE clave = p_fuente_clave AND activa);
+  IF v_fuente IS NULL THEN CALL sp_error(CONCAT('Fuente inexistente o inactiva: ', p_fuente_clave)); END IF;
+  IF EXISTS (SELECT 1 FROM sincronizaciones WHERE fuente_id = v_fuente AND estado = 'en_curso'
+               AND iniciada_en > NOW() - INTERVAL 2 HOUR) THEN
+    CALL sp_error('Ya hay una sincronización en curso para esta fuente');
+  END IF;
+  INSERT INTO sincronizaciones (fuente_id, disparada_por, usuario_id)
+  VALUES (v_fuente, COALESCE(p_disparada_por, 'programada'), @usuario_id);
+  SELECT MAX(id) AS sincronizacion_id FROM sincronizaciones WHERE fuente_id = v_fuente;
+END$$
+
+CREATE PROCEDURE sp_sync_contar(IN p_sync BIGINT, IN p_resultado VARCHAR(12))
+BEGIN
+  UPDATE sincronizaciones
+     SET registros_leidos = registros_leidos + 1,
+         nuevos       = nuevos       + (p_resultado = 'nuevo'),
+         actualizados = actualizados + (p_resultado = 'actualizado'),
+         sin_cambios  = sin_cambios  + (p_resultado = 'sin_cambios'),
+         omitidos     = omitidos     + (p_resultado = 'omitido')
+   WHERE id = p_sync;
+END$$
+
+CREATE PROCEDURE sp_sync_error(IN p_sync BIGINT, IN p_id_externo VARCHAR(100), IN p_mensaje VARCHAR(500), IN p_datos JSON)
+BEGIN
+  INSERT INTO sincronizacion_errores (sincronizacion_id, id_externo, mensaje, datos)
+  VALUES (p_sync, p_id_externo, LEFT(p_mensaje, 500), p_datos);
+  UPDATE sincronizaciones SET registros_leidos = registros_leidos + 1, con_error = con_error + 1 WHERE id = p_sync;
+END$$
+
+CREATE PROCEDURE sp_sync_finalizar(IN p_sync BIGINT, IN p_mensaje_error VARCHAR(1000))
+BEGIN
+  UPDATE sincronizaciones
+     SET finalizada_en = NOW(),
+         mensaje = p_mensaje_error,
+         estado = CASE WHEN p_mensaje_error IS NOT NULL THEN 'fallida'
+                       WHEN con_error = 0 THEN 'exitosa'
+                       WHEN con_error < registros_leidos THEN 'parcial'
+                       ELSE 'fallida' END
+   WHERE id = p_sync AND estado = 'en_curso';
+  UPDATE fuentes_externas f JOIN sincronizaciones sy ON sy.fuente_id = f.id
+     SET f.ultima_sincronizacion_exitosa = sy.finalizada_en
+   WHERE sy.id = p_sync AND sy.estado IN ('exitosa', 'parcial');
+  SELECT estado, registros_leidos, nuevos, actualizados, sin_cambios, omitidos, con_error
+  FROM sincronizaciones WHERE id = p_sync;
+END$$
+
+CREATE PROCEDURE sp_sync_alcaldia(IN p_sync BIGINT, IN p_id_externo VARCHAR(100), IN p_nombre VARCHAR(50),
+       IN p_clave CHAR(3), IN p_latitud DECIMAL(9,6), IN p_longitud DECIMAL(9,6), IN p_geojson JSON, IN p_datos JSON)
+BEGIN
+  DECLARE v_fuente SMALLINT; DECLARE v_id SMALLINT; DECLARE v_hash CHAR(64);
+  SET v_fuente = (SELECT fuente_id FROM sincronizaciones WHERE id = p_sync);
+  SET v_hash = SHA2(CONCAT(COALESCE(CAST(p_datos AS CHAR), ''), COALESCE(CAST(p_geojson AS CHAR), '')), 256);
+  SET v_id = COALESCE((SELECT id FROM alcaldias WHERE fuente_id = v_fuente AND id_externo = p_id_externo),
+                      (SELECT id FROM alcaldias WHERE nombre = p_nombre));
+  IF v_id IS NULL AND p_clave IS NULL THEN
+    CALL sp_sync_error(p_sync, p_id_externo, CONCAT('Alcaldía nueva sin clave de 3 letras: ', COALESCE(p_nombre, '?')), p_datos);
+  ELSEIF v_id IS NULL THEN
+    INSERT INTO alcaldias (clave, nombre, latitud, longitud, limite_geojson, origen, fuente_id, id_externo,
+                           hash_datos, datos_externos, sincronizado_en)
+    VALUES (p_clave, p_nombre, p_latitud, p_longitud, p_geojson, 'api', v_fuente, p_id_externo, v_hash, p_datos, NOW());
+    CALL sp_sync_contar(p_sync, 'nuevo');
+  ELSEIF (SELECT hash_datos FROM alcaldias WHERE id = v_id) = v_hash THEN
+    UPDATE alcaldias SET sincronizado_en = NOW() WHERE id = v_id;
+    CALL sp_sync_contar(p_sync, 'sin_cambios');
+  ELSE
+    UPDATE alcaldias
+       SET nombre = COALESCE(p_nombre, nombre), latitud = COALESCE(p_latitud, latitud),
+           longitud = COALESCE(p_longitud, longitud), limite_geojson = COALESCE(p_geojson, limite_geojson),
+           origen = 'api', fuente_id = v_fuente, id_externo = p_id_externo, hash_datos = v_hash,
+           datos_externos = p_datos, sincronizado_en = NOW()
+     WHERE id = v_id;
+    CALL sp_sync_contar(p_sync, 'actualizado');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_sync_unidad(IN p_sync BIGINT, IN p_id_externo VARCHAR(100), IN p_alcaldia_nombre VARCHAR(50),
+       IN p_clave VARCHAR(20), IN p_nombre VARCHAR(100), IN p_tipo VARCHAR(19),
+       IN p_latitud DECIMAL(9,6), IN p_longitud DECIMAL(9,6), IN p_geojson JSON, IN p_datos JSON)
+BEGIN
+  DECLARE v_fuente SMALLINT; DECLARE v_id INT; DECLARE v_alc SMALLINT; DECLARE v_hash CHAR(64);
+  SET v_fuente = (SELECT fuente_id FROM sincronizaciones WHERE id = p_sync);
+  SET v_alc = (SELECT id FROM alcaldias WHERE nombre = p_alcaldia_nombre);
+  SET v_hash = SHA2(CONCAT(COALESCE(CAST(p_datos AS CHAR), ''), COALESCE(CAST(p_geojson AS CHAR), '')), 256);
+  SET v_id = COALESCE((SELECT id FROM unidades_territoriales WHERE fuente_id = v_fuente AND id_externo = p_id_externo),
+                      (SELECT id FROM unidades_territoriales WHERE clave = p_clave));
+  IF v_alc IS NULL THEN
+    CALL sp_sync_error(p_sync, p_id_externo, CONCAT('Alcaldía no encontrada: ', COALESCE(p_alcaldia_nombre, '?')), p_datos);
+  ELSEIF COALESCE(p_tipo, 'colonia') NOT IN ('colonia', 'barrio', 'pueblo_originario', 'unidad_habitacional') THEN
+    CALL sp_sync_error(p_sync, p_id_externo, CONCAT('Tipo de unidad no válido: ', p_tipo), p_datos);
+  ELSEIF v_id IS NULL THEN
+    INSERT INTO unidades_territoriales (alcaldia_id, clave, nombre, tipo, latitud, longitud, limite_geojson,
+                                        origen, fuente_id, id_externo, hash_datos, datos_externos, sincronizado_en)
+    VALUES (v_alc, p_clave, p_nombre, COALESCE(p_tipo, 'colonia'), p_latitud, p_longitud, p_geojson,
+            'api', v_fuente, p_id_externo, v_hash, p_datos, NOW());
+    CALL sp_sync_contar(p_sync, 'nuevo');
+  ELSEIF (SELECT hash_datos FROM unidades_territoriales WHERE id = v_id) = v_hash THEN
+    UPDATE unidades_territoriales SET sincronizado_en = NOW() WHERE id = v_id;
+    CALL sp_sync_contar(p_sync, 'sin_cambios');
+  ELSE
+    UPDATE unidades_territoriales
+       SET alcaldia_id = v_alc, clave = p_clave, nombre = p_nombre, tipo = COALESCE(p_tipo, tipo),
+           latitud = COALESCE(p_latitud, latitud), longitud = COALESCE(p_longitud, longitud),
+           limite_geojson = COALESCE(p_geojson, limite_geojson), origen = 'api', fuente_id = v_fuente,
+           id_externo = p_id_externo, hash_datos = v_hash, datos_externos = p_datos, sincronizado_en = NOW()
+     WHERE id = v_id;
+    CALL sp_sync_contar(p_sync, 'actualizado');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_sync_indicador(IN p_sync BIGINT, IN p_unidad_clave VARCHAR(20), IN p_indicador_clave VARCHAR(40),
+       IN p_periodo SMALLINT, IN p_valor DECIMAL(16,4), IN p_datos JSON)
+BEGIN
+  DECLARE v_fuente SMALLINT; DECLARE v_ut INT; DECLARE v_ind SMALLINT; DECLARE v_hash CHAR(64); DECLARE v_actual CHAR(64);
+  DECLARE v_existe INT;
+  SET v_fuente = (SELECT fuente_id FROM sincronizaciones WHERE id = p_sync);
+  SET v_ut  = (SELECT id FROM unidades_territoriales WHERE clave = p_unidad_clave);
+  SET v_ind = (SELECT id FROM indicadores WHERE clave = p_indicador_clave);
+  SET v_hash = SHA2(CONCAT(p_valor, '|', COALESCE(CAST(p_datos AS CHAR), '')), 256);
+  IF v_ut IS NULL OR v_ind IS NULL OR p_valor IS NULL THEN
+    CALL sp_sync_error(p_sync, CONCAT(p_unidad_clave, '/', p_indicador_clave, '/', p_periodo),
+                       'Unidad territorial, indicador o valor no válido', p_datos);
+  ELSE
+    SET v_existe = (SELECT COUNT(*) FROM indicadores_unidad
+                    WHERE unidad_territorial_id = v_ut AND indicador_id = v_ind AND periodo = p_periodo);
+    SET v_actual = (SELECT hash_datos FROM indicadores_unidad
+                    WHERE unidad_territorial_id = v_ut AND indicador_id = v_ind AND periodo = p_periodo);
+    IF v_existe = 0 THEN
+      INSERT INTO indicadores_unidad (unidad_territorial_id, indicador_id, periodo, valor, fuente_id, hash_datos, datos_externos)
+      VALUES (v_ut, v_ind, p_periodo, p_valor, v_fuente, v_hash, p_datos);
+      CALL sp_sync_contar(p_sync, 'nuevo');
+    ELSEIF v_actual = v_hash THEN
+      CALL sp_sync_contar(p_sync, 'sin_cambios');
+    ELSE
+      UPDATE indicadores_unidad SET valor = p_valor, fuente_id = v_fuente, hash_datos = v_hash,
+                                    datos_externos = p_datos, sincronizado_en = NOW()
+       WHERE unidad_territorial_id = v_ut AND indicador_id = v_ind AND periodo = p_periodo;
+      CALL sp_sync_contar(p_sync, 'actualizado');
+    END IF;
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_sync_directorio(IN p_sync BIGINT, IN p_id_externo VARCHAR(100), IN p_alcaldia_nombre VARCHAR(50),
+       IN p_tipo VARCHAR(13), IN p_cargo VARCHAR(50), IN p_nombre_titular VARCHAR(50), IN p_temas VARCHAR(100),
+       IN p_direccion VARCHAR(150), IN p_telefono VARCHAR(30), IN p_correo VARCHAR(50), IN p_sitio_web VARCHAR(100),
+       IN p_datos JSON)
+BEGIN
+  DECLARE v_fuente SMALLINT; DECLARE v_id INT; DECLARE v_alc SMALLINT; DECLARE v_hash CHAR(64); DECLARE v_tel VARCHAR(30);
+  SET v_fuente = (SELECT fuente_id FROM sincronizaciones WHERE id = p_sync);
+  SET v_alc = (SELECT id FROM alcaldias WHERE nombre = p_alcaldia_nombre);
+  SET v_hash = SHA2(COALESCE(CAST(p_datos AS CHAR), ''), 256);
+  SET v_tel = REPLACE(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p_telefono, ''), ' ', ''), '-', ''), '(', ''), ')', ''), '+52', '');
+  SET v_tel = IF(LENGTH(v_tel) = 10, v_tel, NULL);
+  SET v_id = (SELECT id FROM directorio WHERE fuente_id = v_fuente AND id_externo = p_id_externo);
+  IF v_alc IS NULL THEN
+    CALL sp_sync_error(p_sync, p_id_externo, CONCAT('Alcaldía no encontrada: ', COALESCE(p_alcaldia_nombre, '?')), p_datos);
+  ELSEIF v_id IS NULL THEN
+    INSERT INTO directorio (alcaldia_id, tipo, cargo, nombre_titular, temas, direccion, telefono, correo, sitio_web,
+                            origen, fuente_id, id_externo, hash_datos, datos_externos, sincronizado_en)
+    VALUES (v_alc, COALESCE(p_tipo, 'sede_atencion'), p_cargo, p_nombre_titular, p_temas, p_direccion, v_tel,
+            p_correo, p_sitio_web, 'api', v_fuente, p_id_externo, v_hash, p_datos, NOW());
+    CALL sp_sync_contar(p_sync, 'nuevo');
+  ELSEIF (SELECT editado_manualmente FROM directorio WHERE id = v_id) THEN
+    CALL sp_sync_contar(p_sync, 'omitido');
+  ELSEIF (SELECT hash_datos FROM directorio WHERE id = v_id) = v_hash THEN
+    CALL sp_sync_contar(p_sync, 'sin_cambios');
+  ELSE
+    UPDATE directorio
+       SET alcaldia_id = v_alc, tipo = COALESCE(p_tipo, tipo), cargo = p_cargo, nombre_titular = p_nombre_titular,
+           temas = p_temas, direccion = p_direccion, telefono = v_tel, correo = p_correo, sitio_web = p_sitio_web,
+           hash_datos = v_hash, datos_externos = p_datos, sincronizado_en = NOW()
+     WHERE id = v_id;
+    CALL sp_sync_contar(p_sync, 'actualizado');
+  END IF;
+END$$
+
+CREATE PROCEDURE sp_sync_pendientes()
+BEGIN
+  SELECT f.id, f.clave, f.nombre, f.url_base, f.recurso, f.formato, f.autenticacion, f.variable_credencial,
+         f.entidad_destino, f.ultima_sincronizacion_exitosa
+  FROM fuentes_externas f
+  WHERE f.activa AND f.tipo = 'datos' AND f.frecuencia_minutos IS NOT NULL
+    AND (f.ultima_sincronizacion_exitosa IS NULL
+         OR f.ultima_sincronizacion_exitosa < NOW() - INTERVAL f.frecuencia_minutos MINUTE)
+    AND NOT EXISTS (SELECT 1 FROM sincronizaciones sy WHERE sy.fuente_id = f.id AND sy.estado = 'en_curso'
+                      AND sy.iniciada_en > NOW() - INTERVAL 2 HOUR);
+END$$
+
+DELIMITER ;
