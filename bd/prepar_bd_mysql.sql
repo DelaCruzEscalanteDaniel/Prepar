@@ -421,3 +421,88 @@ END$$
 
 DELIMITER ;
 
+INSERT INTO fases (id, nombre, descripcion) VALUES
+  (1, 'Convocatoria', 'Se publica el presupuesto de cada colonia y las reglas del ciclo.'),
+  (2, 'Diagnóstico y registro', 'Los vecinos publican ideas en el foro y registran sus proyectos.'),
+  (3, 'Dictaminación', 'La alcaldía revisa cada proyecto y dice si es viable o no viable.'),
+  (4, 'Sorteo y difusión', 'Se sortea el número con el que cada proyecto viable aparece en la boleta.'),
+  (5, 'Consulta', 'Cada vecino vota una sola vez por un proyecto de su colonia.'),
+  (6, 'Resultados', 'Se cuentan los votos y se conoce el proyecto ganador de cada colonia.'),
+  (7, 'Ejecución y seguimiento', 'La alcaldía construye las obras y los vecinos suben fotos de cómo van.'),
+  (8, 'Evaluación', 'Se revisa cuánto se gastó y cómo quedó cada obra.');
+
+INSERT INTO rubros (nombre, color) VALUES
+  ('Mejoramiento de espacios públicos', '#16A34A'),
+  ('Infraestructura urbana, obras y servicios', '#EA580C'),
+  ('Actividades recreativas, deportivas y culturales', '#7C3AED');
+
+INSERT INTO pasos_rubro (rubro_id, orden, nombre, porcentaje) VALUES
+  (1, 1, 'Planeación y permisos', 10),
+  (1, 2, 'Compra de materiales o contratación', 20),
+  (1, 3, 'Preparación del sitio', 15),
+  (1, 4, 'Trabajos principales', 35),
+  (1, 5, 'Detalles finales y limpieza', 10),
+  (1, 6, 'Entrega a los vecinos', 10),
+  (2, 1, 'Proyecto y permisos', 15),
+  (2, 2, 'Contratación', 15),
+  (2, 3, 'Inicio de obra', 10),
+  (2, 4, 'Obra a la mitad', 25),
+  (2, 5, 'Obra terminada', 25),
+  (2, 6, 'Pruebas y entrega', 10),
+  (3, 1, 'Planeación y calendario', 15),
+  (3, 2, 'Contratación de instructores o compra de equipo', 25),
+  (3, 3, 'Difusión con los vecinos', 10),
+  (3, 4, 'Actividades en curso', 35),
+  (3, 5, 'Cierre y evaluación', 15);
+
+INSERT INTO alcaldias (id, nombre, latitud, longitud) VALUES
+  (1, 'Álvaro Obregón', 19.358600, -99.203600),
+  (2, 'Azcapotzalco', 19.483300, -99.183300),
+  (3, 'Benito Juárez', 19.372500, -99.156400),
+  (4, 'Coyoacán', 19.328000, -99.161700),
+  (5, 'Cuajimalpa de Morelos', 19.357200, -99.299100),
+  (6, 'Cuauhtémoc', 19.432600, -99.133200),
+  (7, 'Gustavo A. Madero', 19.482300, -99.110100),
+  (8, 'Iztacalco', 19.395600, -99.097800),
+  (9, 'Iztapalapa', 19.355700, -99.062000),
+  (10, 'La Magdalena Contreras', 19.304400, -99.240200),
+  (11, 'Miguel Hidalgo', 19.422800, -99.204800),
+  (12, 'Milpa Alta', 19.192400, -99.023200),
+  (13, 'Tláhuac', 19.286300, -99.006300),
+  (14, 'Tlalpan', 19.290500, -99.171100),
+  (15, 'Venustiano Carranza', 19.430400, -99.098300),
+  (16, 'Xochimilco', 19.257200, -99.103700);
+
+INSERT INTO colonias (alcaldia_id, clave, nombre, latitud, longitud, poblacion, indice_pobreza, indice_delictivo) VALUES
+  (1, 'AOB-001', 'San Ángel', 19.346700, -99.190000, 9800, 0.0800, 0.3500),
+  (1, 'AOB-002', 'Olivar de los Padres', 19.333000, -99.217000, 21500, 0.3100, 0.4200),
+  (2, 'AZC-001', 'Clavería', 19.471000, -99.185000, 17600, 0.1800, 0.4800),
+  (2, 'AZC-002', 'San Álvaro', 19.459000, -99.183000, 12400, 0.2200, 0.4500),
+  (3, 'BJU-001', 'Narvarte Poniente', 19.396000, -99.156000, 24800, 0.0600, 0.5200),
+  (3, 'BJU-002', 'Del Valle Centro', 19.385000, -99.165000, 19300, 0.0500, 0.4900),
+  (4, 'COY-001', 'Del Carmen', 19.350000, -99.162000, 11200, 0.0900, 0.3300),
+  (4, 'COY-002', 'Santa Úrsula Coapa', 19.305000, -99.143000, 38500, 0.4100, 0.5600),
+  (5, 'CUJ-001', 'Cuajimalpa', 19.357000, -99.299000, 15700, 0.3000, 0.2400),
+  (5, 'CUJ-002', 'El Contadero', 19.344000, -99.290000, 8900, 0.3400, 0.2100),
+  (6, 'CUH-001', 'Roma Norte', 19.419000, -99.162000, 27300, 0.0700, 0.8100),
+  (6, 'CUH-002', 'Guerrero', 19.442000, -99.145000, 36900, 0.3800, 0.8800),
+  (7, 'GAM-001', 'Lindavista', 19.488000, -99.130000, 23100, 0.1000, 0.4000),
+  (7, 'GAM-002', 'San Felipe de Jesús', 19.493000, -99.072000, 33800, 0.4600, 0.6500),
+  (8, 'IZC-001', 'Agrícola Oriental', 19.395000, -99.070000, 40200, 0.2900, 0.5800),
+  (8, 'IZC-002', 'Santa Anita', 19.395000, -99.124000, 10600, 0.2500, 0.4300),
+  (9, 'IZP-001', 'San Lorenzo Tezonco', 19.308000, -99.067000, 39500, 0.5100, 0.6200),
+  (9, 'IZP-002', 'Unidad Habitacional Vicente Guerrero', 19.357000, -99.056000, 28700, 0.4400, 0.5900),
+  (10, 'MAC-001', 'San Jerónimo Lídice', 19.323000, -99.222000, 13400, 0.1400, 0.2600),
+  (10, 'MAC-002', 'La Magdalena', 19.299000, -99.244000, 9700, 0.3600, 0.2300),
+  (11, 'MHI-001', 'Tacubaya', 19.403000, -99.187000, 22600, 0.3200, 0.7100),
+  (11, 'MHI-002', 'Anáhuac', 19.440000, -99.180000, 18900, 0.2000, 0.5000),
+  (12, 'MAL-001', 'Villa Milpa Alta', 19.192000, -99.023000, 16800, 0.5800, 0.1500),
+  (12, 'MAL-002', 'San Pedro Atocpan', 19.201000, -99.049000, 11900, 0.5500, 0.1200),
+  (13, 'TLH-001', 'San Francisco Tlaltenco', 19.293000, -99.023000, 25400, 0.4900, 0.3800),
+  (13, 'TLH-002', 'Del Mar', 19.296000, -99.054000, 20100, 0.4300, 0.4100),
+  (14, 'TLP-001', 'Tlalpan Centro', 19.292000, -99.170000, 14200, 0.1500, 0.2900),
+  (14, 'TLP-002', 'San Andrés Totoltepec', 19.247000, -99.178000, 18300, 0.4700, 0.2700),
+  (15, 'VCA-001', 'Moctezuma 2a Sección', 19.429000, -99.100000, 26900, 0.2400, 0.6000),
+  (15, 'VCA-002', 'Jardín Balbuena', 19.418000, -99.115000, 31500, 0.2000, 0.5400),
+  (16, 'XOC-001', 'Barrio La Asunción', 19.262000, -99.105000, 7600, 0.3300, 0.3100),
+  (16, 'XOC-002', 'Santa Cruz Acalpixca', 19.258000, -99.074000, 17200, 0.5000, 0.2800);
