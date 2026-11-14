@@ -9,23 +9,23 @@ function preguntar(rl, texto) {
 }
 
 (async () => {
-  let [nombre, correo, pass] = process.argv.slice(2);
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
+    let [nombre, correo, password] = process.argv.slice(2);
     if (!nombre) nombre = await preguntar(rl, 'Nombre completo: ');
     if (!correo) correo = await preguntar(rl, 'Correo: ');
-    if (!pass) pass = await preguntar(rl, 'Contraseña (8 a 64, con mayúscula y número): ');
-    nombre = v.nombrePersona(nombre);
+    if (!password) password = await preguntar(rl, 'Contraseña (8 a 64, con mayúscula y número): ');
+    nombre = v.texto(nombre, 'el nombre', 60);
     correo = v.correo(correo);
-    pass = v.password(pass);
-    const hash = await bcrypt.hash(pass, 10);
-    const r = await db.conSistema((con) => con.call('sp_crear_administrador', [nombre, correo, hash]));
-    console.log(`✔ Administrador creado (id ${r[0].usuario_id}). Ya puedes iniciar sesión con ${correo}.`);
+    password = v.password(password);
+    await db.q("INSERT INTO usuarios (rol, nombre, correo, password_hash) VALUES ('administrador', ?, ?, ?)",
+      [nombre, correo, await bcrypt.hash(password, 10)]);
+    console.log(`✔ Administrador creado. Ya puedes entrar con ${correo}`);
   } catch (e) {
-    console.error('✘ No se pudo crear el Administrador:', e.sqlMessage || e.message);
+    console.error('✘ No se pudo crear el administrador:', e.sqlMessage || e.message);
     process.exitCode = 1;
   } finally {
     rl.close();
-    await db.cerrar();
+    await db.pool.end();
   }
 })();

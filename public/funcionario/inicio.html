@@ -1,53 +1,24 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
-<title>Inicio del funcionario · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<title>Inicio · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="funcionario" data-pagina="inicio">
-<main id="principal" tabindex="-1">
-<div><span id="chip-fase"></span><h1 id="saludo" class="titulo-pagina" style="margin:10px 0 4px;font-size:32px">Hola</h1><p class="texto-2" style="margin:0" id="sub-inicio">Esto es lo que tienes pendiente en tu alcaldía.</p></div>
-<section class="rejilla-tareas" id="tareas" aria-label="Tareas pendientes"><div class="cargando-bloque">Cargando…</div></section>
-<section id="linea" class="tarjeta columna" style="gap:18px">
-  <div><h2 class="h2-maq" style="margin:0">Fases del ciclo</h2><p class="tenue" style="margin:4px 0 0;font-size:14px">Solo para que te guíes: el Administrador es quien avanza las fases. Toca una fase para ver qué te toca hacer en ella.</p></div>
-  <div class="linea-fases" id="linea-fases"></div>
-  <div class="detalle-fase" id="detalle-fase"></div>
-</section>
-<div class="fila arriba" style="gap:18px">
-  <details class="tarjeta plegable" style="flex:1 1 380px;min-width:0" id="caja-aviso">
-    <summary><span class="plegable-titulo">＋ Publicar aviso a los ciudadanos</span><span class="tenue">Un mensaje que verán los vecinos en su inicio (por ejemplo: «Se publicaron los dictámenes»).</span></summary>
-    <form id="form-aviso" class="columna" style="gap:12px" novalidate>
-      <label>Título <span class="opcional">(hasta 100)</span><input type="text" name="titulo" maxlength="100" required placeholder="Ej.: Se publicaron los dictámenes"></label>
-      <label>Mensaje <span class="opcional">(hasta 500)</span><textarea name="mensaje" maxlength="500" rows="3" required placeholder="Lo que deben saber los vecinos"></textarea></label>
-      <div class="fila" style="gap:10px">
-        <label style="flex:1 1 160px">Vigente hasta<input type="date" name="vigente_hasta" id="vigente"></label>
-        <label style="flex:1 1 160px">Dirigido a<select name="alcance" id="alcance"><option value="mi_alcaldia">Mi alcaldía</option><option value="todas">Todas las alcaldías</option></select></label>
-      </div>
-      <div id="msg-aviso"></div>
-      <button class="btn" type="submit">Publicar aviso</button>
-    </form>
-  </details>
-  <section class="columna" style="flex:1 1 320px;min-width:0;gap:14px">
-    <div class="tarjeta columna" style="gap:10px">
-      <h2 class="h2-maq" style="margin:0;font-size:20px">Herramientas por fase</h2>
-      <div class="fila entre"><span><strong>Realizar sorteo</strong><br><span class="tenue" style="font-size:13px">Fase 4 · boletas por colonia</span></span><a class="btn2" href="/funcionario/sorteo.html">Abrir</a></div>
-      <div class="fila entre"><span><strong>Resolver casos especiales</strong><br><span class="tenue" style="font-size:13px">Después del conteo de votos</span></span><a class="btn2" href="/funcionario/sorteo.html#casos">Abrir</a></div>
-    </div>
-    <div class="tarjeta columna" style="gap:10px">
-      <h2 class="h2-maq" style="margin:0;font-size:20px">Avisos publicados</h2>
-      <div id="avisos" class="columna" style="gap:10px"></div>
-    </div>
-  </section>
+<body>
+<header></header>
+<main>
+<h1 id="saludo">Hola</h1>
+<div class="aviso" id="aviso"></div>
+<div class="fila">
+<div class="caja"><h2>Proyectos de tu alcaldía</h2><table id="conteo"></table></div>
+<div class="caja"><h2>Fases del ciclo</h2><ol class="fases" id="fases"></ol></div>
 </div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/funcionario-inicio.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/funcionario-inicio.js"></script>
 </body>
 </html>

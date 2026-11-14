@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obras · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header></header>
+<main>
+<section id="vista-lista">
+<h1>Obras de la alcaldía</h1>
+<p class="tenue" style="margin:-10px 0 0">Proyectos ganadores. Entra a una obra para registrar sus pasos y su dinero.</p>
+<div class="caja tabla"><table><thead><tr><th>Obra</th><th>Colonia</th><th style="width:200px">Avance</th><th>Estatus</th><th></th></tr></thead><tbody id="obras"></tbody></table></div>
+</section>
+<section id="vista-obra" class="oculto">
+<p style="margin:0"><a href="#">← Volver a las obras</a></p>
+<h1 id="obra-titulo"></h1>
+<p class="tenue" id="obra-datos" style="margin:0 0 16px"></p>
+<div class="fila">
+<div class="caja">
+<h2>Pasos de la obra</h2>
+<table id="obra-pasos"></table>
+<form method="post" id="form-paso" class="oculto" style="margin-top:14px">
+<label id="paso-nombre">¿Qué se hizo?<textarea name="que_se_hizo" rows="2" maxlength="250" required></textarea></label>
+<p class="mensaje"></p>
+<button class="btn">Ya se terminó este paso</button>
+</form>
+</div>
+<div class="caja">
+<h2>Dinero de la obra</h2>
+<p style="margin:0 0 6px" id="dinero"></p>
+<div class="barra-av" style="margin-bottom:14px"><span id="dinero-barra"></span></div>
+<form method="post" id="form-gasto" class="oculto">
+<div class="fila"><label>Monto<input name="monto" type="number" min="0.01" step="0.01" required></label>
+<label>Concepto<input name="concepto" maxlength="150" required></label></div>
+<p class="mensaje"></p>
+<button class="btn">Registrar gasto</button>
+</form>
+<table id="gastos" style="margin-top:12px"></table>
+<form method="post" id="form-inejecutable" class="oculto" style="margin-top:20px">
+<label>¿Por qué no se puede hacer la obra?<textarea name="motivo" rows="2" maxlength="250" required></textarea></label>
+<p class="mensaje"></p>
+<button class="peligro">Marcar la obra como inejecutable</button>
+</form>
+</div>
+</div>
+<div class="caja"><h2>Fotos de los vecinos</h2><div id="obra-fotos"></div></div>
+</section>
+</main>
+<script src="/js/app.js"></script>
+<script src="/js/pages/funcionario-obras.js"></script>
+</body>
+</html>
