@@ -1,40 +1,22 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
-<title>Sorteo y casos especiales · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<title>Sorteo · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="funcionario" data-pagina="sorteo">
-<main id="principal" tabindex="-1">
-<div><span class="chip-sup">Se usa en la fase 4 (sorteo) y después del conteo (casos especiales)</span><h1 class="titulo-pagina" style="margin:10px 0 4px;font-size:32px">Sorteo y casos especiales</h1>
-  <p class="texto-2" style="margin:0">Asigna al azar el número de cada proyecto en la boleta y resuelve las colonias donde no hubo un ganador claro.</p></div>
-<div class="fila pestanas-maq" role="tablist">
-  <button type="button" role="tab" class="tab-maq" data-pestana="sorteo" aria-selected="true">Sorteo de números (<span data-n="sorteo">0</span>)</button>
-  <button type="button" role="tab" class="tab-maq" data-pestana="casos" aria-selected="false">Casos especiales (<span data-n="casos">0</span>)</button>
-</div>
-<section data-panel="sorteo" class="columna" style="gap:14px">
-  <div id="estado-sorteo"></div>
-  <div class="fila arriba" style="gap:18px">
-    <section class="columna" style="flex:1 1 240px;min-width:0;gap:10px" id="lista-uts" aria-label="Colonias"></section>
-    <section class="tarjeta columna panel-dict" id="panel-sorteo" style="gap:14px"></section>
-  </div>
-</section>
-<section data-panel="casos" class="columna" style="gap:14px" hidden>
-  <div id="estado-casos"></div>
-  <div class="fila arriba" style="gap:18px">
-    <section class="columna" style="flex:1 1 240px;min-width:0;gap:10px" id="lista-casos" aria-label="Casos especiales"></section>
-    <section class="tarjeta columna panel-dict" id="panel-caso" style="gap:14px"></section>
-  </div>
-</section>
+<body>
+<header></header>
+<main>
+<h1>Sorteo de la boleta</h1>
+<p class="tenue" style="margin:-10px 0 0">El sorteo da a cada proyecto viable el número con el que aparece en la boleta de su colonia.</p>
+<p class="mensaje" id="mensaje"></p>
+<div class="caja tabla"><table><thead><tr><th>Colonia</th><th>Proyectos viables</th><th>Boleta</th><th></th></tr></thead><tbody id="lista"></tbody></table></div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/funcionario-sorteo.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/funcionario-sorteo.js"></script>
 </body>
 </html>
