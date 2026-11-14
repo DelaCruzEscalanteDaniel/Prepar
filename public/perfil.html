@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mi perfil · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header></header>
+<main>
+<h1>Mi perfil</h1>
+<div class="aviso oculto" id="temporal"><b>Cambia tu contraseña temporal</b> para empezar a usar Prepar.</div>
+<div class="fila">
+<div class="caja">
+<h2>Mis datos</h2>
+<form method="post" id="form-datos">
+<label>Nombre completo<input name="nombre" maxlength="60" required></label>
+<label>Correo<input id="correo" disabled></label>
+<label>Teléfono<input name="telefono" inputmode="numeric" maxlength="10"></label>
+<div id="campos-colonia" class="oculto">
+<label>Alcaldía<select id="alcaldia"></select></label>
+<label>Colonia<select name="colonia_id" id="colonia"></select></label>
+</div>
+<p class="mensaje"></p>
+<button class="btn">Guardar cambios</button>
+</form>
+</div>
+<div class="caja">
+<h2>Cambiar contraseña</h2>
+<form method="post" id="form-password">
+<label>Contraseña actual<input name="actual" type="password" required></label>
+<label>Contraseña nueva<input name="nueva" type="password" maxlength="64" required></label>
+<label>Repite la contraseña nueva<input name="confirmar" type="password" maxlength="64" required></label>
+<p class="tenue">De 8 a 64 caracteres, con al menos una mayúscula y un número.</p>
+<p class="mensaje"></p>
+<button class="btn">Cambiar contraseña</button>
+</form>
+<form method="post" id="form-eliminar" class="oculto" style="margin-top:28px">
+<h2>Eliminar mi cuenta</h2>
+<p class="tenue">Se borran tus datos personales. Tus ideas y votos se quedan sin tu nombre.</p>
+<label>Escribe tu contraseña para confirmar<input name="password" type="password" required></label>
+<p class="mensaje"></p>
+<button class="peligro">Eliminar mi cuenta</button>
+</form>
+</div>
+</div>
+</main>
+<script src="/js/app.js"></script>
+<script src="/js/pages/perfil.js"></script>
+</body>
+</html>

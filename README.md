@@ -1,56 +1,74 @@
-# Prepar
+# Prepar · Simulador del Presupuesto Participativo de la CDMX
 
-Simulador educativo del **Presupuesto Participativo de la Ciudad de México**. Permite practicar todo el proceso: las ciudadanas y los ciudadanos proponen ideas y proyectos para su colonia, el gobierno de la alcaldía los dictamina, se vota de forma secreta y después se vigila la ejecución de las obras ganadoras.
+Proyecto escolar del **Equipo 04**. Simula las 8 fases del Presupuesto Participativo de la Ciudad de México:
+los vecinos proponen proyectos para su colonia, la alcaldía los revisa, los vecinos votan y después siguen cómo avanzan las obras.
 
-> Simulador educativo sin validez oficial. No tiene relación con el IECM ni con las alcaldías.
+| Integrante | Rol |
+|---|---|
+| Hernández Malagón Daniel | Líder |
+| Leonar Serrano Johan Joshua | Analista |
+| Serrano Jiménez Jostin Kiroshi | Diseñador |
+| De la Cruz Escalante Daniel A. | Programador |
 
-Sitio publicado: https://prepar-u55c.onrender.com
-
-## Equipo y ramas
-
-| Rol | Integrante | Rama |
-|---|---|---|
-| Líder | Hernández Malagón Daniel | `lider` |
-| Analista | Leonar Serrano Johan Joshua | `analista` |
-| Diseñador | Serrano Jiménez Jostin Kiroshi | `disenador` |
-| Programador | De la Cruz Escalante Daniel A. | `programador` |
-
-Cada integrante trabaja en su rama y el líder integra los cambios en `main` mediante Pull Requests.
-
-## Roles del sistema
-
-- **Ciudadano:** foro vecinal de su alcaldía, registro de proyectos, votación secreta con comprobante, mapa de proyectos y foto denuncia de las obras.
-- **Funcionario:** revisión de registros y del foro, dictaminación, sorteo de la boleta, casos especiales y seguimiento de obras.
-- **Administrador:** control del ciclo y sus 8 fases, funcionarios y ciudadanos, estadísticas y bitácora.
+En línea: https://prepar-u55c.onrender.com
 
 ## Tecnologías
 
-- **Servidor:** Node.js 20 o superior con Express.
-- **Base de datos:** MySQL 8 (tablas, vistas, disparadores y procedimientos almacenados en `bd/prepar_bd_mysql.sql`).
-- **Front-end:** HTML, CSS y JavaScript sin frameworks; mapas con Leaflet y gráficas con Chart.js.
-- **Datos abiertos:** alcaldías, colonias e indicadores del Portal de Datos Abiertos de la CDMX.
-- **Correo:** API de Brevo.
+- **Base de datos:** MySQL 8 (21 tablas, 3 vistas, 6 triggers y 5 procedimientos almacenados).
+- **Servidor:** Node.js con Express. Contraseñas con bcrypt y sesiones con cookie.
+- **Páginas:** HTML, CSS y JavaScript, sin frameworks. Mapa con Leaflet y OpenStreetMap.
+- **Correo:** API de Brevo, para recuperar la contraseña.
 
-## Estructura
+## ¿Qué puede hacer cada usuario?
+
+| Ciudadano | Funcionario | Administrador |
+|---|---|---|
+| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable o no viable) | Crear ciclos y repartir el presupuesto |
+| Registrar proyectos para su colonia | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
+| Votar una vez (voto secreto) | Registrar pasos y gastos de las obras | Ver la gráfica de votos por colonia |
+| Ver el mapa de proyectos | Borrar ideas, comentarios y fotos | Registrar funcionarios |
+| Subir fotos de las obras (foto denuncia) | | Activar o desactivar cuentas |
+
+## Las 8 fases
+
+1. Convocatoria · 2. Diagnóstico y registro · 3. Dictaminación · 4. Sorteo y difusión · 5. Consulta · 6. Resultados · 7. Ejecución y seguimiento · 8. Evaluación
+
+Al pasar a **Resultados** se calcula el ganador de cada colonia: gana el proyecto con más votos.
+Si hay empate gana el que se registró primero; si solo hay un proyecto viable, gana ese; si nadie votó, la colonia se queda sin ganador.
+
+## Cómo correrlo en tu computadora
+
+1. Instala Node.js 20 o más nuevo y MySQL 8.
+2. Copia `.env.example` como `.env` y escribe tus datos de MySQL.
+3. Instala y prepara todo:
+   ```
+   npm install
+   npm run bd:instalar
+   npm run crear-admin
+   npm start
+   ```
+4. Abre http://localhost:3000
+
+Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **Ciclo de demostración** (fase 7, con datos de ejemplo) y estas cuentas de prueba:
+
+| Cuenta | Contraseña |
+|---|---|
+| maria.lopez@correo.mx (y otros 11 ciudadanos @correo.mx) | Ciudadano2026 |
+| funcionario.demo.azc@prepar.mx · funcionario.demo.coy@prepar.mx | Funcionario2026 |
+
+## Pruebas automáticas
 
 ```
-bd/          script de la base de datos
-server/      servidor: app.js, rutas de la API (routes/) y lógica (lib/)
-public/      páginas, estilos, imágenes y JavaScript del navegador
-scripts/     instalación de la base y datos de prueba
-test/        pruebas automáticas (node --test)
+npm test
 ```
+Crean una base aparte (`prepar_prueba`) y recorren un ciclo completo: registro, foro, proyectos, dictamen, sorteo, votación, ganadores, obras y foto denuncia.
 
-## Ejecutar en una computadora
+## Carpetas
 
-1. Instalar Node.js 20+ y MySQL 8+.
-2. `npm install`
-3. Copiar `.env.example` como `.env` y llenar los datos de MySQL.
-4. `npm run bd:instalar` y después `npm run demo` (datos de prueba).
-5. `npm start` y abrir http://localhost:3000
-
-Pruebas: `npm test`
-
-## Publicación
-
-El sitio se publica en Render desde la rama `main`; la base de datos está en Aiven (MySQL 8). Las credenciales viven en las variables de entorno del servidor y nunca se suben al repositorio. Al arrancar, el sistema aplica solo las migraciones que le falten a la base.
+```
+bd/          script de la base de datos (tablas, vistas, triggers, procedimientos y catálogos)
+scripts/     instalar la base y crear el administrador
+server/      servidor Express: rutas de la API y funciones de apoyo
+public/      páginas HTML, estilos y JavaScript del navegador
+test/        pruebas automáticas
+```

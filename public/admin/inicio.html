@@ -1,30 +1,38 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
-<title>Inicio y ciclo · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<title>Control del ciclo · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="administrador" data-pagina="inicio">
-<main id="principal" tabindex="-1">
-<div><span class="tenue" style="font-size:13px" id="sub-ciclo">Cargando…</span><h1 class="titulo-pagina" style="margin:4px 0 0;font-size:32px">Control del ciclo</h1></div>
-<section id="modo" class="tarjeta columna modo-simulador" aria-labelledby="t-modo"><div class="cargando-bloque">Cargando…</div></section>
-<div id="control" class="columna" style="gap:20px"><div class="cargando-bloque">Cargando…</div></div>
-<section class="kpis-admin" id="resumen" aria-label="Resumen"></section>
-<div id="detalle" class="columna" style="gap:20px"></div>
-<section class="tarjeta columna" style="gap:12px" aria-labelledby="t-actividad">
-  <div class="fila entre"><h2 id="t-actividad" class="h2-maq" style="margin:0">Actividad reciente</h2><button type="button" class="btn2 chico" id="csv-actividad">Descargar todo (CSV)</button></div>
-  <p class="tenue" style="margin:0;font-size:14px">Las últimas acciones de funcionarios y administradores (bitácora).</p>
-  <div id="actividad"><div class="cargando-bloque">Cargando…</div></div>
-</section>
+<body>
+<header></header>
+<main>
+<h1>Control del ciclo</h1>
+<div class="fila">
+<div class="caja">
+<h2>Ciclo</h2>
+<label>Ciclo<select id="ciclo"></select></label>
+<button class="btn2" id="activar">Activar</button> <button class="btn2" id="nuevo">Nuevo ciclo</button>
+<p class="mensaje" id="mensaje" style="margin-top:12px"></p>
+<div id="estado"></div>
+<form method="post" id="form" class="oculto" style="margin-top:18px">
+<h2>Nuevo ciclo</h2>
+<label>Nombre<input name="nombre" maxlength="50" required></label>
+<div class="fila"><label>Año<input name="anio" type="number" min="2000" max="2100" required></label>
+<label>Presupuesto total<input name="presupuesto" type="number" min="1" step="0.01" required></label></div>
+<p class="tenue">Participan todas las colonias. El presupuesto se reparte solo: la mitad en partes iguales y la otra mitad según pobreza, delincuencia y población.</p>
+<p class="mensaje"></p>
+<button class="btn">Crear ciclo</button>
+</form>
+</div>
+<div class="caja"><h2>Votos por colonia</h2><div class="grafica" id="grafica"></div><p class="tenue" id="totales"></p></div>
+</div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/admin-inicio.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/admin-inicio.js"></script>
 </body>
 </html>

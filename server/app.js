@@ -1,89 +1,70 @@
 'use strict';
 const path = require('path');
 const express = require('express');
-const config = require('./config');
-const log = require('./lib/log');
 const db = require('./db');
-const { encabezados, limitador, antiCsrf, cookies } = require('./lib/seguridad');
-const { leerSesion } = require('./lib/sesion');
-const { protegerPaginas } = require('./lib/paginas');
-const { traducir, esErrorConexion } = require('./lib/errores');
+const sesion = require('./lib/sesion');
+const { asincrono, noEncontrado, manejarErrores, prohibido } = require('./lib/errores');
+
+const PUBLICO = path.join(__dirname, '..', 'public');
+const ZONAS = { ciudadano: 'ciudadano', funcionario: 'funcionario', admin: 'administrador' };
+const INICIO = { ciudadano: '/ciudadano/inicio.html', funcionario: '/funcionario/inicio.html', administrador: '/admin/inicio.html' };
+
+function encabezados(req, res, next) {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Content-Security-Policy',
+    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; frame-ancestors 'none'");
+  next();
+}
+
+function antiCsrf(req, res, next) {
+  if (req.method === 'GET' || req.get('X-Prepar') === '1') return next();
+  return next(prohibido('Solicitud no permitida'));
+}
+
+function protegerPaginas(req, res, next) {
+  const carpeta = req.path.split('/')[1];
+  const rol = ZONAS[carpeta];
+  if (!rol) return next();
+  return sesion.leer(req, res, (e) => {
+    if (e) return next(e);
+    if (!req.usuario) return res.redirect('/login.html');
+    if (req.usuario.rol !== rol) return res.redirect(INICIO[req.usuario.rol]);
+    res.set('Cache-Control', 'no-store');
+    return next();
+  });
+}
 
 function crearApp() {
   const app = express();
   app.disable('x-powered-by');
-  app.set('query parser', 'simple');
-  app.set('trust proxy', config.confiarProxy);
-  app.set('etag', 'strong');
-  app.set('query parser', 'simple');
-  app.set('json escape', true);
-
+  app.set('trust proxy', 1);
   app.use(encabezados);
 
-  app.get('/salud', async (req, res) => {
-    const ok = await db.salud();
-    res.status(ok ? 200 : 503).json({ ok, hora: new Date().toISOString() });
-  });
+  app.get('/salud', (req, res) => res.json({ ok: true }));
 
-  app.get(/^\/(google[a-z0-9]{6,64})\.html$/, (req, res, next) => {
-    const archivo = `${req.params[0]}.html`;
-    if (!config.verificacionGoogle || config.verificacionGoogle !== archivo) return next();
-    res.type('text/plain').send(`google-site-verification: ${archivo}`);
-  });
+  app.get('/api/imagenes/:id',asincrono(async (req, res) => {
+    const img = await db.uno('SELECT tipo, contenido FROM imagenes WHERE id = ?', [Number(req.params.id) || 0]);
+    if (!img) throw noEncontrado('La imagen no existe');
+    res.set('Cache-Control', 'public, max-age=86400').type(img.tipo).send(img.contenido);
+  }));
 
   const api = express.Router();
-  api.use(limitador({ ventanaMs: 60 * 1000, maximo: 1500, mensaje: 'Demasiadas solicitudes desde tu conexión. Espera un minuto' }));
   api.use((req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
-  api.use(cookies);
   api.use(antiCsrf);
-  api.use(express.json({ limit: '100kb', strict: true, type: ['application/json'] }));
-  api.use(leerSesion);
-  api.use(require('./routes/publico'));
+  api.use(express.json({ limit: '8mb' }));
+  api.use(sesion.leer);
   api.use(require('./routes/auth'));
   api.use(require('./routes/ciudadano'));
-  api.use(require('./routes/seguimiento'));
   api.use(require('./routes/funcionario'));
   api.use(require('./routes/admin'));
   api.use((req, res) => res.status(404).json({ error: 'Ruta no encontrada' }));
   app.use('/api', api);
 
-  const publico = path.join(config.raiz, 'public');
   app.use(protegerPaginas);
-  app.use(express.static(publico, {
-    extensions: ['html'],
-    index: 'index.html',
-    dotfiles: 'ignore',
-    maxAge: config.produccion ? '1h' : 0,
-    setHeaders(res, ruta) {
-      if (ruta.endsWith('.html')) {
-        if (!/no-store/.test(String(res.getHeader('Cache-Control') || ''))) res.setHeader('Cache-Control', 'no-cache');
-      }
-      else if (/[\\/](vendor|img)[\\/]/.test(ruta)) res.setHeader('Cache-Control', 'public, max-age=2592000');
-      else if (/\.(css|js|json)$/i.test(ruta)) res.setHeader('Cache-Control', 'no-cache');
-    },
-  }));
-  app.use((req, res) => {
-    res.status(404);
-    const esPagina = !/\.[a-z0-9]{1,5}$/i.test(req.path) || /\.html?$/i.test(req.path);
-    if (esPagina && req.accepts('html')) return res.sendFile(path.join(publico, '404.html'), (e) => { if (e && !res.headersSent) res.end(); });
-    return res.json({ error: 'No encontrado' });
-  });
-
-  app.use((err, req, res, next) => {
-    const t = traducir(err);
-    if (esErrorConexion(err)) log.tarea(`${req.method} ${req.originalUrl}:`, err);
-    else if (t.interno || t.estado >= 500) {
-      log.error(`${req.method} ${req.originalUrl} →`, err && (err.stack || err.message || err));
-    }
-    if (res.headersSent) {
-      try { res.end(); } catch { }
-      return undefined;
-    }
-    const cuerpo = { error: t.mensaje };
-    if (t.extra) Object.assign(cuerpo, t.extra);
-    return res.status(t.estado).json(cuerpo);
-  });
-
+  app.use(express.static(PUBLICO, { extensions: ['html'] }));
+  app.use((req, res) => res.status(404).sendFile(path.join(PUBLICO, '404.html')));
+  app.use(manejarErrores);
   return app;
 }
 

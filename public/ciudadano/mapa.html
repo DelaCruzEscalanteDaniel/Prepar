@@ -1,40 +1,29 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
-<title>Mapa de proyectos · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<title>Mapa · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="ciudadano" data-pagina="mapa">
-<main id="principal" class="contenido" tabindex="-1" style="gap:16px;padding-top:24px">
-<h1 class="titulo-pagina" id="titulo-mapa" style="font-size:32px;margin:0">Mapa de proyectos ganadores</h1>
-<form id="filtros-mapa" class="fila" style="align-items:flex-end;gap:10px" novalidate>
-  <label style="flex:1 1 220px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
-  <label style="flex:1 1 220px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
-</form>
-<div id="aviso-mapa"></div>
-<div class="fila" style="gap:16px;align-items:stretch">
-  <div class="mapa-maq">
-    <div id="mapa" class="mapa"></div>
-    <span class="pista-mapa" aria-hidden="true">Arrastra el mapa para moverte</span>
-    <div class="zoom-maq"><button type="button" class="zb" data-zoom="1" aria-label="Acercar">+</button><button type="button" class="zb" data-zoom="-1" aria-label="Alejar">−</button><button type="button" class="zb" data-centrar aria-label="Centrar mapa">⌖</button></div>
-    <div class="flechas-maq" aria-label="Mover mapa"><span></span><button type="button" class="zb" data-mover="0,-1" aria-label="Mover arriba">↑</button><span></span>
-      <button type="button" class="zb" data-mover="-1,0" aria-label="Mover a la izquierda">←</button><button type="button" class="zb" data-mover="0,1" aria-label="Mover abajo">↓</button><button type="button" class="zb" data-mover="1,0" aria-label="Mover a la derecha">→</button></div>
-    <div class="leyenda-maq" id="leyenda"></div>
-  </div>
-  <aside class="tarjeta ficha-maq" id="ficha" aria-live="polite"><p class="tenue" style="margin:0">Selecciona un proyecto en el mapa para ver su avance, presupuesto y fotos.</p></aside>
+<body>
+<header></header>
+<main>
+<div class="titulo">
+<div><h1>Mapa de proyectos</h1><p class="tenue" style="margin:4px 0 0" id="subtitulo">Toca un punto para ver el proyecto</p></div>
+<label>Colonia<select id="filtro-colonia"><option value="">Todas</option></select></label>
+<label>Rubro<select id="filtro-rubro"><option value="">Todos</option></select></label>
 </div>
-<section class="tarjeta"><h2 class="h2-maq" id="titulo-lista">Proyectos</h2><div id="lista-mapa" class="tabla-cont"></div></section>
+<div class="fila">
+<div class="caja" style="flex:1.7;padding:12px"><div id="mapa" class="mapa"></div><p class="tenue" id="leyenda" style="margin:10px 4px 0"></p></div>
+<div class="caja" id="detalle"><p class="tenue" style="margin:0">Elige un proyecto en el mapa.</p></div>
+</div>
 </main>
-<script src="/vendor/leaflet/leaflet.js" defer></script>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/ciudadano-mapa.js" defer></script>
+<script src="/vendor/leaflet/leaflet.js"></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/ciudadano-mapa.js"></script>
 </body>
 </html>

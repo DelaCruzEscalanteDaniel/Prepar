@@ -1,62 +1,36 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
 <title>Crear cuenta · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="invitado" data-pagina="registro" data-redirigir-sesion class="acceso-fondo">
-<main id="principal" tabindex="-1">
-<div class="acceso">
-  <div class="barra-sup">
-    <a class="volver" href="/">← Volver al inicio</a>
-    <div class="acciones"></div>
-  </div>
-  <div class="centro-acceso arriba">
-    <form id="form-registro" class="caja-vidrio ancha cristal" novalidate>
-      <div class="fila" style="gap:16px">
-        <img src="/img/logo.png?v=castor2" alt="Logo de Prepar" class="logo-acceso chico">
-        <div><h1 style="margin:0">Crea tu cuenta de ciudadano</h1><p class="texto-2" style="margin:4px 0 0;font-size:15px">Cuatro pasos y listo. ¿Ya tienes cuenta? <a href="/login.html" style="font-weight:700">Inicia sesión</a></p></div>
-      </div>
-      <div id="mensaje-registro"></div>
-      <fieldset class="paso">
-        <legend><span class="num-paso">1</span>Tus datos de acceso</legend>
-        <label class="completo">Nombre completo <span class="opcional">(hasta 50 caracteres)</span><input type="text" name="nombre" maxlength="50" data-contador autocomplete="name" required placeholder="Nombre y apellidos"></label>
-        <label>Correo electrónico<input type="email" name="correo" maxlength="50" autocomplete="email" required inputmode="email" placeholder="usuario@dominio.com"></label>
-        <label>Contraseña <span class="opcional">(8 a 64, con mayúscula y número)</span><span class="campo-pass"><input type="password" name="password" minlength="8" maxlength="64" autocomplete="new-password" required placeholder="Mínimo 8 caracteres" aria-describedby="nivel-pass"><button type="button" aria-label="Mostrar contraseña">Ver</button></span><span class="ayuda" id="nivel-pass" aria-live="polite"></span></label>
-        <label>Confirmar contraseña<span class="campo-pass"><input type="password" name="confirmar" minlength="8" maxlength="64" autocomplete="new-password" required placeholder="Escríbela otra vez" aria-describedby="igual-pass"><button type="button" aria-label="Mostrar contraseña">Ver</button></span><span class="ayuda" id="igual-pass" aria-live="polite"></span></label>
-      </fieldset>
-      <fieldset class="paso">
-        <legend><span class="num-paso">2</span>Sobre ti</legend>
-        <label>Fecha de nacimiento<input type="date" name="fecha_nacimiento" required></label>
-        <label>Género<select name="genero" required>
-          <option value="">Elige una opción</option><option value="mujer">Mujer</option><option value="hombre">Hombre</option>
-          <option value="no_binario">No binario</option><option value="prefiero_no_decir">Prefiero no decir</option></select></label>
-        <div class="completo" id="aviso-edad" aria-live="polite"></div>
-      </fieldset>
-      <fieldset class="paso">
-        <legend><span class="num-paso">3</span>¿Dónde vives?</legend>
-        <p class="completo tenue" style="margin:0 0 4px;font-size:14px">Tu colonia define en qué foro participas y en qué boleta votas.</p>
-        <label>Alcaldía<select name="alcaldia" id="sel-alcaldia" required></select></label>
-        <label>Colonia, barrio o pueblo<select name="unidad_territorial_id" id="sel-unidad" required></select></label>
-      </fieldset>
-      <fieldset class="paso terminos-registro">
-        <legend><span class="num-paso">4</span>Términos y condiciones</legend>
-        <p class="completo tenue" style="margin:0;font-size:14px">Léelos antes de crear tu cuenta: explican cómo se usa el simulador y qué se puede publicar.</p>
-        <label class="casilla arriba completo" style="font-weight:500"><input type="checkbox" name="acepta_terminos" required> <span>He leído y acepto los <a href="/terminos.html" target="_blank" rel="noopener">Términos y condiciones</a> y el <button type="button" class="enlace-boton" id="ver-aviso">Aviso de privacidad</button>, y entiendo que Prepar es un simulador sin validez oficial.</span></label>
-      </fieldset>
-      <button type="submit" class="btn grande" id="btn-crear">Crear cuenta</button>
-    </form>
-  </div>
+<body>
+<header><div class="barra"><a class="marca" href="/"><img src="/img/logo.png" alt="">Prepar</a></div></header>
+<main class="centro">
+<div class="caja">
+<h1>Crear cuenta</h1>
+<p class="tenue">Para participar en el presupuesto de tu colonia</p>
+<form method="post" id="form">
+<label>Nombre completo<input name="nombre" maxlength="60" required></label>
+<label>Correo<input name="correo" type="email" maxlength="60" required></label>
+<label>Teléfono (opcional)<input name="telefono" inputmode="numeric" maxlength="10"></label>
+<label>Alcaldía<select id="alcaldia" required></select></label>
+<label>Colonia<select name="colonia_id" id="colonia" required></select></label>
+<label>Contraseña<input name="password" type="password" maxlength="64" required></label>
+<label>Repite la contraseña<input name="confirmar" type="password" maxlength="64" required></label>
+<p class="tenue">De 8 a 64 caracteres, con al menos una mayúscula y un número. Solo letras, números y @ # $ % &amp;</p>
+<label style="font-weight:400"><input type="checkbox" name="acepto"> Acepto el <a href="/privacidad.html" target="_blank">aviso de privacidad</a></label>
+<p class="mensaje"></p>
+<button class="btn" style="width:100%">Crear cuenta</button>
+</form>
+<p class="tenue" style="text-align:center;margin:14px 0 0">¿Ya tienes cuenta? <a href="/login.html">Inicia sesión</a></p>
 </div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/registro.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/registro.js"></script>
 </body>
 </html>

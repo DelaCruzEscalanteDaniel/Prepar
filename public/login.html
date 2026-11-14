@@ -1,42 +1,29 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
 <title>Iniciar sesión · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="invitado" data-pagina="login" data-redirigir-sesion class="acceso-fondo">
-<main id="principal" tabindex="-1">
-<div class="acceso">
-  <div class="barra-sup">
-    <a class="volver" href="/">← Volver al inicio</a>
-    <div class="acciones"></div>
-  </div>
-  <div class="centro-acceso">
-    <form id="form-login" class="caja-vidrio angosta cristal" novalidate>
-      <div class="cabeza-acceso">
-        <img src="/img/logo.png?v=castor2" alt="Logo de Prepar" class="logo-acceso">
-        <h1>¡Bienvenida o bienvenido a Pre<span class="par">par</span>!</h1>
-        <p>Inicia sesión para continuar con tu simulación.</p>
-      </div>
-      <div id="mensaje-login"></div>
-      <label>Correo electrónico<input type="email" name="correo" maxlength="50" autocomplete="username" required inputmode="email" placeholder="usuario@dominio.com"></label>
-      <label>Contraseña<span class="campo-pass"><input type="password" name="password" maxlength="64" autocomplete="current-password" required placeholder="Tu contraseña"><button type="button" aria-label="Mostrar contraseña">Ver</button></span></label>
-      <div class="olvide"><a href="/recuperar.html">¿Olvidaste tu contraseña?</a></div>
-      <button type="submit" class="btn grande">Iniciar sesión</button>
-      <p class="centro texto-2" style="margin:0;font-size:15px">¿Aún no tienes cuenta? <a href="/registro.html" style="font-weight:700">Regístrate aquí</a></p>
-      <div class="nota-acceso">Es una sola entrada para todos: el sistema reconoce el rol de la cuenta y abre su panel. Solo los ciudadanos pueden registrarse por su cuenta. Si eres funcionario y es tu primer ingreso, el sistema te pedirá cambiar tu contraseña temporal.</div>
-    </form>
-  </div>
+<body>
+<header><div class="barra"><a class="marca" href="/"><img src="/img/logo.png" alt="">Prepar</a></div></header>
+<main class="centro">
+<div class="caja">
+<h1>Iniciar sesión</h1>
+<p class="tenue">Simulador del Presupuesto Participativo de la CDMX</p>
+<form method="post" id="form">
+<label>Correo<input name="correo" type="email" autocomplete="username" required></label>
+<label>Contraseña<input name="password" type="password" autocomplete="current-password" required></label>
+<p class="mensaje"></p>
+<button class="btn" style="width:100%">Entrar</button>
+</form>
+<p class="tenue" style="text-align:center;margin:14px 0 0"><a href="/recuperar.html">¿Olvidaste tu contraseña?</a> · <a href="/registro.html">Crear cuenta</a></p>
 </div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/login.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/login.js"></script>
 </body>
 </html>
