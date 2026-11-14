@@ -1,22 +1,33 @@
 <!doctype html>
-<html lang="es" data-tema="claro">
+<html lang="es">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
-<meta name="theme-color" content="#F3F6FA">
 <title>Votación · Prepar</title>
-<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
-<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
 <link rel="stylesheet" href="/css/app.css">
 </head>
-<body data-rol="ciudadano" data-pagina="votacion">
-<main id="principal" class="contenido votacion" tabindex="-1">
-<section id="votacion" class="columna" style="gap:16px" aria-live="polite"><div class="cargando-bloque">Cargando…</div></section>
-<section id="resultados"></section>
+<body>
+<header></header>
+<main>
+<h1 id="titulo">Votación</h1>
+<div class="aviso" id="aviso"></div>
+<form method="post" class="caja oculto" id="form" style="max-width:720px">
+<p class="tenue" style="margin-top:0">Elige un proyecto. Solo puedes votar una vez y tu voto es secreto.</p>
+<div id="opciones"></div>
+<p class="mensaje"></p>
+<button class="btn">Votar</button>
+</form>
+<div class="caja oculto" id="comprobante" style="max-width:720px">
+<h2>Comprobante de participación</h2>
+<p>Ya votaste en este ciclo. Guarda tu folio:</p>
+<div class="dato" id="folio"></div>
+<p class="tenue" id="fecha-voto"></p>
+<button class="btn2" id="imprimir">Imprimir comprobante</button>
+</div>
 </main>
-<script src="/js/app.js" defer></script>
-<script src="/js/pages/ciudadano-votacion.js" defer></script>
+<script src="/js/app.js"></script>
+<script src="/js/pages/ciudadano-votacion.js"></script>
 </body>
 </html>
