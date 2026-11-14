@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#F3F6FA">
+<title>Funcionarios y ciudadanos · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-rol="administrador" data-pagina="usuarios">
+<main id="principal" tabindex="-1">
+<div><h1 class="titulo-pagina" style="margin:0 0 4px;font-size:32px">Funcionarios y ciudadanos</h1><p class="texto-2" style="margin:0">Los ciudadanos se registran solos. Los funcionarios solo los puede dar de alta el administrador.</p></div>
+<div class="fila pestanas-maq" role="tablist">
+  <button type="button" role="tab" class="tab-maq" aria-selected="true" data-pestana="funcionarios">Funcionarios (<span data-n="funcionarios">0</span>)</button>
+  <button type="button" role="tab" class="tab-maq" aria-selected="false" data-pestana="ciudadanos">Ciudadanos (<span data-n="ciudadanos">0</span>)</button>
+</div>
+<section data-panel="funcionarios" class="columna" style="gap:16px">
+  <div><button type="button" class="btn" id="nuevo-func">+ Registrar funcionario</button></div>
+  <form id="form-func" class="tarjeta form-func" novalidate hidden>
+    <h2 class="h" style="margin:0;font-size:22px" id="tit-func">Nuevo funcionario</h2>
+    <p class="texto-2" style="margin:0" id="dato-func" hidden></p>
+    <div class="rejilla-form">
+      <label data-nuevo>Nombre completo<input type="text" name="nombre" maxlength="50" autocomplete="off"></label>
+      <label data-nuevo>Correo electrónico<input type="email" name="correo" maxlength="50" autocomplete="off"></label>
+      <label>Alcaldía asignada<select name="alcaldia_id" id="f-alcaldia-func"></select></label>
+    </div>
+    <fieldset class="funciones-func"><legend>¿Qué podrá hacer? (elige al menos una)</legend><div class="fila" style="gap:8px" id="chips-func"></div></fieldset>
+    <span class="tenue" style="font-size:13px" data-nuevo>El sistema genera una contraseña temporal y la envía a su correo. Al entrar por primera vez deberá cambiarla.</span>
+    <div class="fila" style="gap:8px"><button type="submit" class="btn" id="guardar-func">Registrar y enviar acceso</button><button type="button" class="btn2" id="cancelar-func">Cancelar</button></div>
+    <div id="msg-func" aria-live="polite"></div>
+  </form>
+  <div id="ok-func" aria-live="polite"></div>
+  <div id="funcionarios" class="tarjeta tabla-vidrio"></div>
+</section>
+<section data-panel="ciudadanos" class="columna" style="gap:12px" hidden>
+  <form id="filtros-ciu" class="fila arriba" style="gap:10px;align-items:flex-end" novalidate>
+    <label style="flex:1 1 300px;max-width:420px">Buscar ciudadano<input type="search" name="q" maxlength="50" placeholder="Nombre o correo"></label>
+    <label style="flex:0 1 180px">Estado<select name="estado"><option value="">Todos</option><option value="activa">Activa</option><option value="suspendida">Suspendida</option></select></label>
+    <label style="flex:0 1 200px">Alcaldía<select name="alcaldia" id="f-alcaldia-ciu"></select></label>
+    <button class="btn" type="submit">Buscar</button><button class="btn2" type="button" id="limpiar-ciu">Limpiar</button>
+  </form>
+  <div id="ciudadanos" class="tarjeta tabla-vidrio"></div>
+  <div class="fila entre" style="gap:10px"><span class="tenue" style="font-size:13px">Para suspender una cuenta el sistema pide el motivo. La persona no podrá entrar hasta que se reactive.</span>
+    <div class="fila" style="gap:8px"><button type="button" class="btn2" id="ant-ciu">← Anterior</button><span id="pag-ciu" class="tenue"></span><button type="button" class="btn2" id="sig-ciu">Siguiente →</button></div></div>
+</section>
+</main>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/admin-usuarios.js" defer></script>
+</body>
+</html>

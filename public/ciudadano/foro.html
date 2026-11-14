@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#F3F6FA">
+<title>Foro vecinal · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-rol="ciudadano" data-pagina="foro">
+<main id="principal" class="contenido" tabindex="-1">
+<div class="encabezado-pagina">
+  <div>
+    <h1 id="titulo-foro" class="titulo-pagina">Foro vecinal</h1>
+    <p class="texto-2" style="margin:0">Aquí ves las ideas de todas las colonias de tu alcaldía. Puedes apoyarlas y comentarlas; tus ideas y tu proyecto son para tu colonia.</p>
+  </div>
+  <a class="btn2 ir-mis-proyectos" href="/ciudadano/proyectos.html"><span>Mis proyectos</span><span aria-hidden="true">→</span></a>
+</div>
+<div id="estado-foro"></div>
+<div class="fila arriba" style="gap:24px">
+  <section class="columna" style="flex:999 1 560px;min-width:0;gap:16px">
+    <form class="tarjeta columna" id="form-idea" style="gap:10px;padding:16px" novalidate>
+      <label>Publicar una idea <span class="opcional">(hasta 500 caracteres)</span><textarea name="contenido" rows="2" maxlength="500" required placeholder="¿Qué necesita tu colonia? Ej.: la cancha no tiene gradas ni sombra"></textarea></label>
+      <div class="fila entre" style="align-items:flex-end">
+        <label style="flex:1 1 240px;max-width:340px">Rubro<select name="rubro_id" class="sel-rubro" required></select></label>
+        <button type="submit" class="btn">Publicar idea</button>
+      </div>
+    </form>
+    <form class="fila filtros-foro" id="form-filtros" novalidate>
+      <label style="flex:1 1 200px">Colonia<select name="colonia" id="f-colonia"><option value="">Todas</option></select></label>
+      <label style="flex:1 1 200px">Rubro<select name="rubro" class="sel-rubro-filtro"></select></label>
+    </form>
+    <span class="tenue pequeno" id="total-ideas"></span>
+    <div id="ideas" class="columna" style="gap:16px" aria-live="polite"></div>
+    <div class="fila" style="justify-content:center"><button class="btn2" id="mas" hidden>Ver más ideas</button></div>
+    <span class="tenue" style="font-size:13px">Los apoyos muestran consenso entre vecinos; no cuentan como votos en la consulta.</span>
+  </section>
+
+  <aside class="registro-proyecto" id="registrar" aria-labelledby="t-registro">
+    <div id="caja-registro">
+      <form id="form-proyecto" class="columna" style="gap:14px" novalidate>
+        <div><span class="antetitulo">5.5 Registrar proyecto</span><h2 id="t-registro" class="h2-maq" style="margin:4px 0 0;font-size:24px">Registra tu proyecto</h2></div>
+        <label>Título <span class="opcional">(hasta 100)</span><input type="text" name="titulo" maxlength="100" required placeholder="Ej.: Rehabilitación de la cancha de usos múltiples"></label>
+        <label>Descripción <span class="opcional">(hasta 500)</span><textarea name="descripcion" rows="3" maxlength="500" required placeholder="¿Qué se hará y a quién beneficia?"></textarea></label>
+        <label>Rubro<select name="rubro_id" class="sel-rubro" required></select></label>
+        <label>Costo estimado<input type="text" name="costo_estimado" inputmode="decimal" maxlength="16" required placeholder="$0"><span class="ayuda" id="ayuda-costo"></span></label>
+        <fieldset class="columna" style="gap:10px;padding:14px">
+          <legend>Dirección del proyecto</legend>
+          <div class="fila" style="flex-wrap:nowrap;gap:10px"><label style="flex:3">Calle<input type="text" name="calle" maxlength="100" required></label><label style="flex:1">Número<input type="text" name="numero" maxlength="10" placeholder="S/N"></label></div>
+          <label>Código postal <span class="opcional">(opcional)</span><input type="text" name="codigo_postal" inputmode="numeric" maxlength="5" placeholder="Ej.: 02080"></label>
+          <label>Referencias <span class="opcional">(hasta 100)</span><input type="text" name="referencias" maxlength="100" placeholder="Ej.: Frente a la escuela"></label>
+          <div class="fila"><button type="button" class="btn2 chico" id="completar-dir">Completar dirección</button><span class="ayuda">Escribe lo que sepas de la dirección y te ayudamos a completarla.</span></div>
+          <div data-sugerencias-dir></div>
+          <span class="ayuda">El sistema ubicará el proyecto en el mapa a partir de la dirección.</span>
+        </fieldset>
+        <label>Imagen (opcional)<input type="file" accept="image/jpeg,image/png" id="archivo-imagen"><span class="ayuda">JPG o PNG de hasta 5 MB.</span></label>
+        <div class="previas" id="previa-imagen"></div>
+        <div id="mensaje-proyecto"></div>
+        <button type="submit" class="btn" id="guardar-proyecto">Registrar proyecto</button>
+      </form>
+    </div>
+    <div id="caja-registrado" hidden></div>
+  </aside>
+</div>
+</main>
+<script src="/vendor/leaflet/leaflet.js" defer></script>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/ciudadano-foro.js" defer></script>
+</body>
+</html>

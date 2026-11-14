@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="es" data-tema="claro">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="Prepar: simulador educativo del Presupuesto Participativo de la Ciudad de México.">
+<meta name="theme-color" content="#F3F6FA">
+<title>Nueva contraseña · Prepar</title>
+<link rel="icon" type="image/png" sizes="32x32" href="/img/favicon-32.png?v=castor2">
+<link rel="icon" type="image/png" sizes="64x64" href="/img/favicon.png?v=castor2">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png?v=castor2">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body data-rol="invitado" data-pagina="restablecer" class="acceso-fondo">
+<main id="principal" tabindex="-1">
+<div class="acceso">
+  <div class="barra-sup">
+    <a class="volver" href="/">← Volver al inicio</a>
+    <div class="acciones"></div>
+  </div>
+  <div class="centro-acceso">
+    <div class="caja-vidrio angosta">
+      <div class="cabeza-acceso">
+        <img src="/img/logo.png?v=castor2" alt="Logo de Prepar" class="logo-acceso">
+        <h1>Crea tu nueva contraseña</h1>
+        <p>Debe tener de 8 a 64 caracteres, con al menos una mayúscula y un número, sin espacios. Al guardarla se cerrarán las sesiones abiertas de tu cuenta.</p>
+      </div>
+      <div id="mensaje-restablecer"></div>
+      <form id="form-restablecer" class="columna" novalidate>
+        <label>Nueva contraseña<span class="campo-pass"><input type="password" name="password" minlength="8" maxlength="64" autocomplete="new-password" required placeholder="8 a 64 caracteres"><button type="button" aria-label="Mostrar contraseña">Ver</button></span><span class="ayuda" id="reglas-restablecer" aria-live="polite"></span></label>
+        <label>Confírmala<span class="campo-pass"><input type="password" name="confirmar" minlength="8" maxlength="64" autocomplete="new-password" required placeholder="Repite la contraseña"><button type="button" aria-label="Mostrar contraseña">Ver</button></span></label>
+        <button type="submit" class="btn grande">Guardar contraseña</button>
+      </form>
+    </div>
+  </div>
+</div>
+</main>
+<script src="/js/app.js" defer></script>
+<script src="/js/pages/restablecer.js" defer></script>
+</body>
+</html>
