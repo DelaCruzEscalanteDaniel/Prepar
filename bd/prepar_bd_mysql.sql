@@ -242,3 +242,182 @@ CREATE TABLE fotos_denuncia (
   FOREIGN KEY (imagen_id) REFERENCES imagenes(id)
 );
 
+CREATE VIEW v_avance_proyecto AS
+SELECT p.id AS proyecto_id,
+       (SELECT COALESCE(SUM(pr.porcentaje), 0) FROM pasos_proyecto pp
+          JOIN pasos_rubro pr ON pr.id = pp.paso_id WHERE pp.proyecto_id = p.id) AS avance,
+       (SELECT COALESCE(SUM(g.monto), 0) FROM gastos g WHERE g.proyecto_id = p.id) AS gastado
+FROM proyectos p;
+
+CREATE VIEW v_votos_colonia AS
+SELECT cc.ciclo_id, c.id AS colonia_id, c.nombre AS colonia, a.nombre AS alcaldia,
+       (SELECT COUNT(*) FROM votos v WHERE v.ciclo_id = cc.ciclo_id AND v.colonia_id = c.id) AS votos
+FROM ciclo_colonias cc
+JOIN colonias c ON c.id = cc.colonia_id
+JOIN alcaldias a ON a.id = c.alcaldia_id;
+
+CREATE VIEW v_obras AS
+SELECT p.id, p.ciclo_id, p.titulo, p.descripcion, p.costo, p.estatus, p.calle, p.numero,
+       p.latitud, p.longitud, p.imagen_id, p.motivo_inejecutable,
+       p.colonia_id, c.nombre AS colonia, c.alcaldia_id, a.nombre AS alcaldia,
+       p.rubro_id, r.nombre AS rubro, r.color,
+       av.avance, av.gastado,
+       (SELECT COUNT(*) FROM fotos_denuncia f WHERE f.proyecto_id = p.id) AS fotos
+FROM proyectos p
+JOIN colonias c ON c.id = p.colonia_id
+JOIN alcaldias a ON a.id = c.alcaldia_id
+JOIN rubros r ON r.id = p.rubro_id
+JOIN v_avance_proyecto av ON av.proyecto_id = p.id
+WHERE p.estatus IN ('ganador', 'en_ejecucion', 'concluido', 'inejecutable');
+
+DELIMITER $$
+
+CREATE TRIGGER tg_ideas_bi BEFORE INSERT ON ideas FOR EACH ROW
+BEGIN
+  IF (SELECT fase_id FROM ciclos WHERE id = NEW.ciclo_id) <> 2 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Las ideas solo se pueden publicar en la fase de Diagnóstico y registro';
+  END IF;
+END$$
+
+CREATE TRIGGER tg_proyectos_bi BEFORE INSERT ON proyectos FOR EACH ROW
+BEGIN
+  IF (SELECT fase_id FROM ciclos WHERE id = NEW.ciclo_id) <> 2 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Los proyectos solo se pueden registrar en la fase de Diagnóstico y registro';
+  END IF;
+  IF NEW.costo > (SELECT presupuesto FROM ciclo_colonias WHERE ciclo_id = NEW.ciclo_id AND colonia_id = NEW.colonia_id) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El costo del proyecto no puede ser mayor que el presupuesto de la colonia';
+  END IF;
+END$$
+
+CREATE TRIGGER tg_dictamenes_ai AFTER INSERT ON dictamenes FOR EACH ROW
+BEGIN
+  UPDATE proyectos SET estatus = NEW.resultado WHERE id = NEW.proyecto_id;
+END$$
+
+CREATE TRIGGER tg_participaciones_bi BEFORE INSERT ON participaciones FOR EACH ROW
+BEGIN
+  IF (SELECT fase_id FROM ciclos WHERE id = NEW.ciclo_id) <> 5 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'La votación solo está abierta en la fase de Consulta';
+  END IF;
+END$$
+
+CREATE TRIGGER tg_gastos_bi BEFORE INSERT ON gastos FOR EACH ROW
+BEGIN
+  DECLARE v_costo DECIMAL(14,2);
+  DECLARE v_gastado DECIMAL(14,2);
+  SET v_costo = (SELECT costo FROM proyectos WHERE id = NEW.proyecto_id);
+  SET v_gastado = (SELECT COALESCE(SUM(monto), 0) FROM gastos WHERE proyecto_id = NEW.proyecto_id);
+  IF v_gastado + NEW.monto > v_costo THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El gasto total no puede pasar del costo aprobado del proyecto';
+  END IF;
+END$$
+
+CREATE TRIGGER tg_pasos_proyecto_ai AFTER INSERT ON pasos_proyecto FOR EACH ROW
+BEGIN
+  DECLARE v_total INT;
+  DECLARE v_hechos INT;
+  SET v_total = (SELECT COUNT(*) FROM pasos_rubro WHERE rubro_id = (SELECT rubro_id FROM proyectos WHERE id = NEW.proyecto_id));
+  SET v_hechos = (SELECT COUNT(*) FROM pasos_proyecto WHERE proyecto_id = NEW.proyecto_id);
+  UPDATE proyectos SET estatus = IF(v_hechos >= v_total, 'concluido', 'en_ejecucion') WHERE id = NEW.proyecto_id;
+END$$
+
+CREATE PROCEDURE sp_repartir_presupuesto(IN p_ciclo INT)
+BEGIN
+  DECLARE v_total DECIMAL(14,2);
+  DECLARE v_colonias INT;
+  DECLARE v_max_poblacion INT;
+  DECLARE v_suma_pesos DECIMAL(14,6);
+  DECLARE v_resto DECIMAL(14,2);
+  SET v_total = (SELECT presupuesto_total FROM ciclos WHERE id = p_ciclo);
+  SET v_colonias = (SELECT COUNT(*) FROM ciclo_colonias WHERE ciclo_id = p_ciclo);
+  SET v_max_poblacion = (SELECT MAX(c.poblacion) FROM ciclo_colonias cc JOIN colonias c ON c.id = cc.colonia_id WHERE cc.ciclo_id = p_ciclo);
+  SET v_suma_pesos = (SELECT SUM((c.indice_pobreza + c.indice_delictivo + c.poblacion / v_max_poblacion) / 3)
+                      FROM ciclo_colonias cc JOIN colonias c ON c.id = cc.colonia_id WHERE cc.ciclo_id = p_ciclo);
+  UPDATE ciclo_colonias cc JOIN colonias c ON c.id = cc.colonia_id
+     SET cc.presupuesto = ROUND(v_total / 2 / v_colonias
+                              + v_total / 2 * ((c.indice_pobreza + c.indice_delictivo + c.poblacion / v_max_poblacion) / 3) / v_suma_pesos, 2)
+   WHERE cc.ciclo_id = p_ciclo;
+  SET v_resto = v_total - (SELECT SUM(presupuesto) FROM ciclo_colonias WHERE ciclo_id = p_ciclo);
+  UPDATE ciclo_colonias SET presupuesto = presupuesto + v_resto
+   WHERE ciclo_id = p_ciclo ORDER BY presupuesto DESC LIMIT 1;
+END$$
+
+CREATE PROCEDURE sp_crear_ciclo(IN p_nombre VARCHAR(50), IN p_anio INT, IN p_presupuesto DECIMAL(14,2))
+BEGIN
+  DECLARE v_ciclo INT;
+  INSERT INTO ciclos (nombre, anio, presupuesto_total) VALUES (p_nombre, p_anio, p_presupuesto);
+  SET v_ciclo = LAST_INSERT_ID();
+  INSERT INTO ciclo_colonias (ciclo_id, colonia_id) SELECT v_ciclo, id FROM colonias;
+  CALL sp_repartir_presupuesto(v_ciclo);
+  SELECT v_ciclo AS ciclo_id;
+END$$
+
+CREATE PROCEDURE sp_sorteo(IN p_ciclo INT, IN p_colonia INT)
+BEGIN
+  DECLARE v_numero INT DEFAULT 0;
+  DECLARE v_proyecto INT;
+  IF (SELECT fase_id FROM ciclos WHERE id = p_ciclo) <> 4 THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El sorteo solo se hace en la fase de Sorteo y difusión';
+  END IF;
+  IF EXISTS (SELECT 1 FROM proyectos WHERE ciclo_id = p_ciclo AND colonia_id = p_colonia AND numero_boleta IS NOT NULL) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'El sorteo de esta colonia ya se hizo';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE ciclo_id = p_ciclo AND colonia_id = p_colonia AND estatus = 'viable') THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Esta colonia no tiene proyectos viables';
+  END IF;
+  SET v_proyecto = (SELECT id FROM proyectos WHERE ciclo_id = p_ciclo AND colonia_id = p_colonia
+                    AND estatus = 'viable' AND numero_boleta IS NULL ORDER BY RAND() LIMIT 1);
+  WHILE v_proyecto IS NOT NULL DO
+    SET v_numero = v_numero + 1;
+    UPDATE proyectos SET numero_boleta = v_numero WHERE id = v_proyecto;
+    SET v_proyecto = (SELECT id FROM proyectos WHERE ciclo_id = p_ciclo AND colonia_id = p_colonia
+                      AND estatus = 'viable' AND numero_boleta IS NULL ORDER BY RAND() LIMIT 1);
+  END WHILE;
+  SELECT v_numero AS proyectos;
+END$$
+
+CREATE PROCEDURE sp_votar(IN p_usuario INT, IN p_proyecto INT)
+BEGIN
+  DECLARE v_ciclo INT;
+  DECLARE v_colonia INT;
+  DECLARE v_folio VARCHAR(20);
+  SET v_ciclo = (SELECT id FROM ciclos WHERE estado = 'activo' LIMIT 1);
+  SET v_colonia = (SELECT colonia_id FROM usuarios WHERE id = p_usuario AND rol = 'ciudadano');
+  IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id = p_proyecto AND ciclo_id = v_ciclo AND colonia_id = v_colonia
+                 AND estatus = 'viable' AND numero_boleta IS NOT NULL) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ese proyecto no está en la boleta de tu colonia';
+  END IF;
+  IF EXISTS (SELECT 1 FROM participaciones WHERE ciclo_id = v_ciclo AND usuario_id = p_usuario) THEN
+    SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya votaste en este ciclo';
+  END IF;
+  SET v_folio = CONCAT('VOTO-', v_ciclo, '-', UPPER(LEFT(MD5(RAND()), 8)));
+  INSERT INTO participaciones (ciclo_id, usuario_id, folio) VALUES (v_ciclo, p_usuario, v_folio);
+  INSERT INTO votos (ciclo_id, colonia_id, proyecto_id) VALUES (v_ciclo, v_colonia, p_proyecto);
+  SELECT v_folio AS folio;
+END$$
+
+CREATE PROCEDURE sp_calcular_ganadores(IN p_ciclo INT)
+BEGIN
+  DECLARE v_colonia INT;
+  DECLARE v_ganador INT;
+  DECLARE v_viables INT;
+  DECLARE v_votos INT;
+  SET v_colonia = (SELECT MIN(colonia_id) FROM ciclo_colonias WHERE ciclo_id = p_ciclo);
+  WHILE v_colonia IS NOT NULL DO
+    SET v_viables = (SELECT COUNT(*) FROM proyectos WHERE ciclo_id = p_ciclo AND colonia_id = v_colonia
+                     AND estatus = 'viable' AND numero_boleta IS NOT NULL);
+    SET v_ganador = (SELECT p.id FROM proyectos p
+                     WHERE p.ciclo_id = p_ciclo AND p.colonia_id = v_colonia AND p.estatus = 'viable' AND p.numero_boleta IS NOT NULL
+                     ORDER BY (SELECT COUNT(*) FROM votos v WHERE v.proyecto_id = p.id) DESC, p.id
+                     LIMIT 1);
+    SET v_votos = (SELECT COUNT(*) FROM votos WHERE proyecto_id = v_ganador);
+    IF v_ganador IS NOT NULL AND (v_votos > 0 OR v_viables = 1) THEN
+      UPDATE proyectos SET estatus = 'ganador' WHERE id = v_ganador;
+    END IF;
+    SET v_colonia = (SELECT MIN(colonia_id) FROM ciclo_colonias WHERE ciclo_id = p_ciclo AND colonia_id > v_colonia);
+  END WHILE;
+  SELECT COUNT(*) AS ganadores FROM proyectos WHERE ciclo_id = p_ciclo AND estatus = 'ganador';
+END$$
+
+DELIMITER ;
+
