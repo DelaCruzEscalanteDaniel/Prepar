@@ -20,9 +20,14 @@ async function verObra(id) {
   P.$('#vista-lista').classList.add('oculto');
   P.$('#vista-obra').classList.remove('oculto');
   P.$('#obra-titulo').textContent = o.titulo;
-  P.$('#obra-datos').textContent = `${o.colonia} · Avance ${o.avance} % · ${P.estatus(o.estatus)} · Gastado ${P.pesos(o.gastado)} de ${P.pesos(o.costo)}`;
-  P.$('#obra-pasos').innerHTML = o.pasos.map((p) => `<tr><td>${p.fecha ? '✅' : '⬜'} ${P.esc(p.nombre)}</td>
-    <td class="tenue">${p.fecha ? P.fecha(p.fecha) : ''}</td></tr>`).join('');
+  P.$('#obra-datos').textContent = `${o.colonia}, ${o.alcaldia} · ${o.rubro}`;
+  P.$('#obra-etq').innerHTML = P.etiqueta(o.estatus);
+  P.$('#obra-cifras').innerHTML = `
+    <div class="caja dato-caja"><p class="tenue">Avance</p><div class="dato">${o.avance} %</div><div class="barra-av" style="margin-top:8px"><span style="width:${o.avance}%"></span></div></div>
+    <div class="caja dato-caja"><p class="tenue">Gastado</p><div class="dato">${P.pesos(o.gastado)}</div><p class="tenue">de ${P.pesos(o.costo)} aprobados</p></div>
+    <div class="caja dato-caja"><p class="tenue">Fotos de vecinos</p><div class="dato">${o.fotos.length}</div><p class="tenue">Sube la tuya</p></div>`;
+  P.$('#obra-pasos').innerHTML = o.pasos.map((p) => `<tr><td><span class="check ${p.fecha ? 'si' : ''}"></span>${P.esc(p.nombre)}</td>
+    <td class="tenue num">${p.fecha ? P.fecha(p.fecha) : `${p.porcentaje} %`}</td></tr>`).join('');
   P.$('#obra-fotos').innerHTML = o.fotos.length ? o.fotos.map((f) => `<div class="foto">
       <img src="/api/imagenes/${f.imagen_id}" alt="Foto de ${P.esc(f.autor)}">
       <div><b>${P.esc(f.autor)}</b> <span class="tenue">· ${P.fecha(f.fecha)}</span><p>${P.esc(f.comentario)}</p></div></div>`).join('')

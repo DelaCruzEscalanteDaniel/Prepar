@@ -4,8 +4,8 @@ let punto = null;
 async function cargar() {
   const { ciclo, proyectos } = await P.get('/mis-proyectos');
   P.$('#lista').innerHTML = proyectos.length ? proyectos.map((p) => `<tr>
-      <td><b>${P.esc(p.titulo)}</b></td><td>${P.esc(p.rubro)}</td><td>${P.pesos(p.costo)}</td>
-      <td>${P.estatus(p.estatus)}</td><td class="tenue">${P.esc(p.justificacion || 'Pendiente')}</td></tr>`).join('')
+      <td><b>${P.esc(p.titulo)}</b></td><td>${P.esc(p.rubro)}</td><td class="num">${P.pesos(p.costo)}</td>
+      <td>${P.etiqueta(p.estatus)}</td><td class="tenue">${P.esc(p.justificacion || 'Pendiente')}</td></tr>`).join('')
     : '<tr><td colspan="5" class="tenue">Todavía no registras proyectos en este ciclo.</td></tr>';
   return ciclo;
 }

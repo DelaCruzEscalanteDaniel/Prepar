@@ -11,13 +11,16 @@
 <body>
 <header></header>
 <main>
-<h1 id="saludo">Hola</h1>
+<div class="titulo"><div><h1 id="saludo">Hola</h1><p id="ciclo-nombre"></p></div><span class="etq fase" id="fase-etq"></span></div>
 <div class="aviso" id="aviso"></div>
-<div class="fila">
-<div class="caja"><h2>Presupuesto de tu colonia</h2><div class="dato" id="presupuesto">—</div><p class="tenue" id="colonia" style="margin:4px 0 0"></p></div>
-<div class="caja"><h2>Fases del ciclo</h2><ol class="fases" id="fases"></ol></div>
+<div class="rejilla tres">
+<div class="caja dato-caja"><p class="tenue">Presupuesto de tu colonia</p><div class="dato" id="presupuesto">—</div><p class="tenue" id="colonia"></p></div>
+<div class="caja dato-caja"><p class="tenue">Ideas en el foro de tu alcaldía</p><div class="dato" id="ideas">—</div><p class="tenue">Apoya las que te gusten</p></div>
+<div class="caja dato-caja"><p class="tenue">Proyectos de tu colonia</p><div class="dato" id="proyectos">—</div><p class="tenue" id="proyectos-nota"></p></div>
 </div>
+<div class="caja"><h2>Calendario del ciclo</h2><div id="fases"></div></div>
 </main>
+<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
 <script src="/js/app.js"></script>
 <script src="/js/pages/ciudadano-inicio.js"></script>
 </body>
