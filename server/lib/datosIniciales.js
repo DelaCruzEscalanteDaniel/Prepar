@@ -167,6 +167,7 @@ async function cicloDemostracion(ids) {
   await db.llamar('sp_calcular_ganadores', [ciclo]);
 
   await fase(7);
+  await fechasDesdeFase(ciclo, 7);
   const colores = [[[118, 189, 215], [120, 150, 110]], [[150, 200, 230], [150, 150, 150]], [[244, 200, 140], [130, 140, 120]]];
   let n = 0;
   for (const [titulo, obra] of Object.entries(OBRAS)) {
@@ -190,6 +191,18 @@ async function cicloDemostracion(ids) {
   console.log(`Se creó el «${DEMOSTRACION}» (fase 7). Actívalo desde el panel del administrador para verlo.`);
 }
 
+const DURACION = [7, 21, 14, 7, 7, 3, 90, 14];
+
+async function fechasDesdeFase(ciclo, faseActual) {
+  const dia = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
+  let inicio = -3 - DURACION.slice(0, faseActual - 1).reduce((a, b) => a + b, 0);
+  for (let i = 0; i < 8; i += 1) {
+    await db.q('UPDATE ciclo_fases SET fecha_inicio = ?, fecha_fin = ? WHERE ciclo_id = ? AND fase_id = ?',
+      [dia(inicio), dia(inicio + DURACION[i] - 1), ciclo, i + 1]);
+    inicio += DURACION[i];
+  }
+}
+
 async function asegurar() {
   await adminPruebas();
   const ids = await cuentasDePrueba();
@@ -197,6 +210,7 @@ async function asegurar() {
     const id = (await db.llamar('sp_crear_ciclo', [PRACTICA, new Date().getFullYear(), 120000000]))[0].ciclo_id;
     const hayActivo = await db.uno("SELECT id FROM ciclos WHERE estado = 'activo'");
     await db.q(`UPDATE ciclos SET fase_id = 2, estado = ? WHERE id = ?`, [hayActivo ? 'borrador' : 'activo', id]);
+    await fechasDesdeFase(id, 2);
     console.log(`Se creó el «${PRACTICA}» en la fase 2.`);
   }
   if (!(await db.uno('SELECT id FROM ciclos WHERE nombre = ?', [DEMOSTRACION]))) await cicloDemostracion(ids);
