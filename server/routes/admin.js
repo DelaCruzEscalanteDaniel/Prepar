@@ -127,9 +127,11 @@ r.post('/admin/funcionarios', admin, asincrono(async (req, res) => {
 r.put('/admin/usuarios/:id/activo', admin, asincrono(async (req, res) => {
   const id = Number(req.params.id) || 0;
   if (id === req.usuario.id) throw invalido('No puedes desactivar tu propia cuenta');
+  const cuenta = await db.uno('SELECT rol FROM usuarios WHERE id = ?', [id]);
+  if (!cuenta) throw noEncontrado('La cuenta no existe');
+  if (cuenta.rol === 'administrador') throw invalido('Un administrador no puede activar ni desactivar a otro administrador');
   const activo = req.body.activo === true;
-  const r2 = await db.q('UPDATE usuarios SET activo = ? WHERE id = ?', [activo, id]);
-  if (!r2.affectedRows) throw noEncontrado('La cuenta no existe');
+  await db.q('UPDATE usuarios SET activo = ? WHERE id = ?', [activo, id]);
   if (!activo) await db.q('DELETE FROM sesiones WHERE usuario_id = ?', [id]);
   res.json({ ok: true });
 }));

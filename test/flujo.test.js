@@ -216,6 +216,15 @@ test('portada, inicio y usuarios por tipo', async () => {
   assert.deepStrictEqual(lista.usuarios.map((u) => u.correo), ['func@prepar.mx']);
   assert.strictEqual(lista.conteo.ciudadano, 4);
   assert.strictEqual((await estado.admin.get('/admin/usuarios?rol=ciudadano&q=beto')).datos.usuarios.length, 1);
+  const bcrypt = require('bcryptjs');
+  const otro = await db.q("INSERT INTO usuarios (rol, nombre, correo, password_hash) VALUES ('administrador', 'Otro admin', 'otro@prueba.mx', ?)", [await bcrypt.hash('Admin2026', 10)]);
+  falla(await estado.admin.put(`/admin/usuarios/${otro.insertId}/activo`, { activo: false }));
+  const otroAdmin = await entrar('otro@prueba.mx', 'Admin2026');
+  const yo = (await estado.admin.get('/yo')).datos;
+  falla(await otroAdmin.put(`/admin/usuarios/${yo.id}/activo`, { activo: false }));
+  const beto = (await estado.admin.get('/admin/usuarios?rol=ciudadano&q=beto')).datos.usuarios[0];
+  ok(await otroAdmin.put(`/admin/usuarios/${beto.id}/activo`, { activo: false }));
+  ok(await otroAdmin.put(`/admin/usuarios/${beto.id}/activo`, { activo: true }));
 });
 
 test('perfil, cambio de contraseña, recuperación y eliminar cuenta', async () => {
