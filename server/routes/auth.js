@@ -72,7 +72,22 @@ r.get('/ciclo', sesion.requiere(), asincrono(async (req, res) => {
     const cc = await db.uno('SELECT presupuesto FROM ciclo_colonias WHERE ciclo_id = ? AND colonia_id = ?', [c.id, req.usuario.colonia_id]);
     c.presupuesto_colonia = cc ? cc.presupuesto : null;
   }
-  res.json({ ciclo: c, fases: await db.q('SELECT id, nombre FROM fases ORDER BY id') });
+  const u = req.usuario;
+  const resumen = c ? await db.uno(
+    `SELECT (SELECT COUNT(*) FROM ideas i JOIN colonias co ON co.id = i.colonia_id WHERE i.ciclo_id = ? AND co.alcaldia_id = ?) AS ideas,
+            (SELECT COUNT(*) FROM proyectos WHERE ciclo_id = ? AND colonia_id = ?) AS proyectos,
+            (SELECT COUNT(*) FROM proyectos WHERE ciclo_id = ? AND proponente_id = ?) AS mios`,
+    [c.id, u.alcaldia_id || 0, c.id, u.colonia_id || 0, c.id, u.id]) : null;
+  res.json({ ciclo: c, fases: await ciclo.fases(c && c.id), resumen });
+}));
+
+r.get('/cifras', asincrono(async (req, res) => {
+  const c = await ciclo.activo();
+  const cifras = await db.uno(
+    `SELECT (SELECT COUNT(*) FROM ciclo_colonias WHERE ciclo_id = ?) AS colonias,
+            (SELECT COUNT(*) FROM usuarios WHERE rol = 'ciudadano' AND activo) AS ciudadanos,
+            (SELECT COUNT(*) FROM proyectos WHERE ciclo_id = ?) AS proyectos`, [c ? c.id : 0, c ? c.id : 0]);
+  res.json({ ...cifras, ciclo: c ? { nombre: c.nombre, fase_id: c.fase_id, fase: c.fase } : null });
 }));
 
 r.post('/recuperar', asincrono(async (req, res) => {

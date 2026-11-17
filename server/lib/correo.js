@@ -18,12 +18,17 @@ async function enviar(destinatario, asunto, cuerpo) {
   try {
     const r = await fetch(BREVO, {
       method: 'POST',
-      headers: { 'api-key': config.correo.apiKey, 'Content-Type': 'application/json' },
+      headers: { 'api-key': config.correo.apiKey, 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify({ sender: remitente(), to: [{ email: destinatario }], subject: asunto, textContent: cuerpo }),
       signal: AbortSignal.timeout(10000),
     });
-    if (!r.ok) console.error(`Brevo respondió ${r.status} al enviar a ${destinatario}`);
-    return r.ok;
+    if (!r.ok) {
+      const datos = await r.json().catch(() => ({}));
+      console.error(`Brevo respondió ${r.status} al enviar a ${destinatario}: ${datos.message || 'sin detalle'}`);
+      return false;
+    }
+    console.log(`Correo enviado a ${destinatario}: ${asunto}`);
+    return true;
   } catch (e) {
     console.error('No se pudo enviar el correo:', e.message);
     return false;

@@ -129,7 +129,18 @@ r.post('/votar', ciudadano, asincrono(async (req, res) => {
   res.json({ ok: true, folio: filas[0].folio });
 }));
 
-r.get('/mapa', ciudadano, asincrono(async (req, res) => {
+r.get('/resultados', ciudadano, asincrono(async (req, res) => {
+  const c = await ciclo.activo();
+  if (!c || c.fase_id < 6) return res.json({ ciclo: c, proyectos: [], total: 0 });
+  const proyectos = (await db.q(
+    `SELECT p.titulo, p.estatus, (SELECT COUNT(*) FROM votos v WHERE v.proyecto_id = p.id) AS votos
+     FROM proyectos p WHERE p.ciclo_id = ? AND p.colonia_id = ? AND p.numero_boleta IS NOT NULL
+     ORDER BY votos DESC, p.id`, [c.id, req.usuario.colonia_id]))
+    .map((p) => ({ titulo: p.titulo, votos: p.votos, ganador: !['viable', 'no_viable', 'registrado'].includes(p.estatus) }));
+  return res.json({ ciclo: c, proyectos, total: proyectos.reduce((s, p) => s + p.votos, 0) });
+}));
+
+async function proyectosDelMapa(req, res) {
   const c = await ciclo.activo();
   if (!c) return res.json({ ciclo: null, proyectos: [] });
   const proyectos = await db.q(
@@ -142,7 +153,9 @@ r.get('/mapa', ciudadano, asincrono(async (req, res) => {
      WHERE p.ciclo_id = ? AND co.alcaldia_id = ? AND p.estatus <> 'no_viable' AND p.latitud IS NOT NULL`,
     [c.id, req.usuario.alcaldia_id]);
   return res.json({ ciclo: c, proyectos });
-}));
+}
+
+r.get('/mapa', ciudadano, asincrono(proyectosDelMapa));
 
 r.get('/obras', ciudadano, asincrono(async (req, res) => {
   const c = await ciclo.activo();
@@ -186,3 +199,4 @@ r.post('/obras/:id/fotos', ciudadano, asincrono(async (req, res) => {
 module.exports = r;
 module.exports.ideasDelForo = ideasDelForo;
 module.exports.detalleObra = detalleObra;
+module.exports.proyectosDelMapa = proyectosDelMapa;
