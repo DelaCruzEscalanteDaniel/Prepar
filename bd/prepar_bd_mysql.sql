@@ -110,6 +110,17 @@ CREATE TABLE ciclo_colonias (
   FOREIGN KEY (colonia_id) REFERENCES colonias(id)
 );
 
+CREATE TABLE ciclo_fases (
+  ciclo_id      INT  NOT NULL,
+  fase_id       INT  NOT NULL,
+  fecha_inicio  DATE NOT NULL,
+  fecha_fin     DATE NOT NULL,
+  PRIMARY KEY (ciclo_id, fase_id),
+  FOREIGN KEY (ciclo_id) REFERENCES ciclos(id) ON DELETE CASCADE,
+  FOREIGN KEY (fase_id) REFERENCES fases(id),
+  CHECK (fecha_fin >= fecha_inicio)
+);
+
 CREATE TABLE ideas (
   id          INT          NOT NULL AUTO_INCREMENT PRIMARY KEY,
   ciclo_id    INT          NOT NULL,
@@ -345,10 +356,20 @@ END$$
 CREATE PROCEDURE sp_crear_ciclo(IN p_nombre VARCHAR(50), IN p_anio INT, IN p_presupuesto DECIMAL(14,2))
 BEGIN
   DECLARE v_ciclo INT;
+  DECLARE v_fase INT DEFAULT 1;
+  DECLARE v_dias INT;
+  DECLARE v_fecha DATE DEFAULT CURDATE();
   INSERT INTO ciclos (nombre, anio, presupuesto_total) VALUES (p_nombre, p_anio, p_presupuesto);
   SET v_ciclo = LAST_INSERT_ID();
   INSERT INTO ciclo_colonias (ciclo_id, colonia_id) SELECT v_ciclo, id FROM colonias;
   CALL sp_repartir_presupuesto(v_ciclo);
+  WHILE v_fase <= 8 DO
+    SET v_dias = ELT(v_fase, 7, 21, 14, 7, 7, 3, 90, 14);
+    INSERT INTO ciclo_fases (ciclo_id, fase_id, fecha_inicio, fecha_fin)
+    VALUES (v_ciclo, v_fase, v_fecha, v_fecha + INTERVAL (v_dias - 1) DAY);
+    SET v_fecha = v_fecha + INTERVAL v_dias DAY;
+    SET v_fase = v_fase + 1;
+  END WHILE;
   SELECT v_ciclo AS ciclo_id;
 END$$
 
