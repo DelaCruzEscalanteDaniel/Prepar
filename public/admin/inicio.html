@@ -11,27 +11,17 @@
 <body>
 <header></header>
 <main>
-<h1>Control del ciclo</h1>
-<div class="fila">
+<div class="titulo"><div><h1>Control del ciclo</h1><p>Elige un ciclo para verlo, activarlo o pasar a la siguiente fase.</p></div>
+<label>Ciclo<select id="ciclo"></select></label></div>
+<p class="mensaje" id="mensaje"></p>
 <div class="caja">
-<h2>Ciclo</h2>
-<label>Ciclo<select id="ciclo"></select></label>
-<button class="btn2" id="activar">Activar</button> <button class="btn2" id="nuevo">Nuevo ciclo</button>
-<p class="mensaje" id="mensaje" style="margin-top:12px"></p>
-<div id="estado"></div>
-<form method="post" id="form" class="oculto" style="margin-top:18px">
-<h2>Nuevo ciclo</h2>
-<label>Nombre<input name="nombre" maxlength="50" required></label>
-<div class="fila"><label>Año<input name="anio" type="number" min="2000" max="2100" required></label>
-<label>Presupuesto total<input name="presupuesto" type="number" min="1" step="0.01" required></label></div>
-<p class="tenue">Participan todas las colonias. El presupuesto se reparte solo: la mitad en partes iguales y la otra mitad según pobreza, delincuencia y población.</p>
-<p class="mensaje"></p>
-<button class="btn">Crear ciclo</button>
-</form>
+<div class="titulo" style="margin-bottom:18px"><div><h2 id="c-nombre" style="margin:0"></h2><p id="c-datos"></p></div><span id="acciones"></span></div>
+<div id="fases"></div>
 </div>
-<div class="caja"><h2>Votos por colonia</h2><div class="grafica" id="grafica"></div><p class="tenue" id="totales"></p></div>
-</div>
+<div class="rejilla cuatro" id="totales"></div>
+<div class="caja"><h2>Votos por colonia</h2><div class="grafica" id="grafica"></div></div>
 </main>
+<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
 <script src="/js/app.js"></script>
 <script src="/js/pages/admin-inicio.js"></script>
 </body>

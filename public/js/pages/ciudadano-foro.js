@@ -2,12 +2,13 @@
 let usuario;
 
 function pintarIdea(i) {
-  const comentarios = i.comentarios.map((c) => `<p><b>${P.esc(c.autor)}:</b> ${P.esc(c.texto)} <span class="tenue">· ${P.fecha(c.creado_en)}</span></p>`).join('');
+  const comentarios = i.comentarios.map((c) => `<p><b>${P.esc(c.autor)}</b> ${P.esc(c.texto)} <span class="tenue">· ${P.fecha(c.creado_en)}</span></p>`).join('');
   return `<div class="idea">
-    <b>${P.esc(i.rubro)}</b>
-    <div class="tenue">${P.esc(i.colonia)}${i.colonia_id === usuario.colonia_id ? ' (tu colonia)' : ''} · ${P.esc(i.autor)} · ${P.fecha(i.creada_en)}</div>
+    <div class="cabeza"><b class="avatar">${P.esc(P.iniciales(i.autor))}</b>
+      <div><b>${P.esc(i.autor)}</b><div class="tenue">${P.esc(i.colonia)}${i.colonia_id === usuario.colonia_id ? ' (tu colonia)' : ''} · ${P.fecha(i.creada_en)}</div></div>
+      <span class="etq" style="margin-left:auto">${P.esc(i.rubro)}</span></div>
     <p>${P.esc(i.texto)}</p>
-    <button class="btn2 ${i.yo_apoyo ? 'activo' : ''}" data-apoyo="${i.id}">👍 Apoyar (${i.apoyos})</button>
+    <button class="btn2 ${i.yo_apoyo ? 'activo' : ''}" data-apoyo="${i.id}">${i.yo_apoyo ? '✓ Apoyaste' : 'Apoyar'} · ${i.apoyos}</button>
     <div class="comentarios">${comentarios}
       <form data-comentar="${i.id}"><input name="texto" maxlength="250" placeholder="Escribe un comentario" required><button class="btn2">Comentar</button></form>
     </div>

@@ -14,7 +14,7 @@ En línea: https://prepar-u55c.onrender.com
 
 ## Tecnologías
 
-- **Base de datos:** MySQL 8 (21 tablas, 3 vistas, 6 triggers y 5 procedimientos almacenados).
+- **Base de datos:** MySQL 8 (22 tablas, 3 vistas, 6 triggers y 5 procedimientos almacenados).
 - **Servidor:** Node.js con Express. Contraseñas con bcrypt y sesiones con cookie.
 - **Páginas:** HTML, CSS y JavaScript, sin frameworks. Mapa con Leaflet y OpenStreetMap.
 - **Correo:** API de Brevo, para recuperar la contraseña.
@@ -23,10 +23,10 @@ En línea: https://prepar-u55c.onrender.com
 
 | Ciudadano | Funcionario | Administrador |
 |---|---|---|
-| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable o no viable) | Crear ciclos y repartir el presupuesto |
+| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable o no viable) | Crear ciclos con sus fechas y alcaldías |
 | Registrar proyectos para su colonia | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
 | Votar una vez (voto secreto) | Registrar pasos y gastos de las obras | Ver la gráfica de votos por colonia |
-| Ver el mapa de proyectos | Borrar ideas, comentarios y fotos | Registrar funcionarios |
+| Ver el mapa de proyectos y los resultados | Borrar ideas, comentarios y fotos | Registrar funcionarios |
 | Subir fotos de las obras (foto denuncia) | | Activar o desactivar cuentas |
 
 ## Las 8 fases
@@ -55,6 +55,10 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 |---|---|
 | maria.lopez@correo.mx (y otros 11 ciudadanos @correo.mx) | Ciudadano2026 |
 | funcionario.demo.azc@prepar.mx · funcionario.demo.coy@prepar.mx | Funcionario2026 |
+
+## Actualizar una base que ya existe
+
+Si la base ya tiene datos y solo quieres agregar las fechas de las fases (versión 2.1), corre `npm run bd:actualizar`. No borra nada.
 
 ## Pruebas automáticas
 

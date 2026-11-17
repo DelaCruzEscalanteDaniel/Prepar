@@ -8,16 +8,19 @@ async function cargar() {
   fase = datos.ciclo ? datos.ciclo.fase_id : 0;
   P.$('#ayuda').textContent = fase === 3 ? 'Estamos en la fase de Dictaminación: revisa los proyectos registrados.'
     : 'Los dictámenes se hacen en la fase 3: Dictaminación.';
-  P.$('#lista').innerHTML = proyectos.length ? proyectos.map((p) => `<tr>
+  const filtro = P.$('#filtro').value;
+  const visibles = proyectos.filter((p) => !filtro || p.estatus === filtro);
+  P.$('#lista').innerHTML = visibles.length ? visibles.map((p) => `<tr>
       <td><b>${P.esc(p.titulo)}</b><br><span class="tenue">${P.esc(p.rubro)} · ${P.esc(p.proponente)}</span>
         ${p.justificacion ? `<br><span class="tenue">Dictamen: ${P.esc(p.justificacion)}</span>` : ''}</td>
-      <td>${P.esc(p.colonia)}</td><td>${P.pesos(p.costo)}</td><td>${P.estatus(p.estatus)}</td>
-      <td>${p.estatus === 'registrado' && fase === 3 ? `<button class="btn2" data-id="${p.id}">Dictaminar</button>` : ''}</td></tr>`).join('')
-    : '<tr><td colspan="5" class="tenue">Todavía no hay proyectos registrados en tu alcaldía.</td></tr>';
+      <td>${P.esc(p.colonia)}</td><td class="num">${P.pesos(p.costo)}</td><td>${P.etiqueta(p.estatus)}</td>
+      <td>${p.estatus === 'registrado' && fase === 3 ? `<button class="btn" data-id="${p.id}">Dictaminar</button>` : ''}</td></tr>`).join('')
+    : '<tr><td colspan="5" class="tenue">No hay proyectos con ese estatus.</td></tr>';
 }
 
 (async () => {
   await P.pagina('Proyectos');
+  P.$('#filtro').addEventListener('change', cargar);
   const form = P.$('#form');
   P.$('#lista').addEventListener('click', (e) => {
     const boton = e.target.closest('[data-id]');

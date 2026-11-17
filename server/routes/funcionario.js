@@ -5,7 +5,7 @@ const sesion = require('../lib/sesion');
 const ciclo = require('../lib/ciclo');
 const v = require('../lib/validar');
 const { asincrono, invalido, noEncontrado } = require('../lib/errores');
-const { ideasDelForo, detalleObra } = require('./ciudadano');
+const { ideasDelForo, detalleObra, proyectosDelMapa } = require('./ciudadano');
 
 const r = express.Router();
 const funcionario = sesion.requiere('funcionario');
@@ -138,8 +138,10 @@ r.post('/func/obras/:id/inejecutable', funcionario, asincrono(async (req, res) =
 r.get('/func/foro', funcionario, asincrono(async (req, res) => {
   const c = await ciclo.activo();
   if (!c) return res.json({ ciclo: null, ideas: [] });
-  return res.json({ ciclo: c, ideas: await ideasDelForo(c.id, req.usuario.alcaldia_id, 0) });
+  return res.json({ ciclo: c, ideas: await ideasDelForo(c.id, req.usuario.alcaldia_id, 0, { colonia: Number(req.query.colonia) || 0 }) });
 }));
+
+r.get('/func/mapa', funcionario, asincrono(proyectosDelMapa));
 
 r.delete('/func/ideas/:id', funcionario, asincrono(async (req, res) => {
   const borrado = await db.q(

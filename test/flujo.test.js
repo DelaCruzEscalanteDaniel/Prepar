@@ -44,11 +44,28 @@ test('seguridad: sesión, roles y encabezado anti-CSRF', async () => {
 
 test('el administrador crea y activa un ciclo', async () => {
   const admin = await entrar('admin@prueba.mx', 'Admin2026');
-  const r = await admin.post('/admin/ciclos', { nombre: 'Ciclo de prueba', anio: 2026, presupuesto: 32000000 });
+  const { alcaldias } = (await cliente().get('/catalogos')).datos;
+  const fechas = [1, 2, 3, 4, 5, 6, 7, 8].map((n) => ({ fecha_inicio: `2027-0${n}-01`, fecha_fin: `2027-0${n}-20` }));
+  const base = { nombre: 'Ciclo de prueba', anio: 2026, presupuesto: 32000000 };
+  falla(await admin.post('/admin/ciclos', { ...base, alcaldias: [], fechas }));
+  falla(await admin.post('/admin/ciclos', { ...base, alcaldias: [2], fechas: fechas.slice(0, 7) }));
+  falla(await admin.post('/admin/ciclos', { ...base, alcaldias: [2], fechas: [...fechas.slice(0, 7), { fecha_inicio: '2027-07-05', fecha_fin: '2027-07-30' }] }));
+  const chico = await admin.post('/admin/ciclos', { ...base, nombre: 'Solo Azcapotzalco', alcaldias: [alcaldias.find((a) => a.nombre === 'Azcapotzalco').id], fechas });
+  ok(chico);
+  const colonias = await db.q('SELECT presupuesto FROM ciclo_colonias WHERE ciclo_id = ?', [chico.datos.id]);
+  assert.strictEqual(colonias.length, 2);
+  assert.strictEqual(colonias.reduce((s, c) => s + Number(c.presupuesto), 0), 32000000);
+  const r = await admin.post('/admin/ciclos', { ...base, alcaldias: alcaldias.map((a) => a.id), fechas });
   ok(r);
   estado.ciclo = r.datos.id;
-  const suma = await db.uno('SELECT SUM(presupuesto) AS s FROM ciclo_colonias WHERE ciclo_id = ?', [estado.ciclo]);
+  const suma = await db.uno('SELECT SUM(presupuesto) AS s, COUNT(*) AS n FROM ciclo_colonias WHERE ciclo_id = ?', [estado.ciclo]);
   assert.strictEqual(Number(suma.s), 32000000);
+  assert.strictEqual(suma.n, 32);
+  const nuevas = fechas.map((f, i) => (i === 0 ? { fecha_inicio: '2026-12-01', fecha_fin: '2026-12-31' } : f));
+  ok(await admin.put(`/admin/ciclos/${estado.ciclo}/fechas`, { fechas: nuevas }));
+  const resumen = (await admin.get(`/admin/ciclos/${estado.ciclo}/resumen`)).datos;
+  assert.strictEqual(resumen.fases[0].fecha_inicio, '2026-12-01');
+  assert.strictEqual(resumen.fases[7].fecha_fin, '2027-08-20');
   ok(await admin.post(`/admin/ciclos/${estado.ciclo}/activar`));
   const ana = await entrar('ana@correo.mx', 'Prepar2026');
   falla(await ana.post('/ideas', { texto: 'Arreglar el parque', rubro_id: 1 }));
@@ -142,6 +159,12 @@ test('dictamen, sorteo y votación', async () => {
   assert.deepStrictEqual(ganadores.map((g) => g.titulo), ['Parque nuevo', 'Plaza de San Álvaro']);
   const resumen = (await admin.get(`/admin/ciclos/${estado.ciclo}/resumen`)).datos;
   assert.strictEqual(resumen.votos.find((v) => v.colonia === 'Clavería').votos, 3);
+  assert.strictEqual(resumen.totales.votos, 3);
+  const res = (await ana.get('/resultados')).datos;
+  assert.strictEqual(res.total, 3);
+  assert.deepStrictEqual(res.proyectos.map((p) => [p.titulo, p.votos, p.ganador]), [['Parque nuevo', 2, true], ['Banquetas', 1, false]]);
+  const mapa = (await func.get('/func/mapa')).datos.proyectos;
+  assert.ok(Array.isArray(mapa) && mapa.every((p) => p.estatus !== 'no_viable'));
   estado.parque = parque;
 });
 
@@ -179,6 +202,20 @@ test('seguimiento de obras: pasos, tope de gasto y foto denuncia', async () => {
   falla(await func.post(`/func/obras/${plaza.id}/inejecutable`, {}));
   ok(await func.post(`/func/obras/${plaza.id}/inejecutable`, { motivo: 'El terreno es privado' }));
   assert.strictEqual((await func.get(`/func/obras/${plaza.id}`)).datos.estatus, 'inejecutable');
+});
+
+test('portada, inicio y usuarios por tipo', async () => {
+  const cifras = (await cliente().get('/cifras')).datos;
+  assert.strictEqual(cifras.colonias, 32);
+  assert.strictEqual(cifras.ciclo.nombre, 'Ciclo de prueba');
+  const ana = await entrar('ana@correo.mx', 'Prepar2026');
+  const inicio = (await ana.get('/ciclo')).datos;
+  assert.strictEqual(inicio.fases.length, 8);
+  assert.strictEqual(inicio.resumen.mios, 1);
+  const lista = (await estado.admin.get('/admin/usuarios?rol=funcionario')).datos;
+  assert.deepStrictEqual(lista.usuarios.map((u) => u.correo), ['func@prepar.mx']);
+  assert.strictEqual(lista.conteo.ciudadano, 4);
+  assert.strictEqual((await estado.admin.get('/admin/usuarios?rol=ciudadano&q=beto')).datos.usuarios.length, 1);
 });
 
 test('perfil, cambio de contraseña, recuperación y eliminar cuenta', async () => {

@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciclos · Prepar</title>
+<link rel="icon" type="image/png" href="/img/favicon-32.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<link rel="stylesheet" href="/css/app.css">
+</head>
+<body>
+<header></header>
+<main>
+<div class="titulo"><div><h1>Ciclos</h1><p>Crea un ciclo nuevo o cambia las fechas de uno que ya existe.</p></div></div>
+<div class="caja tabla"><table><thead><tr><th>Ciclo</th><th>Año</th><th class="num">Presupuesto</th><th>Fase</th><th>Estado</th><th></th></tr></thead><tbody id="lista"></tbody></table></div>
+<form method="post" class="caja" id="form">
+<h2 id="form-titulo">Nuevo ciclo</h2>
+<div class="fila">
+<div>
+<label>Nombre<input name="nombre" maxlength="50" required placeholder="Ej. Ciclo 2027"></label>
+<div class="fila"><label>Año<input name="anio" type="number" min="2000" max="2100" required></label>
+<label>Presupuesto total (pesos)<input name="presupuesto" type="number" min="1" step="0.01" required></label></div>
+<div id="bloque-alcaldias">
+<p style="font-weight:600;margin:0">Alcaldías que participan</p>
+<div class="casillas" id="alcaldias"></div>
+<p class="tenue">El presupuesto se reparte solo entre las colonias de esas alcaldías: la mitad en partes iguales y la otra mitad según pobreza, delincuencia y población.</p>
+</div>
+</div>
+<div>
+<p style="font-weight:600;margin:0 0 6px">Fechas de las 8 fases</p>
+<table class="fechas"><thead><tr><th>Fase</th><th>Inicio</th><th>Fin</th></tr></thead><tbody><tr><td>1. Convocatoria</td><td><input type="date" name="inicio_1" required></td><td><input type="date" name="fin_1" required></td></tr><tr><td>2. Diagnóstico y registro</td><td><input type="date" name="inicio_2" required></td><td><input type="date" name="fin_2" required></td></tr><tr><td>3. Dictaminación</td><td><input type="date" name="inicio_3" required></td><td><input type="date" name="fin_3" required></td></tr><tr><td>4. Sorteo y difusión</td><td><input type="date" name="inicio_4" required></td><td><input type="date" name="fin_4" required></td></tr><tr><td>5. Consulta</td><td><input type="date" name="inicio_5" required></td><td><input type="date" name="fin_5" required></td></tr><tr><td>6. Resultados</td><td><input type="date" name="inicio_6" required></td><td><input type="date" name="fin_6" required></td></tr><tr><td>7. Ejecución y seguimiento</td><td><input type="date" name="inicio_7" required></td><td><input type="date" name="fin_7" required></td></tr><tr><td>8. Evaluación</td><td><input type="date" name="inicio_8" required></td><td><input type="date" name="fin_8" required></td></tr></tbody></table>
+</div>
+</div>
+<p class="mensaje"></p>
+<button class="btn" id="guardar">Crear ciclo</button> <button type="button" class="btn2 oculto" id="cancelar">Cancelar</button>
+</form>
+</main>
+<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
+<script src="/js/app.js"></script>
+<script src="/js/pages/admin-ciclos.js"></script>
+</body>
+</html>

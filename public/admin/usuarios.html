@@ -11,22 +11,26 @@
 <body>
 <header></header>
 <main>
-<div class="titulo">
-<div><h1>Usuarios</h1></div>
-<label>Tipo de cuenta<select id="filtro-rol"><option value="">Todas</option><option value="ciudadano">Ciudadanos</option><option value="funcionario">Funcionarios</option><option value="administrador">Administradores</option></select></label>
+<div class="titulo"><div><h1>Usuarios</h1><p>Las cuentas de Prepar, separadas por tipo.</p></div>
+<label>Buscar<input id="buscar" type="search" placeholder="Nombre o correo"></label></div>
+<div class="pestanas" id="pestanas">
+<button data-rol="ciudadano" class="activo">Ciudadanos <span id="n-ciudadano"></span></button>
+<button data-rol="funcionario">Funcionarios <span id="n-funcionario"></span></button>
+<button data-rol="administrador">Administradores <span id="n-administrador"></span></button>
 </div>
-<form method="post" class="caja" id="form">
+<form method="post" class="caja oculto" id="form">
 <h2>Registrar funcionario</h2>
-<div class="fila">
+<div class="fila" style="align-items:flex-end">
 <label>Nombre completo<input name="nombre" maxlength="60" required></label>
 <label>Correo<input name="correo" type="email" maxlength="60" required></label>
 <label>Alcaldía<select name="alcaldia_id" id="alcaldia" required></select></label>
+<div style="flex:.5;margin-bottom:14px"><button class="btn" style="width:100%">Registrar</button></div>
 </div>
 <p class="mensaje"></p>
-<button class="btn">Registrar</button>
 </form>
-<div class="caja tabla"><table><thead><tr><th>Nombre</th><th>Correo</th><th>Tipo</th><th>Lugar</th><th></th></tr></thead><tbody id="lista"></tbody></table></div>
+<div class="caja tabla"><table><thead><tr><th>Nombre</th><th>Correo</th><th id="col-lugar">Colonia</th><th>Estado</th><th></th></tr></thead><tbody id="lista"></tbody></table></div>
 </main>
+<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
 <script src="/js/app.js"></script>
 <script src="/js/pages/admin-usuarios.js"></script>
 </body>

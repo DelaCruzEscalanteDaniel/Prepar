@@ -4,8 +4,8 @@ const MENUS = {
   ciudadano: [['Inicio', '/ciudadano/inicio.html'], ['Foro', '/ciudadano/foro.html'], ['Proyectos', '/ciudadano/proyectos.html'],
     ['Votación', '/ciudadano/votacion.html'], ['Mapa', '/ciudadano/mapa.html'], ['Foto denuncia', '/ciudadano/fotos.html']],
   funcionario: [['Inicio', '/funcionario/inicio.html'], ['Proyectos', '/funcionario/proyectos.html'], ['Sorteo', '/funcionario/sorteo.html'],
-    ['Obras', '/funcionario/obras.html'], ['Foro', '/funcionario/foro.html']],
-  administrador: [['Inicio', '/admin/inicio.html'], ['Usuarios', '/admin/usuarios.html']],
+    ['Obras', '/funcionario/obras.html'], ['Foro', '/funcionario/foro.html'], ['Mapa', '/funcionario/mapa.html']],
+  administrador: [['Inicio', '/admin/inicio.html'], ['Ciclos', '/admin/ciclos.html'], ['Usuarios', '/admin/usuarios.html']],
 };
 const INICIO = { ciudadano: '/ciudadano/inicio.html', funcionario: '/funcionario/inicio.html', administrador: '/admin/inicio.html' };
 const ESTATUS = {
@@ -36,19 +36,32 @@ const P = {
     (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])),
   pesos: (n) => Number(n || 0).toLocaleString('es-MX', { style: 'currency', currency: 'MXN' }),
   fecha: (f) => (f ? new Date(String(f).replace(' ', 'T')).toLocaleDateString('es-MX', { day: 'numeric', month: 'short', year: 'numeric' }) : ''),
+  fechaCorta: (f) => (f ? new Date(`${String(f).slice(0, 10)}T12:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : ''),
   estatus: (e) => ESTATUS[e] || e,
+  etiqueta: (e) => `<span class="etq ${e}">${ESTATUS[e] || e}</span>`,
+  iniciales: (n) => String(n || '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase(),
+
+  tablaFases(fases, actual) {
+    const filas = fases.map((f) => {
+      const estado = f.id < actual ? 'Terminada' : f.id === actual ? '<span class="etq en_ejecucion">En curso</span>' : 'Pendiente';
+      const fechas = f.fecha_inicio ? `${P.fechaCorta(f.fecha_inicio)} – ${P.fechaCorta(f.fecha_fin)}` : '';
+      const nombre = f.id === actual ? `<b>${f.id}. ${P.esc(f.nombre)}</b>` : `${f.id}. ${P.esc(f.nombre)}`;
+      return `<tr><td>${nombre}</td><td>${fechas}</td><td>${estado}</td></tr>`;
+    }).join('');
+    return `<table><thead><tr><th>Fase</th><th>Fechas</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>`;
+  },
 
   async pagina(activo) {
     const u = await P.get('/yo');
     const enPerfil = location.pathname === '/perfil.html';
     if (u.debe_cambiar_password && !enPerfil) { location.href = '/perfil.html?temporal=1'; return new Promise(() => {}); }
-    const lugar = u.rol === 'ciudadano' ? ` · ${u.colonia}, ${u.alcaldia}` : u.rol === 'funcionario' ? ` · ${u.alcaldia}` : '';
+    const lugar = u.rol === 'ciudadano' ? `${u.colonia}, ${u.alcaldia}` : u.rol === 'funcionario' ? `Funcionario · ${u.alcaldia}` : 'Administrador';
     const menu = MENUS[u.rol].map(([nombre, url]) => `<a href="${url}" class="${nombre === activo ? 'activo' : ''}">${nombre}</a>`).join('');
     P.$('header').innerHTML = `
       <div class="barra">
         <a class="marca" href="${INICIO[u.rol]}"><img src="/img/logo.png" alt="">Prepar</a>
-        <span class="usuario">${P.esc(u.nombre + lugar)} · <a href="/perfil.html">Mi perfil</a></span>
-        <button class="btn2" id="salir">Cerrar sesión</button>
+        <a class="usuario" href="/perfil.html" title="Mi perfil"><span>${P.esc(u.nombre)}<small>${P.esc(lugar)}</small></span><b class="avatar">${P.esc(P.iniciales(u.nombre))}</b></a>
+        <button class="btn2" id="salir">Salir</button>
       </div>
       <nav>${menu}</nav>`;
     P.$('#salir').addEventListener('click', async () => {

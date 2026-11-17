@@ -11,22 +11,32 @@
 <body>
 <header></header>
 <main>
-<h1 id="titulo">Votación</h1>
+<div class="titulo"><div><h1 id="titulo">Votación</h1><p id="subtitulo">La boleta de tu colonia.</p></div></div>
 <div class="aviso" id="aviso"></div>
-<form method="post" class="caja oculto" id="form" style="max-width:720px">
-<p class="tenue" style="margin-top:0">Elige un proyecto. Solo puedes votar una vez y tu voto es secreto.</p>
+<form method="post" class="caja oculto" id="form" style="max-width:760px">
+<h2>Boleta</h2>
+<p class="tenue" style="margin-top:-6px">Elige un proyecto. Solo puedes votar una vez y tu voto es secreto.</p>
 <div id="opciones"></div>
 <p class="mensaje"></p>
-<button class="btn">Votar</button>
+<button class="btn grande">Votar</button>
 </form>
-<div class="caja oculto" id="comprobante" style="max-width:720px">
-<h2>Comprobante de participación</h2>
-<p>Ya votaste en este ciclo. Guarda tu folio:</p>
-<div class="dato" id="folio"></div>
-<p class="tenue" id="fecha-voto"></p>
-<button class="btn2" id="imprimir">Imprimir comprobante</button>
+<div class="caja oculto" id="boleta-vista" style="max-width:760px"></div>
+<div class="caja comprobante oculto" id="comprobante">
+<img src="/img/logo.png" alt="" style="width:70px">
+<h2 style="margin:6px 0 0">Comprobante de participación</h2>
+<p class="tenue" id="comp-ciclo" style="margin:4px 0 0"></p>
+<div class="folio" id="folio"></div>
+<p class="tenue" id="fecha-voto" style="margin:0 0 16px"></p>
+<p style="font-size:14px">Este comprobante dice que participaste. No dice por quién votaste.</p>
+<button class="btn2 no-imprimir" id="imprimir">Imprimir o guardar en PDF</button>
+</div>
+<div class="caja oculto" id="resultados">
+<h2 id="res-titulo">Resultados de tu colonia</h2>
+<div class="grafica" id="res-grafica"></div>
+<p class="tenue" id="res-nota" style="margin-bottom:0"></p>
 </div>
 </main>
+<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
 <script src="/js/app.js"></script>
 <script src="/js/pages/ciudadano-votacion.js"></script>
 </body>
