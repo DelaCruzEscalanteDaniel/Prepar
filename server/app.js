@@ -2,6 +2,7 @@
 const path = require('path');
 const express = require('express');
 const db = require('./db');
+const config = require('./config');
 const sesion = require('./lib/sesion');
 const { asincrono, noEncontrado, manejarErrores, prohibido } = require('./lib/errores');
 
@@ -12,6 +13,7 @@ const INICIO = { ciudadano: '/ciudadano/inicio.html', funcionario: '/funcionario
 function encabezados(req, res, next) {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'DENY');
+  if (config.produccion) res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
   res.setHeader('Content-Security-Policy',
     "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; frame-ancestors 'none'");
   next();

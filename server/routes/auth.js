@@ -7,6 +7,7 @@ const config = require('../config');
 const sesion = require('../lib/sesion');
 const correo = require('../lib/correo');
 const ciclo = require('../lib/ciclo');
+const { limite, registrar } = require('../lib/seguridad');
 const v = require('../lib/validar');
 const { asincrono, invalido } = require('../lib/errores');
 
@@ -22,7 +23,7 @@ r.get('/catalogos', asincrono(async (req, res) => {
   });
 }));
 
-r.post('/registro', asincrono(async (req, res) => {
+r.post('/registro', limite('registro', 10, 60), asincrono(async (req, res) => {
   const b = req.body || {};
   if (b.acepto !== true) throw invalido('Debes aceptar el aviso de privacidad');
   const nombre = v.texto(b.nombre, 'tu nombre', 60);
@@ -40,7 +41,7 @@ r.post('/registro', asincrono(async (req, res) => {
   res.status(201).json({ ok: true, rol: 'ciudadano' });
 }));
 
-r.post('/login', asincrono(async (req, res) => {
+r.post('/login', limite('login', 30, 15), asincrono(async (req, res) => {
   const b = req.body || {};
   const email = String(b.correo || '').trim().toLowerCase();
   const password = String(b.password || '');
@@ -49,9 +50,14 @@ r.post('/login', asincrono(async (req, res) => {
   if (!u || !u.activo || u.bloqueado || !(await bcrypt.compare(password, u.password_hash))) {
     if (u && !u.bloqueado) {
       const intentos = u.intentos_fallidos + 1;
-      if (intentos >= 5) await db.q('UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NOW() + INTERVAL 15 MINUTE WHERE id_usuario = ?', [u.id_usuario]);
-      else await db.q('UPDATE usuarios SET intentos_fallidos = ? WHERE id_usuario = ?', [intentos, u.id_usuario]);
+      if (intentos >= 5) {
+        await db.q('UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NOW() + INTERVAL 15 MINUTE WHERE id_usuario = ?', [u.id_usuario]);
+        registrar(`Cuenta ${u.id_usuario} bloqueada 15 minutos por 5 intentos fallidos desde ${req.ip}`);
+      } else {
+        await db.q('UPDATE usuarios SET intentos_fallidos = ? WHERE id_usuario = ?', [intentos, u.id_usuario]);
+      }
     }
+    registrar(`Inicio de sesión fallido desde ${req.ip}${u ? ` para la cuenta ${u.id_usuario}` : ' con un correo no registrado'}`);
     throw invalido(ERROR_LOGIN);
   }
   await db.q('UPDATE usuarios SET intentos_fallidos = 0, bloqueado_hasta = NULL WHERE id_usuario = ?', [u.id_usuario]);
@@ -90,7 +96,7 @@ r.get('/cifras', asincrono(async (req, res) => {
   res.json({ ...cifras, ciclo: c ? { nombre: c.nombre, id_fase: c.id_fase, fase: c.fase } : null });
 }));
 
-r.post('/recuperar', asincrono(async (req, res) => {
+r.post('/recuperar', limite('recuperar', 5, 15), asincrono(async (req, res) => {
   const email = String((req.body || {}).correo || '').trim().toLowerCase();
   const u = await db.uno('SELECT id_usuario, nombre FROM usuarios WHERE correo = ? AND activo', [email]);
   if (u) {
@@ -102,7 +108,7 @@ r.post('/recuperar', asincrono(async (req, res) => {
   res.json({ ok: true, mensaje: 'Si el correo está registrado, te enviamos un enlace para crear una contraseña nueva' });
 }));
 
-r.post('/restablecer', asincrono(async (req, res) => {
+r.post('/restablecer', limite('restablecer', 10, 15), asincrono(async (req, res) => {
   const b = req.body || {};
   const password = v.password(b.password);
   const rec = await db.uno('SELECT id_recuperacion, id_usuario FROM recuperaciones WHERE token = ? AND NOT usado AND expira_en > NOW()',
@@ -112,6 +118,7 @@ r.post('/restablecer', asincrono(async (req, res) => {
     [await bcrypt.hash(password, 10), rec.id_usuario]);
   await db.q('UPDATE recuperaciones SET usado = TRUE WHERE id_recuperacion = ?', [rec.id_recuperacion]);
   await db.q('DELETE FROM sesiones WHERE id_usuario = ?', [rec.id_usuario]);
+  registrar(`La cuenta ${rec.id_usuario} restableció su contraseña con un enlace de recuperación`);
   res.json({ ok: true });
 }));
 
@@ -135,6 +142,8 @@ r.put('/password', sesion.requiere(), asincrono(async (req, res) => {
   const nueva = v.password(b.nueva);
   if (nueva === b.actual) throw invalido('La contraseña nueva debe ser distinta de la actual');
   await db.q('UPDATE usuarios SET password_hash = ?, debe_cambiar_password = FALSE WHERE id_usuario = ?', [await bcrypt.hash(nueva, 10), req.usuario.id_usuario]);
+  await db.q('DELETE FROM sesiones WHERE id_usuario = ? AND token <> ?', [req.usuario.id_usuario, req.sesion]);
+  registrar(`La cuenta ${req.usuario.id_usuario} cambió su contraseña y se cerraron sus otras sesiones`);
   res.json({ ok: true });
 }));
 

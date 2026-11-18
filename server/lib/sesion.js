@@ -50,6 +50,7 @@ async function leer(req, res, next) {
     if (u) {
       u.debe_cambiar_password = !!u.debe_cambiar_password;
       req.usuario = u;
+      req.sesion = hash;
       await db.q('UPDATE sesiones SET ultima_actividad = NOW() WHERE token = ?', [hash]);
     }
     return next();

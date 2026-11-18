@@ -145,8 +145,8 @@ async function cicloDemostracion(ids) {
 
   await fase(3);
   for (const [colonia, , , titulo, , , , resultado] of PROYECTOS) {
-    await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, justificacion) VALUES (?, ?, ?, ?)',
-      [proyectos[titulo], funcionarioDe(colonia), resultado,
+    await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, motivo, justificacion) VALUES (?, ?, ?, ?, ?)',
+      [proyectos[titulo], funcionarioDe(colonia), resultado, resultado === 'viable' ? null : 'beneficio',
         resultado === 'viable' ? 'Cumple con los requisitos técnicos y el costo está dentro del presupuesto.' : 'No beneficia a los vecinos: es para uso de la alcaldía.']);
   }
 
@@ -158,7 +158,7 @@ async function cicloDemostracion(ids) {
   await fase(5);
   for (const [colonia, , , titulo, , , , , votantes] of PROYECTOS) {
     for (const quien of votantes) {
-      await db.q('INSERT INTO participaciones (id_ciclo, id_usuario, folio) VALUES (?, ?, ?)', [ciclo, ids[quien], `VOTO-${ciclo}-${ids[quien]}DEMO`]);
+      await db.q('INSERT INTO participaciones (id_ciclo, id_usuario) VALUES (?, ?)', [ciclo, ids[quien]]);
       await db.q('INSERT INTO votos (id_ciclo, id_colonia, id_proyecto) VALUES (?, ?, ?)', [ciclo, colonias[colonia].id_colonia, proyectos[titulo]]);
     }
   }

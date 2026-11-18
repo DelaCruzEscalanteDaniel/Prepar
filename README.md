@@ -23,8 +23,8 @@ En línea: https://prepar-u55c.onrender.com
 
 | Ciudadano | Funcionario | Administrador |
 |---|---|---|
-| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable o no viable) | Crear ciclos con sus fechas y alcaldías |
-| Registrar proyectos para su colonia | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
+| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable, o no viable con su motivo) | Crear ciclos con sus fechas y alcaldías |
+| Registrar proyectos para su colonia (la ubicación es opcional) | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
 | Votar una vez (voto secreto) | Registrar pasos y gastos de las obras | Ver la gráfica de votos por colonia |
 | Ver el mapa de proyectos y los resultados | Borrar ideas, comentarios y fotos | Registrar funcionarios |
 | Subir fotos de las obras (foto denuncia) | | Activar o desactivar cuentas |
@@ -58,14 +58,26 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 
 ## Actualizar una base que ya existe
 
-Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases y cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.). No borra nada y se puede correr varias veces.
+Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases, cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.), quita el folio de `participaciones` y agrega el motivo a `dictamenes`. No borra datos y se puede correr varias veces.
+
+## Seguridad
+
+- **Inyección SQL:** todas las consultas usan parámetros `?`.
+- **XSS:** el servidor rechaza textos con etiquetas HTML y el navegador escapa todo lo que muestra.
+- **Contraseñas:** bcrypt; las sesiones y los enlaces de recuperación se guardan como sha256.
+- **Acceso:** cada ruta revisa el rol, y funcionarios y ciudadanos solo ven su alcaldía.
+- **Fuerza bruta:** la cuenta se bloquea 15 minutos después de 5 intentos fallidos, y hay un límite de intentos por IP en login, registro y recuperación de contraseña.
+- **Sesiones:** duran 12 horas; al cambiar o restablecer la contraseña se cierran las demás.
+- **Cabeceras:** CSP, `X-Frame-Options`, `nosniff` y, en producción, HSTS.
+- **Registro:** los inicios de sesión fallidos, los bloqueos y las acciones de administradores y funcionarios se escriben en el log del servidor con la etiqueta `[seguridad]`.
+- **Dependencias:** solo 3 (`express`, `mysql2`, `bcryptjs`); `npm audit` sin vulnerabilidades.
 
 ## Pruebas automáticas
 
 ```
 npm test
 ```
-Crean una base aparte (`prepar_prueba`) y recorren un ciclo completo: registro, foro, proyectos, dictamen, sorteo, votación, ganadores, obras y foto denuncia.
+Crean una base aparte (`prepar_prueba`) y recorren un ciclo completo: registro, foro, proyectos, dictamen, sorteo, votación, ganadores, obras y foto denuncia, además del límite de intentos.
 
 ## Carpetas
 

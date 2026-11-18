@@ -37,6 +37,7 @@ async function actualizar() {
     for (const r of restricciones.filter((x) => x.tipo === 'CHECK')) await q(`ALTER TABLE \`${r.tabla}\` DROP CHECK \`${r.nombre}\``);
   };
   let renombradas = 0;
+  let cambiadas = 0;
   try {
     const todas = sentencias(fs.readFileSync(path.join(__dirname, '..', 'bd', 'prepar_bd_mysql.sql'), 'utf8'));
     const nombre = (s) => /CREATE (?:VIEW|TRIGGER|PROCEDURE) (\w+)/.exec(s)[1];
@@ -66,6 +67,18 @@ async function actualizar() {
 
     const tablaFechas = todas.find((s) => s.startsWith('CREATE TABLE ciclo_fases'));
     await q(tablaFechas.replace('CREATE TABLE', 'CREATE TABLE IF NOT EXISTS'));
+    const existe = async (tabla, columna) => (await q(
+      'SELECT 1 FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?', [tabla, columna])).length > 0;
+    if (await existe('participaciones', 'folio')) {
+      await q('ALTER TABLE participaciones DROP COLUMN folio');
+      cambiadas += 1;
+    }
+    if (!(await existe('dictamenes', 'motivo'))) {
+      await q('ALTER TABLE dictamenes ADD COLUMN motivo VARCHAR(20) NULL AFTER resultado');
+      cambiadas += 1;
+    }
+    await q("UPDATE dictamenes SET motivo = 'otro' WHERE resultado = 'no_viable' AND motivo IS NULL");
+    await q("UPDATE dictamenes SET motivo = NULL WHERE resultado = 'viable'");
     await quitarRestricciones();
     for (const s of todas.filter((x) => x.startsWith('CREATE TABLE'))) {
       const tabla = /CREATE TABLE (\w+)/.exec(s)[1];
@@ -91,7 +104,7 @@ async function actualizar() {
       if (!nombre(s)) continue;
       await q(s);
     }
-    return { renombradas, fechas: sinFechas.length };
+    return { renombradas, cambiadas, fechas: sinFechas.length };
   } finally {
     await con.end();
   }
@@ -99,7 +112,8 @@ async function actualizar() {
 
 if (require.main === module) {
   actualizar()
-    .then(({ renombradas, fechas }) => console.log(`✔ Base actualizada sin borrar datos. Columnas renombradas: ${renombradas}. Ciclos con fechas nuevas: ${fechas}.`))
+    .then(({ renombradas, cambiadas, fechas }) => console.log(
+      `✔ Base actualizada sin borrar datos. Columnas renombradas: ${renombradas}. Columnas agregadas o quitadas: ${cambiadas}. Ciclos con fechas nuevas: ${fechas}.`))
     .catch((e) => { console.error('✘ No se pudo actualizar la base:', e.message); process.exitCode = 1; });
 }
 

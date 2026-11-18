@@ -7,6 +7,7 @@ const config = require('../config');
 const sesion = require('../lib/sesion');
 const correo = require('../lib/correo');
 const ciclo = require('../lib/ciclo');
+const { registrar } = require('../lib/seguridad');
 const v = require('../lib/validar');
 const { asincrono, invalido, noEncontrado } = require('../lib/errores');
 
@@ -43,6 +44,7 @@ r.post('/admin/ciclos', admin, asincrono(async (req, res) => {
     await ciclo.guardarFechas(t, nuevo, fechas);
     return nuevo;
   });
+  registrar(`El administrador ${req.usuario.id_usuario} creó el ciclo ${id}`);
   res.status(201).json({ ok: true, id_ciclo: id });
 }));
 
@@ -51,6 +53,7 @@ r.put('/admin/ciclos/:id/fechas', admin, asincrono(async (req, res) => {
   if (c.estado === 'cerrado') throw invalido('Un ciclo cerrado ya no se puede cambiar');
   const fechas = ciclo.validarFechas((req.body || {}).fechas);
   await db.transaccion((t) => ciclo.guardarFechas(t, c.id_ciclo, fechas));
+  registrar(`El administrador ${req.usuario.id_usuario} cambió las fechas del ciclo ${c.id_ciclo}`);
   res.json({ ok: true });
 }));
 
@@ -61,6 +64,7 @@ r.post('/admin/ciclos/:id/activar', admin, asincrono(async (req, res) => {
     await t.q("UPDATE ciclos SET estado = 'borrador' WHERE estado = 'activo'");
     await t.q("UPDATE ciclos SET estado = 'activo' WHERE id_ciclo = ?", [c.id_ciclo]);
   });
+  registrar(`El administrador ${req.usuario.id_usuario} activó el ciclo ${c.id_ciclo}`);
   res.json({ ok: true });
 }));
 
@@ -70,6 +74,7 @@ r.post('/admin/ciclos/:id/siguiente-fase', admin, asincrono(async (req, res) => 
   if (c.id_fase >= 8) throw invalido('El ciclo ya está en la última fase. Puedes cerrarlo');
   await db.q('UPDATE ciclos SET id_fase = id_fase + 1 WHERE id_ciclo = ?', [c.id_ciclo]);
   if (c.id_fase + 1 === 6) await db.llamar('sp_calcular_ganadores', [c.id_ciclo]);
+  registrar(`El administrador ${req.usuario.id_usuario} pasó el ciclo ${c.id_ciclo} a la fase ${c.id_fase + 1}`);
   res.json({ ok: true });
 }));
 
@@ -77,6 +82,7 @@ r.post('/admin/ciclos/:id/cerrar', admin, asincrono(async (req, res) => {
   const c = await cicloPorId(req.params.id);
   if (c.id_fase < 8) throw invalido('Solo se puede cerrar un ciclo que llegó a la fase de Evaluación');
   await db.q("UPDATE ciclos SET estado = 'cerrado' WHERE id_ciclo = ?", [c.id_ciclo]);
+  registrar(`El administrador ${req.usuario.id_usuario} cerró el ciclo ${c.id_ciclo}`);
   res.json({ ok: true });
 }));
 
@@ -121,6 +127,7 @@ r.post('/admin/funcionarios', admin, asincrono(async (req, res) => {
      VALUES ('funcionario', ?, ?, ?, ?, TRUE)`, [nombre, email, await bcrypt.hash(temporal, 10), alcaldia]);
   const enviado = await correo.enviar(email, 'Prepar · Tu cuenta de funcionario',
     `Hola, ${nombre}.\n\nSe creó tu cuenta de funcionario en Prepar.\nEntra en ${config.urlPublica}/login.html con tu correo y esta contraseña temporal: ${temporal}\n\nAl entrar te pediremos cambiarla.`);
+  registrar(`El administrador ${req.usuario.id_usuario} creó una cuenta de funcionario`);
   res.status(201).json({ ok: true, temporal, enviado });
 }));
 
@@ -133,6 +140,7 @@ r.put('/admin/usuarios/:id/activo', admin, asincrono(async (req, res) => {
   const activo = req.body.activo === true;
   await db.q('UPDATE usuarios SET activo = ? WHERE id_usuario = ?', [activo, id]);
   if (!activo) await db.q('DELETE FROM sesiones WHERE id_usuario = ?', [id]);
+  registrar(`El administrador ${req.usuario.id_usuario} ${activo ? 'activó' : 'desactivó'} la cuenta ${id}`);
   res.json({ ok: true });
 }));
 
