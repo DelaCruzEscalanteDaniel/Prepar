@@ -1,7 +1,7 @@
 'use strict';
 
 function opcion(p, deshabilitada) {
-  return `<label class="opcion"><input type="radio" name="proyecto_id" value="${p.id}" required ${deshabilitada ? 'disabled' : ''}>
+  return `<label class="opcion"><input type="radio" name="id_proyecto" value="${p.id_proyecto}" required ${deshabilitada ? 'disabled' : ''}>
     <span class="numero-boleta">${p.numero_boleta}</span>
     <span style="flex:1"><b>${P.esc(p.titulo)}</b> <span class="etq">${P.esc(p.rubro)}</span><br>
     <span class="tenue">${P.esc(p.descripcion)}</span></span><b>${P.pesos(p.costo)}</b></label>`;
@@ -24,13 +24,13 @@ async function resultados() {
   const { ciclo, proyectos, voto } = await P.get('/boleta');
   const aviso = P.$('#aviso');
   if (!ciclo) { aviso.textContent = 'No hay un ciclo activo.'; return; }
-  if (ciclo.fase_id >= 6) {
+  if (ciclo.id_fase >= 6) {
     P.$('#subtitulo').textContent = 'Los resultados de la consulta en tu colonia.';
     aviso.classList.add('oculto');
     await resultados();
   }
   if (voto) {
-    if (ciclo.fase_id < 6) aviso.classList.add('oculto');
+    if (ciclo.id_fase < 6) aviso.classList.add('oculto');
     P.$('#comprobante').classList.remove('oculto');
     P.$('#comp-ciclo').textContent = `${ciclo.nombre} · ${u.colonia}, ${u.alcaldia}`;
     P.$('#folio').textContent = voto.folio;
@@ -38,12 +38,12 @@ async function resultados() {
     P.$('#imprimir').addEventListener('click', () => window.print());
     return;
   }
-  if (ciclo.fase_id >= 6) return;
+  if (ciclo.id_fase >= 6) return;
   if (!proyectos.length) {
     aviso.innerHTML = '<div><b>La boleta todavía no está lista</b>Se arma en la fase 4: Sorteo y difusión.</div>';
     return;
   }
-  if (ciclo.fase_id !== 5) {
+  if (ciclo.id_fase !== 5) {
     aviso.innerHTML = '<div><b>Así se ve la boleta de tu colonia</b>La votación se abre en la fase 5: Consulta.</div>';
     P.$('#boleta-vista').classList.remove('oculto');
     P.$('#boleta-vista').innerHTML = `<h2>Boleta</h2>${proyectos.map((p) => opcion(p, true)).join('')}`;

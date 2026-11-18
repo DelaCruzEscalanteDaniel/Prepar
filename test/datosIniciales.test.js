@@ -10,10 +10,10 @@ test.after(detener);
 test('al arrancar se crean las cuentas de prueba y los dos ciclos', async () => {
   await datosIniciales.asegurar();
   await datosIniciales.asegurar();
-  const ciclos = await db.q('SELECT nombre, estado, fase_id FROM ciclos ORDER BY id');
-  assert.deepStrictEqual(ciclos.map((c) => [c.nombre, c.estado, c.fase_id]),
+  const ciclos = await db.q('SELECT nombre, estado, id_fase FROM ciclos ORDER BY id_ciclo');
+  assert.deepStrictEqual(ciclos.map((c) => [c.nombre, c.estado, c.id_fase]),
     [['Ciclo de práctica', 'activo', 2], ['Ciclo de demostración', 'borrador', 7]]);
-  const ganadores = await db.q("SELECT titulo FROM proyectos WHERE estatus IN ('ganador', 'en_ejecucion', 'concluido') ORDER BY id");
+  const ganadores = await db.q("SELECT titulo FROM proyectos WHERE estatus IN ('ganador', 'en_ejecucion', 'concluido') ORDER BY id_proyecto");
   assert.strictEqual(ganadores.length, 4);
   const maria = await entrar('maria.lopez@correo.mx', 'Ciudadano2026');
   assert.strictEqual((await maria.get('/yo')).datos.colonia, 'Clavería');

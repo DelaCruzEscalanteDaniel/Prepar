@@ -16,12 +16,12 @@ const TAREAS = {
   const [{ ciclo, conteo }, { fases }] = await Promise.all([P.get('/func/resumen'), P.get('/ciclo')]);
   if (!ciclo) { P.$('#aviso').textContent = 'Por ahora no hay un ciclo activo.'; return; }
   P.$('#ciclo-nombre').textContent = `${ciclo.nombre} · Alcaldía ${u.alcaldia}`;
-  P.$('#fase-etq').textContent = `Fase ${ciclo.fase_id} de 8 · ${ciclo.fase}`;
-  const [texto, url, boton] = TAREAS[ciclo.fase_id];
+  P.$('#fase-etq').textContent = `Fase ${ciclo.id_fase} de 8 · ${ciclo.fase}`;
+  const [texto, url, boton] = TAREAS[ciclo.id_fase];
   P.$('#aviso').innerHTML = `<div><b>Qué toca hacer ahora</b>${P.esc(texto)}</div>${url ? `<a class="btn" href="${url}">${boton}</a>` : ''}`;
   const n = (e) => (conteo.find((c) => c.estatus === e) || { total: 0 }).total;
   const obras = n('ganador') + n('en_ejecucion') + n('concluido') + n('inejecutable');
   P.$('#conteo').innerHTML = [['Por dictaminar', n('registrado')], ['Viables', n('viable')], ['No viables', n('no_viable')], ['Obras', obras]]
     .map(([t, x]) => `<div class="caja dato-caja"><p class="tenue">${t}</p><div class="dato">${x}</div></div>`).join('');
-  P.$('#fases').innerHTML = P.tablaFases(fases, ciclo.fase_id);
+  P.$('#fases').innerHTML = P.tablaFases(fases, ciclo.id_fase);
 })();

@@ -7,7 +7,7 @@ async function verLista() {
   P.$('#obras').innerHTML = obras.length ? obras.map((o) => `<tr>
       <td><b>${P.esc(o.titulo)}</b></td><td>${P.esc(o.colonia)}</td>
       <td><div class="barra-av"><span style="width:${o.avance}%"></span></div><span class="tenue">${o.avance} %</span></td>
-      <td>${P.etiqueta(o.estatus)}</td><td><a class="btn2" href="#obra-${o.id}">Abrir</a></td></tr>`).join('')
+      <td>${P.etiqueta(o.estatus)}</td><td><a class="btn2" href="#obra-${o.id_proyecto}">Abrir</a></td></tr>`).join('')
     : '<tr><td colspan="5" class="tenue">Todavía no hay obras. Aparecen cuando hay proyectos ganadores.</td></tr>';
 }
 
@@ -39,9 +39,9 @@ async function verObra(id) {
   P.$('#form-inejecutable').classList.toggle('oculto', !abierta);
 
   P.$('#obra-fotos').innerHTML = o.fotos.length ? o.fotos.map((f) => `<div class="foto">
-      <img src="/api/imagenes/${f.imagen_id}" alt="">
+      <img src="/api/imagenes/${f.id_imagen}" alt="">
       <div><b>${P.esc(f.autor)}</b> <span class="tenue">· ${P.fecha(f.fecha)}</span><p>${P.esc(f.comentario)}</p>
-      <button class="peligro" data-foto="${f.id}">Borrar</button></div></div>`).join('')
+      <button class="peligro" data-foto="${f.id_foto_denuncia}">Borrar</button></div></div>`).join('')
     : '<p class="tenue">Todavía no hay fotos de esta obra.</p>';
 }
 

@@ -11,7 +11,7 @@ async function verLista() {
   P.$('#obras').innerHTML = obras.length ? obras.map((o) => `<tr>
       <td><b>${P.esc(o.titulo)}</b></td><td>${P.esc(o.colonia)}</td>
       <td>${barra(o.avance)}<span class="tenue">${o.avance} % · ${P.estatus(o.estatus)}</span></td>
-      <td>${o.fotos}</td><td><a class="btn2" href="#obra-${o.id}">Ver</a></td></tr>`).join('')
+      <td>${o.fotos}</td><td><a class="btn2" href="#obra-${o.id_proyecto}">Ver</a></td></tr>`).join('')
     : '<tr><td colspan="5" class="tenue">Todavía no hay obras. Las obras aparecen cuando hay proyectos ganadores.</td></tr>';
 }
 
@@ -29,7 +29,7 @@ async function verObra(id) {
   P.$('#obra-pasos').innerHTML = o.pasos.map((p) => `<tr><td><span class="check ${p.fecha ? 'si' : ''}"></span>${P.esc(p.nombre)}</td>
     <td class="tenue num">${p.fecha ? P.fecha(p.fecha) : `${p.porcentaje} %`}</td></tr>`).join('');
   P.$('#obra-fotos').innerHTML = o.fotos.length ? o.fotos.map((f) => `<div class="foto">
-      <img src="/api/imagenes/${f.imagen_id}" alt="Foto de ${P.esc(f.autor)}">
+      <img src="/api/imagenes/${f.id_imagen}" alt="Foto de ${P.esc(f.autor)}">
       <div><b>${P.esc(f.autor)}</b> <span class="tenue">· ${P.fecha(f.fecha)}</span><p>${P.esc(f.comentario)}</p></div></div>`).join('')
     : '<p class="tenue">Todavía no hay fotos de esta obra.</p>';
   P.$('#form').dataset.obra = id;

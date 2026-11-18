@@ -44,7 +44,7 @@ function crearApp() {
   app.get('/salud', (req, res) => res.json({ ok: true }));
 
   app.get('/api/imagenes/:id',asincrono(async (req, res) => {
-    const img = await db.uno('SELECT tipo, contenido FROM imagenes WHERE id = ?', [Number(req.params.id) || 0]);
+    const img = await db.uno('SELECT tipo, contenido FROM imagenes WHERE id_imagen = ?', [Number(req.params.id) || 0]);
     if (!img) throw noEncontrado('La imagen no existe');
     res.set('Cache-Control', 'public, max-age=86400').type(img.tipo).send(img.contenido);
   }));

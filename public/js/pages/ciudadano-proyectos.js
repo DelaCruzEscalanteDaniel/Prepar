@@ -13,7 +13,7 @@ async function cargar() {
 (async () => {
   const u = await P.pagina('Proyectos');
   const ciclo = await cargar();
-  if (!ciclo || ciclo.fase_id !== 2) {
+  if (!ciclo || ciclo.id_fase !== 2) {
     P.$('#form').classList.add('oculto');
     P.$('#cerrado').classList.remove('oculto');
     P.$('#cerrado').textContent = 'Los proyectos solo se registran en la fase 2: Diagnóstico y registro.';
@@ -21,10 +21,10 @@ async function cargar() {
   }
   const { rubros, colonias } = await P.get('/catalogos');
   const { ciclo: c } = await P.get('/ciclo');
-  P.$('#rubro').innerHTML = rubros.map((r) => `<option value="${r.id}">${P.esc(r.nombre)}</option>`).join('');
+  P.$('#rubro').innerHTML = rubros.map((r) => `<option value="${r.id_rubro}">${P.esc(r.nombre)}</option>`).join('');
   P.$('#tope').textContent = `El costo no puede pasar de ${P.pesos(c.presupuesto_colonia)}, el presupuesto de tu colonia.`;
 
-  const colonia = colonias.find((x) => x.id === u.colonia_id);
+  const colonia = colonias.find((x) => x.id_colonia === u.id_colonia);
   const mapa = P.mapa('mapa', colonia.latitud, colonia.longitud, 15);
   let marcador = null;
   mapa.on('click', (e) => {

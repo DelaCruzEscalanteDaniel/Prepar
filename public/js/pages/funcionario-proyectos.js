@@ -5,7 +5,7 @@ let fase = 0;
 async function cargar() {
   const datos = await P.get('/func/proyectos');
   proyectos = datos.proyectos;
-  fase = datos.ciclo ? datos.ciclo.fase_id : 0;
+  fase = datos.ciclo ? datos.ciclo.id_fase : 0;
   P.$('#ayuda').textContent = fase === 3 ? 'Estamos en la fase de Dictaminación: revisa los proyectos registrados.'
     : 'Los dictámenes se hacen en la fase 3: Dictaminación.';
   const filtro = P.$('#filtro').value;
@@ -14,7 +14,7 @@ async function cargar() {
       <td><b>${P.esc(p.titulo)}</b><br><span class="tenue">${P.esc(p.rubro)} · ${P.esc(p.proponente)}</span>
         ${p.justificacion ? `<br><span class="tenue">Dictamen: ${P.esc(p.justificacion)}</span>` : ''}</td>
       <td>${P.esc(p.colonia)}</td><td class="num">${P.pesos(p.costo)}</td><td>${P.etiqueta(p.estatus)}</td>
-      <td>${p.estatus === 'registrado' && fase === 3 ? `<button class="btn" data-id="${p.id}">Dictaminar</button>` : ''}</td></tr>`).join('')
+      <td>${p.estatus === 'registrado' && fase === 3 ? `<button class="btn" data-id="${p.id_proyecto}">Dictaminar</button>` : ''}</td></tr>`).join('')
     : '<tr><td colspan="5" class="tenue">No hay proyectos con ese estatus.</td></tr>';
 }
 
@@ -25,11 +25,11 @@ async function cargar() {
   P.$('#lista').addEventListener('click', (e) => {
     const boton = e.target.closest('[data-id]');
     if (!boton) return;
-    const p = proyectos.find((x) => x.id === Number(boton.dataset.id));
-    form.dataset.id = p.id;
+    const p = proyectos.find((x) => x.id_proyecto === Number(boton.dataset.id));
+    form.dataset.id = p.id_proyecto;
     P.$('#form-titulo').textContent = `Dictamen · ${p.titulo}`;
     P.$('#form-detalle').innerHTML = `${P.esc(p.descripcion)}<br><span class="tenue">${P.esc(p.calle)} ${P.esc(p.numero || '')}, ${P.esc(p.colonia)} · Costo ${P.pesos(p.costo)} · Presupuesto de la colonia ${P.pesos(p.presupuesto)}</span>`
-      + (p.imagen_id ? `<br><img src="/api/imagenes/${p.imagen_id}" alt="" style="max-height:180px;margin-top:8px;border-radius:6px">` : '');
+      + (p.id_imagen ? `<br><img src="/api/imagenes/${p.id_imagen}" alt="" style="max-height:180px;margin-top:8px;border-radius:6px">` : '');
     form.classList.remove('oculto');
     form.scrollIntoView({ behavior: 'smooth' });
   });

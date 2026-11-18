@@ -13,15 +13,15 @@
     const { alcaldias, colonias } = await P.get('/catalogos');
     const alcaldia = P.$('#alcaldia');
     const colonia = P.$('#colonia');
-    alcaldia.innerHTML = alcaldias.map((a) => `<option value="${a.id}">${P.esc(a.nombre)}</option>`).join('');
-    alcaldia.value = u.alcaldia_id;
+    alcaldia.innerHTML = alcaldias.map((a) => `<option value="${a.id_alcaldia}">${P.esc(a.nombre)}</option>`).join('');
+    alcaldia.value = u.id_alcaldia;
     const llenar = () => {
-      colonia.innerHTML = colonias.filter((c) => c.alcaldia_id === Number(alcaldia.value))
-        .map((c) => `<option value="${c.id}">${P.esc(c.nombre)}</option>`).join('');
+      colonia.innerHTML = colonias.filter((c) => c.id_alcaldia === Number(alcaldia.value))
+        .map((c) => `<option value="${c.id_colonia}">${P.esc(c.nombre)}</option>`).join('');
     };
     alcaldia.addEventListener('change', llenar);
     llenar();
-    colonia.value = u.colonia_id;
+    colonia.value = u.id_colonia;
   }
 
   P.formulario(form, async (datos) => {

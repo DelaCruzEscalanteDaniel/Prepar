@@ -43,9 +43,9 @@ const P = {
 
   tablaFases(fases, actual) {
     const filas = fases.map((f) => {
-      const estado = f.id < actual ? 'Terminada' : f.id === actual ? '<span class="etq en_ejecucion">En curso</span>' : 'Pendiente';
+      const estado = f.id_fase < actual ? 'Terminada' : f.id_fase === actual ? '<span class="etq en_ejecucion">En curso</span>' : 'Pendiente';
       const fechas = f.fecha_inicio ? `${P.fechaCorta(f.fecha_inicio)} – ${P.fechaCorta(f.fecha_fin)}` : '';
-      const nombre = f.id === actual ? `<b>${f.id}. ${P.esc(f.nombre)}</b>` : `${f.id}. ${P.esc(f.nombre)}`;
+      const nombre = f.id_fase === actual ? `<b>${f.id_fase}. ${P.esc(f.nombre)}</b>` : `${f.id_fase}. ${P.esc(f.nombre)}`;
       return `<tr><td>${nombre}</td><td>${fechas}</td><td>${estado}</td></tr>`;
     }).join('');
     return `<table><thead><tr><th>Fase</th><th>Fechas</th><th>Estado</th></tr></thead><tbody>${filas}</tbody></table>`;
