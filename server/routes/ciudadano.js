@@ -118,15 +118,15 @@ r.get('/boleta', ciudadano, asincrono(async (req, res) => {
      FROM proyectos p JOIN rubros r ON r.id_rubro = p.id_rubro
      WHERE p.id_ciclo = ? AND p.id_colonia = ? AND p.numero_boleta IS NOT NULL ORDER BY p.numero_boleta`,
     [c.id_ciclo, req.usuario.id_colonia]);
-  const voto = await db.uno('SELECT folio, fecha FROM participaciones WHERE id_ciclo = ? AND id_usuario = ?', [c.id_ciclo, req.usuario.id_usuario]);
+  const voto = await db.uno('SELECT fecha FROM participaciones WHERE id_ciclo = ? AND id_usuario = ?', [c.id_ciclo, req.usuario.id_usuario]);
   return res.json({ ciclo: c, proyectos, voto });
 }));
 
 r.post('/votar', ciudadano, asincrono(async (req, res) => {
   await ciclo.exigirActivo(5);
   const proyecto = v.entero(req.body.id_proyecto, 'El proyecto');
-  const filas = await db.llamar('sp_votar', [req.usuario.id_usuario, proyecto]);
-  res.json({ ok: true, folio: filas[0].folio });
+  await db.llamar('sp_votar', [req.usuario.id_usuario, proyecto]);
+  res.json({ ok: true });
 }));
 
 r.get('/resultados', ciudadano, asincrono(async (req, res) => {

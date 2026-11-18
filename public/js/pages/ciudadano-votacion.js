@@ -31,11 +31,8 @@ async function resultados() {
   }
   if (voto) {
     if (ciclo.id_fase < 6) aviso.classList.add('oculto');
-    P.$('#comprobante').classList.remove('oculto');
-    P.$('#comp-ciclo').textContent = `${ciclo.nombre} · ${u.colonia}, ${u.alcaldia}`;
-    P.$('#folio').textContent = voto.folio;
-    P.$('#fecha-voto').textContent = `Votaste el ${P.fecha(voto.fecha)}`;
-    P.$('#imprimir').addEventListener('click', () => window.print());
+    P.$('#ya-voto').classList.remove('oculto');
+    P.$('#fecha-voto').textContent = `Votaste el ${P.fecha(voto.fecha)} en el ${ciclo.nombre}, colonia ${u.colonia}.`;
     return;
   }
   if (ciclo.id_fase >= 6) return;

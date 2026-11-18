@@ -159,8 +159,6 @@ details p { margin: 10px 0 0; color: #475569; }
 footer { border-top: 1px solid var(--borde); background: #fff; }
 footer div { max-width: 1120px; margin: 0 auto; padding: 18px 24px; font-size: 13px; color: var(--tenue); display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 
-.comprobante { max-width: 560px; text-align: center; margin: 0 auto; }
-.comprobante .folio { font-size: 30px; font-weight: 700; letter-spacing: .04em; margin: 10px 0; color: var(--azul-oscuro); }
 
 @media (max-width: 860px) {
   .rejilla.tres, .rejilla.cuatro { grid-template-columns: repeat(2, 1fr); }
@@ -179,7 +177,6 @@ footer div { max-width: 1120px; margin: 0 auto; padding: 18px 24px; font-size: 1
   .heroe h1 { font-size: 30px; }
   .heroe img { display: none; }
 }
-@media print { header, nav, footer, .no-imprimir { display: none !important; } body { background: #fff; } .caja { box-shadow: none; } }
 .check { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%; border: 2px solid #CBD5E1; margin-right: 8px; vertical-align: -4px; font-size: 12px; font-weight: 700; color: #fff; }
 .check.si { background: var(--verde); border-color: var(--verde); }
 .check.si::after { content: '✓'; }

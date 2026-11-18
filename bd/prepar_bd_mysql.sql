@@ -201,7 +201,6 @@ CREATE TABLE dictamenes (
 CREATE TABLE participaciones (
   id_ciclo    INT         NOT NULL,
   id_usuario  INT         NOT NULL,
-  folio       VARCHAR(20) NOT NULL UNIQUE,
   fecha       DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id_ciclo, id_usuario),
   FOREIGN KEY (id_ciclo) REFERENCES ciclos(id_ciclo) ON DELETE CASCADE,
@@ -401,7 +400,6 @@ CREATE PROCEDURE sp_votar(IN p_usuario INT, IN p_proyecto INT)
 BEGIN
   DECLARE v_ciclo INT;
   DECLARE v_colonia INT;
-  DECLARE v_folio VARCHAR(20);
   SET v_ciclo = (SELECT id_ciclo FROM ciclos WHERE estado = 'activo' LIMIT 1);
   SET v_colonia = (SELECT id_colonia FROM usuarios WHERE id_usuario = p_usuario AND rol = 'ciudadano');
   IF NOT EXISTS (SELECT 1 FROM proyectos WHERE id_proyecto = p_proyecto AND id_ciclo = v_ciclo AND id_colonia = v_colonia
@@ -411,10 +409,8 @@ BEGIN
   IF EXISTS (SELECT 1 FROM participaciones WHERE id_ciclo = v_ciclo AND id_usuario = p_usuario) THEN
     SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Ya votaste en este ciclo';
   END IF;
-  SET v_folio = CONCAT('VOTO-', v_ciclo, '-', UPPER(LEFT(MD5(RAND()), 8)));
-  INSERT INTO participaciones (id_ciclo, id_usuario, folio) VALUES (v_ciclo, p_usuario, v_folio);
+  INSERT INTO participaciones (id_ciclo, id_usuario) VALUES (v_ciclo, p_usuario);
   INSERT INTO votos (id_ciclo, id_colonia, id_proyecto) VALUES (v_ciclo, v_colonia, p_proyecto);
-  SELECT v_folio AS folio;
 END$$
 
 CREATE PROCEDURE sp_calcular_ganadores(IN p_ciclo INT)

@@ -58,7 +58,7 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 
 ## Actualizar una base que ya existe
 
-Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases y cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.). No borra nada y se puede correr varias veces.
+Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases, cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.) y quita el folio de `participaciones`. No borra datos y se puede correr varias veces.
 
 ## Pruebas automáticas
 

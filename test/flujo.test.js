@@ -144,7 +144,9 @@ test('dictamen, sorteo y votación', async () => {
   const parque = boleta.find((p) => p.titulo === 'Parque nuevo').id_proyecto;
   const r = await ana.post('/votar', { id_proyecto: parque });
   ok(r);
-  assert.match(r.datos.folio, /^VOTO-/);
+  assert.ok(!('folio' in r.datos));
+  const yaVote = (await ana.get('/boleta')).datos.voto;
+  assert.ok(yaVote.fecha && !('folio' in yaVote));
   falla(await ana.post('/votar', { id_proyecto: parque }));
   falla(await ana.post('/votar', { id_proyecto: id('Plaza de San Álvaro') }));
   const beto = await entrar('beto@correo.mx', 'Prepar2026');
