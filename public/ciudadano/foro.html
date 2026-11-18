@@ -1,33 +1,42 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Foro vecinal · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foro vecinal · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header></header>
-<main>
-<div class="titulo">
-<div><h1 id="titulo">Foro vecinal</h1><p>Ideas de los vecinos de tu alcaldía para mejorar sus colonias.</p></div>
-<label>Colonia<select id="filtro-colonia"><option value="">Todas</option></select></label>
-<label>Rubro<select id="filtro-rubro"><option value="">Todos</option></select></label>
-<button class="btn" id="nueva">+ Nueva idea</button>
-</div>
-<form method="post" class="caja oculto" id="form">
-<h2>Nueva idea para tu colonia</h2>
-<label>Rubro<select name="id_rubro" id="rubro" required></select></label>
-<label>Tu idea<textarea name="texto" rows="3" maxlength="500" required placeholder="¿Qué le hace falta a tu colonia?"></textarea></label>
-<p class="mensaje"></p>
-<button class="btn">Publicar idea</button>
-</form>
-<div class="caja" id="ideas" style="padding:4px 22px"></div>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/js/app.js"></script>
-<script src="/js/pages/ciudadano-foro.js"></script>
+  <header></header>
+  <main>
+    <div class="titulo">
+      <div>
+        <h1 id="titulo">Foro vecinal</h1>
+        <p>Ideas de los vecinos de tu alcaldía para mejorar sus colonias.</p>
+      </div>
+      <label>Colonia<select id="filtro-colonia">
+          <option value="">Todas</option>
+        </select></label>
+      <label>Rubro<select id="filtro-rubro">
+          <option value="">Todos</option>
+        </select></label>
+      <button class="btn" id="nueva">+ Nueva idea</button>
+    </div>
+    <form method="post" class="caja oculto" id="form">
+      <h2>Nueva idea para tu colonia</h2>
+      <label>Rubro<select name="id_rubro" id="rubro" required></select></label>
+      <label>Tu idea<textarea name="texto" rows="3" maxlength="500" required placeholder="¿Qué le hace falta a tu colonia?"></textarea></label>
+      <p class="mensaje"></p>
+      <button class="btn">Publicar idea</button>
+    </form>
+    <div class="caja" id="ideas" style="padding:4px 22px"></div>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/ciudadano-foro.js"></script>
 </body>
 </html>

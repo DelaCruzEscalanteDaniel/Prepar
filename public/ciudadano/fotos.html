@@ -1,41 +1,72 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Foto denuncia · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Foto denuncia · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header></header>
-<main>
-<section id="vista-lista">
-<div class="titulo"><div><h1>Foto denuncia</h1><p>Elige una obra de tu alcaldía para ver cómo va, ver sus fotos o subir una.</p></div></div>
-<div class="caja tabla" style="margin-top:20px"><table><thead><tr><th>Obra</th><th>Colonia</th><th style="width:220px">Avance</th><th>Fotos</th><th></th></tr></thead><tbody id="obras"></tbody></table></div>
-</section>
-<section id="vista-obra" class="oculto" style="display:flex;flex-direction:column;gap:20px">
-<a class="volver" href="#">← Volver a las obras</a>
-<div class="titulo"><div><h1 id="obra-titulo"></h1><p id="obra-datos"></p></div><span id="obra-etq"></span></div>
-<div class="rejilla tres" id="obra-cifras"></div>
-<div class="fila">
-<div class="caja" style="flex:1.4"><h2>Fotos de los vecinos</h2><div id="obra-fotos"></div></div>
-<div style="display:flex;flex-direction:column;gap:20px">
-<form method="post" class="caja" id="form">
-<h2>Subir foto</h2>
-<label>Foto (JPG o PNG)<input name="foto" type="file" accept="image/jpeg,image/png" required></label>
-<label>Comentario<textarea name="comentario" rows="3" maxlength="250" placeholder="¿Qué se ve en la foto?" required></textarea></label>
-<p class="mensaje"></p>
-<button class="btn">Publicar foto</button>
-</form>
-<div class="caja"><h2>Pasos de la obra</h2><table id="obra-pasos"></table></div>
-</div>
-</div>
-</section>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/js/app.js"></script>
-<script src="/js/pages/ciudadano-fotos.js"></script>
+  <header></header>
+  <main>
+    <section id="vista-lista">
+      <div class="titulo">
+        <div>
+          <h1>Foto denuncia</h1>
+          <p>Elige una obra de tu alcaldía para ver cómo va, ver sus fotos o subir una.</p>
+        </div>
+      </div>
+      <div class="caja tabla" style="margin-top:20px">
+        <table>
+          <thead>
+            <tr>
+              <th>Obra</th>
+              <th>Colonia</th>
+              <th style="width:220px">Avance</th>
+              <th>Fotos</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="obras"></tbody>
+        </table>
+      </div>
+    </section>
+    <section id="vista-obra" class="oculto" style="display:flex;flex-direction:column;gap:20px">
+      <a class="volver" href="#">← Volver a las obras</a>
+      <div class="titulo">
+        <div>
+          <h1 id="obra-titulo"></h1>
+          <p id="obra-datos"></p>
+        </div><span id="obra-etq"></span>
+      </div>
+      <div class="rejilla tres" id="obra-cifras"></div>
+      <div class="fila">
+        <div class="caja" style="flex:1.4">
+          <h2>Fotos de los vecinos</h2>
+          <div id="obra-fotos"></div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:20px">
+          <form method="post" class="caja" id="form">
+            <h2>Subir foto</h2>
+            <label>Foto (JPG o PNG)<input name="foto" type="file" accept="image/jpeg,image/png" required></label>
+            <label>Comentario<textarea name="comentario" rows="3" maxlength="250" placeholder="¿Qué se ve en la foto?" required></textarea></label>
+            <p class="mensaje"></p>
+            <button class="btn">Publicar foto</button>
+          </form>
+          <div class="caja">
+            <h2>Pasos de la obra</h2>
+            <table id="obra-pasos"></table>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/ciudadano-fotos.js"></script>
 </body>
 </html>

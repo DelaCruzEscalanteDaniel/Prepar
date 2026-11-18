@@ -1,46 +1,68 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Proyectos · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Proyectos · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header></header>
-<main>
-<div class="titulo"><div><h1>Mis proyectos</h1><p>Los proyectos que registraste y lo que dijo la alcaldía.</p></div></div>
-<div class="caja tabla"><table><thead><tr><th>Proyecto</th><th>Rubro</th><th class="num">Costo</th><th>Estatus</th><th>Dictamen</th></tr></thead><tbody id="lista"></tbody></table></div>
-<div class="aviso oculto" id="cerrado"></div>
-<form method="post" class="caja" id="form">
-<h2>Registrar un proyecto para tu colonia</h2>
-<div class="fila">
-<div>
-<label>Título<input name="titulo" maxlength="100" required></label>
-<label>Descripción<textarea name="descripcion" rows="5" maxlength="500" required></textarea></label>
-<div class="fila"><label>Rubro<select name="id_rubro" id="rubro" required></select></label>
-<label>Costo estimado (pesos)<input name="costo" type="number" min="1" step="0.01" required></label></div>
-<p class="tenue" id="tope" style="margin-top:-6px"></p>
-</div>
-<div>
-<div class="fila"><label>Calle<input name="calle" maxlength="100" required></label>
-<label style="flex:.45">Número<input name="numero" maxlength="10"></label></div>
-<p class="tenue" style="margin:0 0 6px">Toca el mapa para marcar dónde sería el proyecto.</p>
-<div id="mapa" class="mapa-chico"></div>
-<p class="tenue" id="sin-punto" style="margin-top:-6px">⚠️ La ubicación es opcional, pero si no la marcas la alcaldía puede dictaminar tu proyecto como no viable.</p>
-<label>Foto (opcional, JPG o PNG)<input name="foto" type="file" accept="image/jpeg,image/png"></label>
-</div>
-</div>
-<p class="mensaje"></p>
-<button class="btn">Registrar proyecto</button>
-</form>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/vendor/leaflet/leaflet.js"></script>
-<script src="/js/app.js"></script>
-<script src="/js/pages/ciudadano-proyectos.js"></script>
+  <header></header>
+  <main>
+    <div class="titulo">
+      <div>
+        <h1>Mis proyectos</h1>
+        <p>Los proyectos que registraste y lo que dijo la alcaldía.</p>
+      </div>
+    </div>
+    <div class="caja tabla">
+      <table>
+        <thead>
+          <tr>
+            <th>Proyecto</th>
+            <th>Rubro</th>
+            <th class="num">Costo</th>
+            <th>Estatus</th>
+            <th>Dictamen</th>
+          </tr>
+        </thead>
+        <tbody id="lista"></tbody>
+      </table>
+    </div>
+    <div class="aviso oculto" id="cerrado"></div>
+    <form method="post" class="caja" id="form">
+      <h2>Registrar un proyecto para tu colonia</h2>
+      <div class="fila">
+        <div>
+          <label>Título<input name="titulo" maxlength="100" required></label>
+          <label>Descripción<textarea name="descripcion" rows="5" maxlength="500" required></textarea></label>
+          <div class="fila"><label>Rubro<select name="id_rubro" id="rubro" required></select></label>
+            <label>Costo estimado (pesos)<input name="costo" type="number" min="1" step="0.01" required></label>
+          </div>
+          <p class="tenue" id="tope" style="margin-top:-6px"></p>
+        </div>
+        <div>
+          <div class="fila"><label>Calle<input name="calle" maxlength="100" required></label>
+            <label style="flex:.45">Número<input name="numero" maxlength="10"></label>
+          </div>
+          <p class="tenue" style="margin:0 0 6px">Toca el mapa para marcar dónde sería el proyecto.</p>
+          <div id="mapa" class="mapa-chico"></div>
+          <p class="tenue" id="sin-punto" style="margin-top:-6px">⚠️ La ubicación es opcional, pero si no la marcas la alcaldía puede dictaminar tu proyecto como no viable.</p>
+          <label>Foto (opcional, JPG o PNG)<input name="foto" type="file" accept="image/jpeg,image/png"></label>
+        </div>
+      </div>
+      <p class="mensaje"></p>
+      <button class="btn">Registrar proyecto</button>
+    </form>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/ciudadano-proyectos.js"></script>
 </body>
 </html>

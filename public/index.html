@@ -1,68 +1,96 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Inicio · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Inicio · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header><div class="barra barra-publica"><a class="marca" href="/"><img src="/img/logo.png" alt="">Prepar</a><span><a class="btn2" href="/login.html">Iniciar sesión</a> <a class="btn" href="/registro.html">Crear cuenta</a></span></div></header>
-<section class="heroe">
-<div class="dentro">
-<div>
-<span class="chip" id="fase-portada">Simulador educativo</span>
-<h1>Vive el Presupuesto Participativo antes de votar</h1>
-<p>Prepar es un simulador educativo del proceso de la Ciudad de México: propón ideas, registra proyectos, vota por uno de tu colonia y da seguimiento a la obra ganadora, paso a paso.</p>
-<a class="btn grande" href="/registro.html">Crear mi cuenta</a> &nbsp; <a class="btn2 grande" href="/login.html">Iniciar sesión</a>
-</div>
-<img src="/img/logo.png" alt="Castor con casco, la mascota de Prepar">
-</div>
-</section>
-<main>
-<section class="rejilla dos">
-<div class="caja">
-<h2>¿Qué es el Presupuesto Participativo?</h2>
-<p>Es el mecanismo con el que los vecinos de la Ciudad de México deciden en qué se usa una parte del presupuesto de su alcaldía. Cada colonia propone proyectos, la alcaldía revisa que sean viables y la comunidad vota por uno.</p>
-<p class="tenue" style="margin-bottom:0">Prepar reproduce ese proceso completo con datos de práctica para que puedas aprenderlo sin consecuencias reales.</p>
-</div>
-<div class="caja">
-<h2>¿Qué puedes hacer en Prepar?</h2>
-<ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
-<li>Publicar y apoyar ideas en el foro de tu colonia.</li>
-<li>Registrar un proyecto para tu colonia.</li>
-<li>Votar una sola vez y en secreto por el proyecto que prefieras.</li>
-<li>Ver los proyectos en el mapa y subir fotos de cómo van las obras.</li>
-</ul>
-</div>
-</section>
-<section class="caja">
-<h2>¿Cómo funciona? Las 8 fases del ciclo</h2>
-<p class="tenue" style="margin-top:-6px">El simulador avanza por las mismas fases que el proceso real. La fase en curso está marcada.</p>
-<div class="rejilla cuatro" id="fases" style="margin-top:16px"></div>
-</section>
-<section>
-<h2>Tres tipos de cuenta</h2>
-<div class="rejilla tres">
-<div class="caja rol"><h3>Ciudadano</h3><p>Usa el simulador: foro, proyectos, votación, mapa y foto denuncia. Cualquier persona puede crear su cuenta.</p></div>
-<div class="caja rol f"><h3>Funcionario</h3><p>Trabaja en su alcaldía: dictamina proyectos, hace el sorteo de la boleta, modera el foro y da seguimiento a las obras.</p></div>
-<div class="caja rol a"><h3>Administrador</h3><p>Crea los ciclos con sus fechas, cambia de fase, registra funcionarios y ve los resultados.</p></div>
-</div>
-</section>
-<section class="rejilla tres" id="cifras"></section>
-<section>
-<h2>Preguntas frecuentes</h2>
-<details><summary>¿Mi voto en Prepar cuenta en la consulta oficial?</summary><p>No. Prepar es un simulador educativo sin validez oficial y sin relación con el IECM ni con las alcaldías.</p></details>
-<details><summary>¿Qué datos personales me piden y para qué?</summary><p>Tu nombre, tu correo, tu colonia y, si quieres, tu teléfono. Tu colonia sirve para saber en qué foro participas y en qué boleta votas.</p></details>
-<details><summary>¿Puedo votar más de una vez?</summary><p>No. Solo hay un voto por persona en cada ciclo y se guarda separado de tu nombre, para que sea secreto.</p></details>
-<details><summary>¿Cómo se decide el proyecto ganador?</summary><p>Gana el proyecto con más votos de cada colonia. Si hay empate gana el que se registró primero; si solo hay un proyecto viable, gana ese; si nadie votó, la colonia se queda sin ganador.</p></details>
-<details><summary>Soy funcionario o administrador, ¿dónde me registro?</summary><p>Las cuentas de funcionario las crea el Administrador. Entra con el correo y la contraseña temporal que te entregó; al entrar te pedirá cambiarla.</p></details>
-</section>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/js/app.js"></script>
-<script src="/js/pages/index.js"></script>
+  <header>
+    <div class="barra barra-publica"><a class="marca" href="/"><img src="/img/logo.png" alt="">Prepar</a><span><a class="btn2" href="/login.html">Iniciar sesión</a> <a class="btn" href="/registro.html">Crear cuenta</a></span></div>
+  </header>
+  <section class="heroe">
+    <div class="dentro">
+      <div>
+        <span class="chip" id="fase-portada">Simulador educativo</span>
+        <h1>Vive el Presupuesto Participativo antes de votar</h1>
+        <p>Prepar es un simulador educativo del proceso de la Ciudad de México: propón ideas, registra proyectos, vota por uno de tu colonia y da seguimiento a la obra ganadora, paso a paso.</p>
+        <a class="btn grande" href="/registro.html">Crear mi cuenta</a> &nbsp; <a class="btn2 grande" href="/login.html">Iniciar sesión</a>
+      </div>
+      <img src="/img/logo.png" alt="Castor con casco, la mascota de Prepar">
+    </div>
+  </section>
+  <main>
+    <section class="rejilla dos">
+      <div class="caja">
+        <h2>¿Qué es el Presupuesto Participativo?</h2>
+        <p>Es el mecanismo con el que los vecinos de la Ciudad de México deciden en qué se usa una parte del presupuesto de su alcaldía. Cada colonia propone proyectos, la alcaldía revisa que sean viables y la comunidad vota por uno.</p>
+        <p class="tenue" style="margin-bottom:0">Prepar reproduce ese proceso completo con datos de práctica para que puedas aprenderlo sin consecuencias reales.</p>
+      </div>
+      <div class="caja">
+        <h2>¿Qué puedes hacer en Prepar?</h2>
+        <ul style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:6px">
+          <li>Publicar y apoyar ideas en el foro de tu colonia.</li>
+          <li>Registrar un proyecto para tu colonia.</li>
+          <li>Votar una sola vez y en secreto por el proyecto que prefieras.</li>
+          <li>Ver los proyectos en el mapa y subir fotos de cómo van las obras.</li>
+        </ul>
+      </div>
+    </section>
+    <section class="caja">
+      <h2>¿Cómo funciona? Las 8 fases del ciclo</h2>
+      <p class="tenue" style="margin-top:-6px">El simulador avanza por las mismas fases que el proceso real. La fase en curso está marcada.</p>
+      <div class="rejilla cuatro" id="fases" style="margin-top:16px"></div>
+    </section>
+    <section>
+      <h2>Tres tipos de cuenta</h2>
+      <div class="rejilla tres">
+        <div class="caja rol">
+          <h3>Ciudadano</h3>
+          <p>Usa el simulador: foro, proyectos, votación, mapa y foto denuncia. Cualquier persona puede crear su cuenta.</p>
+        </div>
+        <div class="caja rol f">
+          <h3>Funcionario</h3>
+          <p>Trabaja en su alcaldía: dictamina proyectos, hace el sorteo de la boleta, modera el foro y da seguimiento a las obras.</p>
+        </div>
+        <div class="caja rol a">
+          <h3>Administrador</h3>
+          <p>Crea los ciclos con sus fechas, cambia de fase, registra funcionarios y ve los resultados.</p>
+        </div>
+      </div>
+    </section>
+    <section class="rejilla tres" id="cifras"></section>
+    <section>
+      <h2>Preguntas frecuentes</h2>
+      <details>
+        <summary>¿Mi voto en Prepar cuenta en la consulta oficial?</summary>
+        <p>No. Prepar es un simulador educativo sin validez oficial y sin relación con el IECM ni con las alcaldías.</p>
+      </details>
+      <details>
+        <summary>¿Qué datos personales me piden y para qué?</summary>
+        <p>Tu nombre, tu correo, tu colonia y, si quieres, tu teléfono. Tu colonia sirve para saber en qué foro participas y en qué boleta votas.</p>
+      </details>
+      <details>
+        <summary>¿Puedo votar más de una vez?</summary>
+        <p>No. Solo hay un voto por persona en cada ciclo y se guarda separado de tu nombre, para que sea secreto.</p>
+      </details>
+      <details>
+        <summary>¿Cómo se decide el proyecto ganador?</summary>
+        <p>Gana el proyecto con más votos de cada colonia. Si hay empate gana el que se registró primero; si solo hay un proyecto viable, gana ese; si nadie votó, la colonia se queda sin ganador.</p>
+      </details>
+      <details>
+        <summary>Soy funcionario o administrador, ¿dónde me registro?</summary>
+        <p>Las cuentas de funcionario las crea el Administrador. Entra con el correo y la contraseña temporal que te entregó; al entrar te pedirá cambiarla.</p>
+      </details>
+    </section>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/index.js"></script>
 </body>
 </html>
