@@ -247,7 +247,10 @@ test('perfil, cambio de contraseña, recuperación y eliminar cuenta', async () 
   ok(await caro.put('/perfil', { nombre: 'Carolina Pérez', telefono: '5512345678', id_colonia: estado.clav }));
   assert.strictEqual((await caro.get('/yo')).datos.nombre, 'Carolina Pérez');
   falla(await caro.put('/password', { actual: 'Mala12345', nueva: 'Nueva2026' }));
+  const caroEnOtroLado = await entrar('caro@correo.mx', 'Prepar2026');
   ok(await caro.put('/password', { actual: 'Prepar2026', nueva: 'Nueva2026' }));
+  falla(await caroEnOtroLado.get('/yo'), 401);
+  ok(await caro.get('/yo'));
   await entrar('caro@correo.mx', 'Nueva2026');
 
   ok(await cliente().post('/recuperar', { correo: 'nadie@correo.mx' }));
@@ -269,4 +272,11 @@ test('el login se bloquea 15 minutos después de 5 intentos', async () => {
   falla(await c.post('/login', { correo: 'dani@correo.mx', password: 'Prepar2026' }));
   await db.q("UPDATE usuarios SET bloqueado_hasta = NULL WHERE correo = 'dani@correo.mx'");
   await entrar('dani@correo.mx', 'Prepar2026');
+});
+
+test('límite de intentos por IP', async () => {
+  let ultimo;
+  for (let i = 0; i < 6; i += 1) ultimo = await cliente().post('/recuperar', { correo: 'nadie@correo.mx' });
+  falla(ultimo, 429);
+  assert.match(ultimo.datos.error, /demasiados intentos/i);
 });

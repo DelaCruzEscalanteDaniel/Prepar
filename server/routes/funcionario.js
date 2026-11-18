@@ -5,6 +5,7 @@ const sesion = require('../lib/sesion');
 const ciclo = require('../lib/ciclo');
 const v = require('../lib/validar');
 const { asincrono, invalido, noEncontrado } = require('../lib/errores');
+const { registrar } = require('../lib/seguridad');
 const { ideasDelForo, detalleObra, proyectosDelMapa } = require('./ciudadano');
 
 const r = express.Router();
@@ -151,6 +152,7 @@ r.delete('/func/ideas/:id', funcionario, asincrono(async (req, res) => {
     'DELETE i FROM ideas i JOIN colonias c ON c.id_colonia = i.id_colonia WHERE i.id_idea = ? AND c.id_alcaldia = ?',
     [Number(req.params.id) || 0, req.usuario.id_alcaldia]);
   if (!borrado.affectedRows) throw noEncontrado('La idea no existe');
+  registrar(`El funcionario ${req.usuario.id_usuario} borró la idea ${req.params.id}`);
   res.json({ ok: true });
 }));
 
@@ -159,6 +161,7 @@ r.delete('/func/comentarios/:id', funcionario, asincrono(async (req, res) => {
     `DELETE co FROM comentarios co JOIN ideas i ON i.id_idea = co.id_idea JOIN colonias c ON c.id_colonia = i.id_colonia
      WHERE co.id_comentario = ? AND c.id_alcaldia = ?`, [Number(req.params.id) || 0, req.usuario.id_alcaldia]);
   if (!borrado.affectedRows) throw noEncontrado('El comentario no existe');
+  registrar(`El funcionario ${req.usuario.id_usuario} borró el comentario ${req.params.id}`);
   res.json({ ok: true });
 }));
 
@@ -169,6 +172,7 @@ r.delete('/func/fotos/:id', funcionario, asincrono(async (req, res) => {
   if (!foto) throw noEncontrado('La foto no existe');
   await db.q('DELETE FROM fotos_denuncia WHERE id_foto_denuncia = ?', [foto.id_foto_denuncia]);
   await db.q('DELETE FROM imagenes WHERE id_imagen = ?', [foto.id_imagen]);
+  registrar(`El funcionario ${req.usuario.id_usuario} borró la foto ${foto.id_foto_denuncia}`);
   res.json({ ok: true });
 }));
 

@@ -60,12 +60,24 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 
 Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases, cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.), quita el folio de `participaciones` y agrega el motivo a `dictamenes`. No borra datos y se puede correr varias veces.
 
+## Seguridad
+
+- **Inyección SQL:** todas las consultas usan parámetros `?`.
+- **XSS:** el servidor rechaza textos con etiquetas HTML y el navegador escapa todo lo que muestra.
+- **Contraseñas:** bcrypt; las sesiones y los enlaces de recuperación se guardan como sha256.
+- **Acceso:** cada ruta revisa el rol, y funcionarios y ciudadanos solo ven su alcaldía.
+- **Fuerza bruta:** la cuenta se bloquea 15 minutos después de 5 intentos fallidos, y hay un límite de intentos por IP en login, registro y recuperación de contraseña.
+- **Sesiones:** duran 12 horas; al cambiar o restablecer la contraseña se cierran las demás.
+- **Cabeceras:** CSP, `X-Frame-Options`, `nosniff` y, en producción, HSTS.
+- **Registro:** los inicios de sesión fallidos, los bloqueos y las acciones de administradores y funcionarios se escriben en el log del servidor con la etiqueta `[seguridad]`.
+- **Dependencias:** solo 3 (`express`, `mysql2`, `bcryptjs`); `npm audit` sin vulnerabilidades.
+
 ## Pruebas automáticas
 
 ```
 npm test
 ```
-Crean una base aparte (`prepar_prueba`) y recorren un ciclo completo: registro, foro, proyectos, dictamen, sorteo, votación, ganadores, obras y foto denuncia.
+Crean una base aparte (`prepar_prueba`) y recorren un ciclo completo: registro, foro, proyectos, dictamen, sorteo, votación, ganadores, obras y foto denuncia, además del límite de intentos.
 
 ## Carpetas
 
