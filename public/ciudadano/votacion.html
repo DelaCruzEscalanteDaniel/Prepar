@@ -1,39 +1,46 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Votación · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Votación · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header></header>
-<main>
-<div class="titulo"><div><h1 id="titulo">Votación</h1><p id="subtitulo">La boleta de tu colonia.</p></div></div>
-<div class="aviso" id="aviso"></div>
-<form method="post" class="caja oculto" id="form" style="max-width:760px">
-<h2>Boleta</h2>
-<p class="tenue" style="margin-top:-6px">Elige un proyecto. Solo puedes votar una vez y tu voto es secreto.</p>
-<div id="opciones"></div>
-<p class="mensaje"></p>
-<button class="btn grande">Votar</button>
-</form>
-<div class="caja oculto" id="boleta-vista" style="max-width:760px"></div>
-<div class="caja oculto" id="ya-voto" style="max-width:760px">
-<h2>Ya votaste</h2>
-<p id="fecha-voto"></p>
-<p class="tenue" style="margin-bottom:0">Tu voto es secreto: Prepar solo guarda que ya participaste, no por quién votaste.</p>
-</div>
-<div class="caja oculto" id="resultados">
-<h2 id="res-titulo">Resultados de tu colonia</h2>
-<div class="grafica" id="res-grafica"></div>
-<p class="tenue" id="res-nota" style="margin-bottom:0"></p>
-</div>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/js/app.js"></script>
-<script src="/js/pages/ciudadano-votacion.js"></script>
+  <header></header>
+  <main>
+    <div class="titulo">
+      <div>
+        <h1 id="titulo">Votación</h1>
+        <p id="subtitulo">La boleta de tu colonia.</p>
+      </div>
+    </div>
+    <div class="aviso" id="aviso"></div>
+    <form method="post" class="caja oculto" id="form" style="max-width:760px">
+      <h2>Boleta</h2>
+      <p class="tenue" style="margin-top:-6px">Elige un proyecto. Solo puedes votar una vez y tu voto es secreto.</p>
+      <div id="opciones"></div>
+      <p class="mensaje"></p>
+      <button class="btn grande">Votar</button>
+    </form>
+    <div class="caja oculto" id="boleta-vista" style="max-width:760px"></div>
+    <div class="caja oculto" id="ya-voto" style="max-width:760px">
+      <h2>Ya votaste</h2>
+      <p id="fecha-voto"></p>
+      <p class="tenue" style="margin-bottom:0">Tu voto es secreto: Prepar solo guarda que ya participaste, no por quién votaste.</p>
+    </div>
+    <div class="caja oculto" id="resultados">
+      <h2 id="res-titulo">Resultados de tu colonia</h2>
+      <div class="grafica" id="res-grafica"></div>
+      <p class="tenue" id="res-nota" style="margin-bottom:0"></p>
+    </div>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/ciudadano-votacion.js"></script>
 </body>
 </html>

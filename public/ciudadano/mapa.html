@@ -1,30 +1,44 @@
 <!doctype html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Mapa · Prepar</title>
-<link rel="icon" type="image/png" href="/img/favicon-32.png">
-<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
-<link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
-<link rel="stylesheet" href="/css/app.css">
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapa · Prepar</title>
+  <link rel="icon" type="image/png" href="/img/favicon-32.png">
+  <link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="/css/app.css">
 </head>
 <body>
-<header></header>
-<main>
-<div class="titulo">
-<div><h1>Mapa de proyectos</h1><p id="subtitulo">Toca un punto para ver el proyecto.</p></div>
-<label>Colonia<select id="filtro-colonia"><option value="">Todas</option></select></label>
-<label>Rubro<select id="filtro-rubro"><option value="">Todos</option></select></label>
-</div>
-<div class="fila">
-<div class="caja" style="flex:1.8;padding:12px"><div id="mapa" class="mapa"></div><p class="tenue" id="leyenda" style="margin:10px 4px 0"></p></div>
-<div class="caja" id="detalle"><p class="tenue" style="margin:0">Elige un proyecto en el mapa.</p></div>
-</div>
-</main>
-<footer><div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div></footer>
-<script src="/vendor/leaflet/leaflet.js"></script>
-<script src="/js/app.js"></script>
-<script src="/js/pages/mapa.js"></script>
+  <header></header>
+  <main>
+    <div class="titulo">
+      <div>
+        <h1>Mapa de proyectos</h1>
+        <p id="subtitulo">Toca un punto para ver el proyecto.</p>
+      </div>
+      <label>Colonia<select id="filtro-colonia">
+          <option value="">Todas</option>
+        </select></label>
+      <label>Rubro<select id="filtro-rubro">
+          <option value="">Todos</option>
+        </select></label>
+    </div>
+    <div class="fila">
+      <div class="caja" style="flex:1.8;padding:12px">
+        <div id="mapa" class="mapa"></div>
+        <p class="tenue" id="leyenda" style="margin:10px 4px 0"></p>
+      </div>
+      <div class="caja" id="detalle">
+        <p class="tenue" style="margin:0">Elige un proyecto en el mapa.</p>
+      </div>
+    </div>
+  </main>
+  <footer>
+    <div><span>Prepar · Simulador educativo del Presupuesto Participativo de la CDMX · Equipo 04</span><a href="/privacidad.html">Aviso de privacidad</a></div>
+  </footer>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script src="/js/app.js"></script>
+  <script src="/js/pages/mapa.js"></script>
 </body>
 </html>
