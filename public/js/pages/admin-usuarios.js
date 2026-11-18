@@ -12,14 +12,14 @@ async function cargar() {
       <td>${P.esc(u.correo)}</td>
       <td>${P.esc(rol === 'ciudadano' ? `${u.colonia}, ${u.alcaldia}` : u.alcaldia || '')}</td>
       <td><span class="etq ${u.activo ? 'activo' : 'cerrado'}">${u.activo ? 'Activa' : 'Desactivada'}</span></td>
-      <td>${u.id === yo.id || rol === 'administrador' ? '' : `<button class="btn2" data-id="${u.id}" data-activo="${u.activo ? '0' : '1'}">${u.activo ? 'Desactivar' : 'Activar'}</button>`}</td></tr>`).join('')
+      <td>${u.id_usuario === yo.id_usuario || rol === 'administrador' ? '' : `<button class="btn2" data-id="${u.id_usuario}" data-activo="${u.activo ? '0' : '1'}">${u.activo ? 'Desactivar' : 'Activar'}</button>`}</td></tr>`).join('')
     : '<tr><td colspan="5" class="tenue">No hay cuentas que coincidan.</td></tr>';
 }
 
 (async () => {
   yo = await P.pagina('Usuarios');
   const { alcaldias } = await P.get('/catalogos');
-  P.$('#alcaldia').innerHTML = alcaldias.map((a) => `<option value="${a.id}">${P.esc(a.nombre)}</option>`).join('');
+  P.$('#alcaldia').innerHTML = alcaldias.map((a) => `<option value="${a.id_alcaldia}">${P.esc(a.nombre)}</option>`).join('');
   P.$('#pestanas').addEventListener('click', (e) => {
     const b = e.target.closest('button');
     if (!b) return;

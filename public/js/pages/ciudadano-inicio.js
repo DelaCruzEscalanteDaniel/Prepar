@@ -17,14 +17,14 @@ const ACCIONES = {
   P.$('#colonia').textContent = `${u.colonia}, ${u.alcaldia}`;
   if (!ciclo) { P.$('#aviso').textContent = 'Por ahora no hay un ciclo activo.'; return; }
   P.$('#ciclo-nombre').textContent = `${ciclo.nombre} · ${u.colonia}, ${u.alcaldia}`;
-  P.$('#fase-etq').textContent = `Fase ${ciclo.fase_id} de 8 · ${ciclo.fase}`;
-  const [texto, url, boton] = ACCIONES[ciclo.fase_id];
-  const fase = fases.find((f) => f.id === ciclo.fase_id);
+  P.$('#fase-etq').textContent = `Fase ${ciclo.id_fase} de 8 · ${ciclo.fase}`;
+  const [texto, url, boton] = ACCIONES[ciclo.id_fase];
+  const fase = fases.find((f) => f.id_fase === ciclo.id_fase);
   const hasta = fase && fase.fecha_fin ? ` Esta fase termina el ${P.fecha(fase.fecha_fin)}.` : '';
   P.$('#aviso').innerHTML = `<div><b>${P.esc(ciclo.fase)}</b>${P.esc(texto + hasta)}</div>${url ? `<a class="btn" href="${url}">${boton}</a>` : ''}`;
   P.$('#presupuesto').textContent = P.pesos(ciclo.presupuesto_colonia);
   P.$('#ideas').textContent = resumen.ideas;
   P.$('#proyectos').textContent = resumen.proyectos;
   P.$('#proyectos-nota').textContent = resumen.mios ? `${resumen.mios} registrado(s) por ti` : 'Todavía no registras ninguno';
-  P.$('#fases').innerHTML = P.tablaFases(fases, ciclo.fase_id);
+  P.$('#fases').innerHTML = P.tablaFases(fases, ciclo.id_fase);
 })();

@@ -58,7 +58,7 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 
 ## Actualizar una base que ya existe
 
-Si la base ya tiene datos y solo quieres agregar las fechas de las fases (versión 2.1), corre `npm run bd:actualizar`. No borra nada.
+Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases y cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.). No borra nada y se puede correr varias veces.
 
 ## Pruebas automáticas
 

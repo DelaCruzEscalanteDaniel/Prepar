@@ -80,17 +80,17 @@ function foto(cielo, suelo) {
 async function adminPruebas() {
   const { correo, password } = config.adminPruebas;
   if (!correo) return;
-  const u = await db.uno('SELECT id, rol FROM usuarios WHERE correo = ?', [correo]);
+  const u = await db.uno('SELECT id_usuario, rol FROM usuarios WHERE correo = ?', [correo]);
   if (u && u.rol !== 'administrador') return console.error(`ADMIN_PRUEBAS_CORREO (${correo}) ya pertenece a otra cuenta`);
   if (!password) {
     if (u) {
-      await db.q('UPDATE usuarios SET activo = FALSE WHERE id = ?', [u.id]);
-      await db.q('DELETE FROM sesiones WHERE usuario_id = ?', [u.id]);
+      await db.q('UPDATE usuarios SET activo = FALSE WHERE id_usuario = ?', [u.id_usuario]);
+      await db.q('DELETE FROM sesiones WHERE id_usuario = ?', [u.id_usuario]);
     }
     return undefined;
   }
   const hash = await bcrypt.hash(password, 10);
-  if (u) await db.q('UPDATE usuarios SET activo = TRUE, password_hash = ? WHERE id = ?', [hash, u.id]);
+  if (u) await db.q('UPDATE usuarios SET activo = TRUE, password_hash = ? WHERE id_usuario = ?', [hash, u.id_usuario]);
   else await db.q("INSERT INTO usuarios (rol, nombre, correo, password_hash) VALUES ('administrador', 'Administrador de pruebas', ?, ?)", [correo, hash]);
   return undefined;
 }
@@ -100,66 +100,66 @@ async function cuentasDePrueba() {
   const hashFuncionario = await bcrypt.hash('Funcionario2026', 10);
   for (const [clave, alcaldia] of [['azc', 'Azcapotzalco'], ['coy', 'Coyoacán']]) {
     const email = `funcionario.demo.${clave}@prepar.mx`;
-    if (!(await db.uno('SELECT id FROM usuarios WHERE correo = ?', [email]))) {
-      await db.q(`INSERT INTO usuarios (rol, nombre, correo, password_hash, alcaldia_id)
-                  SELECT 'funcionario', ?, ?, ?, id FROM alcaldias WHERE nombre = ?`,
+    if (!(await db.uno('SELECT id_usuario FROM usuarios WHERE correo = ?', [email]))) {
+      await db.q(`INSERT INTO usuarios (rol, nombre, correo, password_hash, id_alcaldia)
+                  SELECT 'funcionario', ?, ?, ?, id_alcaldia FROM alcaldias WHERE nombre = ?`,
         [`Funcionario de demostración ${alcaldia}`, email, hashFuncionario, alcaldia]);
     }
-    ids[clave] = (await db.uno('SELECT id FROM usuarios WHERE correo = ?', [email])).id;
+    ids[clave] = (await db.uno('SELECT id_usuario FROM usuarios WHERE correo = ?', [email])).id_usuario;
   }
   const hashCiudadano = await bcrypt.hash('Ciudadano2026', 10);
   for (const [usuario, nombre, colonia] of CIUDADANOS) {
     const email = `${usuario}@correo.mx`;
-    if (!(await db.uno('SELECT id FROM usuarios WHERE correo = ?', [email]))) {
-      await db.q(`INSERT INTO usuarios (rol, nombre, correo, password_hash, colonia_id)
-                  SELECT 'ciudadano', ?, ?, ?, id FROM colonias WHERE clave = ?`, [nombre, email, hashCiudadano, colonia]);
+    if (!(await db.uno('SELECT id_usuario FROM usuarios WHERE correo = ?', [email]))) {
+      await db.q(`INSERT INTO usuarios (rol, nombre, correo, password_hash, id_colonia)
+                  SELECT 'ciudadano', ?, ?, ?, id_colonia FROM colonias WHERE clave = ?`, [nombre, email, hashCiudadano, colonia]);
     }
-    ids[usuario] = (await db.uno('SELECT id FROM usuarios WHERE correo = ?', [email])).id;
+    ids[usuario] = (await db.uno('SELECT id_usuario FROM usuarios WHERE correo = ?', [email])).id_usuario;
   }
   return ids;
 }
 
 async function cicloDemostracion(ids) {
-  const colonias = Object.fromEntries((await db.q("SELECT id, clave, latitud, longitud FROM colonias WHERE clave LIKE 'AZC%' OR clave LIKE 'COY%'"))
+  const colonias = Object.fromEntries((await db.q("SELECT id_colonia, clave, latitud, longitud FROM colonias WHERE clave LIKE 'AZC%' OR clave LIKE 'COY%'"))
     .map((c) => [c.clave, c]));
-  const ciclo = (await db.llamar('sp_crear_ciclo', [DEMOSTRACION, new Date().getFullYear(), 120000000]))[0].ciclo_id;
-  const fase = (n) => db.q('UPDATE ciclos SET fase_id = ? WHERE id = ?', [n, ciclo]);
+  const ciclo = (await db.llamar('sp_crear_ciclo', [DEMOSTRACION, new Date().getFullYear(), 120000000]))[0].id_ciclo;
+  const fase = (n) => db.q('UPDATE ciclos SET id_fase = ? WHERE id_ciclo = ?', [n, ciclo]);
   const funcionarioDe = (clave) => (clave.startsWith('AZC') ? ids.azc : ids.coy);
 
   await fase(2);
   for (const [colonia, autor, rubro, texto, apoyos, comentarios] of IDEAS) {
-    const idea = (await db.q('INSERT INTO ideas (ciclo_id, colonia_id, autor_id, rubro_id, texto) VALUES (?, ?, ?, ?, ?)',
-      [ciclo, colonias[colonia].id, ids[autor], rubro, texto])).insertId;
-    for (const quien of apoyos) await db.q('INSERT INTO apoyos (idea_id, usuario_id) VALUES (?, ?)', [idea, ids[quien]]);
-    for (const [quien, t] of comentarios) await db.q('INSERT INTO comentarios (idea_id, autor_id, texto) VALUES (?, ?, ?)', [idea, ids[quien], t]);
+    const idea = (await db.q('INSERT INTO ideas (id_ciclo, id_colonia, id_autor, id_rubro, texto) VALUES (?, ?, ?, ?, ?)',
+      [ciclo, colonias[colonia].id_colonia, ids[autor], rubro, texto])).insertId;
+    for (const quien of apoyos) await db.q('INSERT INTO apoyos (id_idea, id_usuario) VALUES (?, ?)', [idea, ids[quien]]);
+    for (const [quien, t] of comentarios) await db.q('INSERT INTO comentarios (id_idea, id_autor, texto) VALUES (?, ?, ?)', [idea, ids[quien], t]);
   }
   const proyectos = {};
   for (const [n, [colonia, autor, rubro, titulo, descripcion, costo, calle]] of PROYECTOS.entries()) {
     const c = colonias[colonia];
     proyectos[titulo] = (await db.q(
-      `INSERT INTO proyectos (ciclo_id, colonia_id, proponente_id, rubro_id, titulo, descripcion, costo, calle, latitud, longitud)
+      `INSERT INTO proyectos (id_ciclo, id_colonia, id_proponente, id_rubro, titulo, descripcion, costo, calle, latitud, longitud)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [ciclo, c.id, ids[autor], rubro, titulo, descripcion, costo, calle,
+      [ciclo, c.id_colonia, ids[autor], rubro, titulo, descripcion, costo, calle,
         Number(c.latitud) + ((n % 3) - 1) * 0.003, Number(c.longitud) + ((n % 2) ? 0.003 : -0.002)])).insertId;
   }
 
   await fase(3);
   for (const [colonia, , , titulo, , , , resultado] of PROYECTOS) {
-    await db.q('INSERT INTO dictamenes (proyecto_id, funcionario_id, resultado, justificacion) VALUES (?, ?, ?, ?)',
+    await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, justificacion) VALUES (?, ?, ?, ?)',
       [proyectos[titulo], funcionarioDe(colonia), resultado,
         resultado === 'viable' ? 'Cumple con los requisitos técnicos y el costo está dentro del presupuesto.' : 'No beneficia a los vecinos: es para uso de la alcaldía.']);
   }
 
   await fase(4);
   for (const clave of Object.keys(colonias)) {
-    if (PROYECTOS.some((p) => p[0] === clave)) await db.llamar('sp_sorteo', [ciclo, colonias[clave].id]);
+    if (PROYECTOS.some((p) => p[0] === clave)) await db.llamar('sp_sorteo', [ciclo, colonias[clave].id_colonia]);
   }
 
   await fase(5);
   for (const [colonia, , , titulo, , , , , votantes] of PROYECTOS) {
     for (const quien of votantes) {
-      await db.q('INSERT INTO participaciones (ciclo_id, usuario_id, folio) VALUES (?, ?, ?)', [ciclo, ids[quien], `VOTO-${ciclo}-${ids[quien]}DEMO`]);
-      await db.q('INSERT INTO votos (ciclo_id, colonia_id, proyecto_id) VALUES (?, ?, ?)', [ciclo, colonias[colonia].id, proyectos[titulo]]);
+      await db.q('INSERT INTO participaciones (id_ciclo, id_usuario, folio) VALUES (?, ?, ?)', [ciclo, ids[quien], `VOTO-${ciclo}-${ids[quien]}DEMO`]);
+      await db.q('INSERT INTO votos (id_ciclo, id_colonia, id_proyecto) VALUES (?, ?, ?)', [ciclo, colonias[colonia].id_colonia, proyectos[titulo]]);
     }
   }
 
@@ -171,21 +171,21 @@ async function cicloDemostracion(ids) {
   const colores = [[[118, 189, 215], [120, 150, 110]], [[150, 200, 230], [150, 150, 150]], [[244, 200, 140], [130, 140, 120]]];
   let n = 0;
   for (const [titulo, obra] of Object.entries(OBRAS)) {
-    const p = await db.uno('SELECT p.id, p.rubro_id, p.colonia_id FROM proyectos p WHERE p.id = ?', [proyectos[titulo]]);
-    const clave = Object.keys(colonias).find((k) => colonias[k].id === p.colonia_id);
-    const pasos = await db.q('SELECT id, nombre FROM pasos_rubro WHERE rubro_id = ? ORDER BY orden LIMIT ?', [p.rubro_id, obra.pasos]);
+    const p = await db.uno('SELECT p.id_proyecto, p.id_rubro, p.id_colonia FROM proyectos p WHERE p.id_proyecto = ?', [proyectos[titulo]]);
+    const clave = Object.keys(colonias).find((k) => colonias[k].id_colonia === p.id_colonia);
+    const pasos = await db.q('SELECT id_paso_rubro, nombre FROM pasos_rubro WHERE id_rubro = ? ORDER BY orden LIMIT ?', [p.id_rubro, obra.pasos]);
     for (const paso of pasos) {
-      await db.q('INSERT INTO pasos_proyecto (proyecto_id, paso_id, que_se_hizo, funcionario_id) VALUES (?, ?, ?, ?)',
-        [p.id, paso.id, `Se terminó: ${paso.nombre.toLowerCase()}.`, funcionarioDe(clave)]);
+      await db.q('INSERT INTO pasos_proyecto (id_proyecto, id_paso_rubro, que_se_hizo, id_funcionario) VALUES (?, ?, ?, ?)',
+        [p.id_proyecto, paso.id_paso_rubro, `Se terminó: ${paso.nombre.toLowerCase()}.`, funcionarioDe(clave)]);
     }
     for (const [monto, concepto] of obra.gastos) {
-      await db.q('INSERT INTO gastos (proyecto_id, funcionario_id, monto, concepto) VALUES (?, ?, ?, ?)', [p.id, funcionarioDe(clave), monto, concepto]);
+      await db.q('INSERT INTO gastos (id_proyecto, id_funcionario, monto, concepto) VALUES (?, ?, ?, ?)', [p.id_proyecto, funcionarioDe(clave), monto, concepto]);
     }
     for (const [quien, comentario] of obra.fotos) {
       const [cielo, suelo] = colores[n % colores.length];
       n += 1;
       const imagen = (await db.q("INSERT INTO imagenes (tipo, contenido) VALUES ('image/png', ?)", [foto(cielo, suelo)])).insertId;
-      await db.q('INSERT INTO fotos_denuncia (proyecto_id, autor_id, imagen_id, comentario) VALUES (?, ?, ?, ?)', [p.id, ids[quien], imagen, comentario]);
+      await db.q('INSERT INTO fotos_denuncia (id_proyecto, id_autor, id_imagen, comentario) VALUES (?, ?, ?, ?)', [p.id_proyecto, ids[quien], imagen, comentario]);
     }
   }
   console.log(`Se creó el «${DEMOSTRACION}» (fase 7). Actívalo desde el panel del administrador para verlo.`);
@@ -197,7 +197,7 @@ async function fechasDesdeFase(ciclo, faseActual) {
   const dia = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); };
   let inicio = -3 - DURACION.slice(0, faseActual - 1).reduce((a, b) => a + b, 0);
   for (let i = 0; i < 8; i += 1) {
-    await db.q('UPDATE ciclo_fases SET fecha_inicio = ?, fecha_fin = ? WHERE ciclo_id = ? AND fase_id = ?',
+    await db.q('UPDATE ciclo_fases SET fecha_inicio = ?, fecha_fin = ? WHERE id_ciclo = ? AND id_fase = ?',
       [dia(inicio), dia(inicio + DURACION[i] - 1), ciclo, i + 1]);
     inicio += DURACION[i];
   }
@@ -206,14 +206,14 @@ async function fechasDesdeFase(ciclo, faseActual) {
 async function asegurar() {
   await adminPruebas();
   const ids = await cuentasDePrueba();
-  if (!(await db.uno('SELECT id FROM ciclos WHERE nombre = ?', [PRACTICA]))) {
-    const id = (await db.llamar('sp_crear_ciclo', [PRACTICA, new Date().getFullYear(), 120000000]))[0].ciclo_id;
-    const hayActivo = await db.uno("SELECT id FROM ciclos WHERE estado = 'activo'");
-    await db.q(`UPDATE ciclos SET fase_id = 2, estado = ? WHERE id = ?`, [hayActivo ? 'borrador' : 'activo', id]);
+  if (!(await db.uno('SELECT id_ciclo FROM ciclos WHERE nombre = ?', [PRACTICA]))) {
+    const id = (await db.llamar('sp_crear_ciclo', [PRACTICA, new Date().getFullYear(), 120000000]))[0].id_ciclo;
+    const hayActivo = await db.uno("SELECT id_ciclo FROM ciclos WHERE estado = 'activo'");
+    await db.q(`UPDATE ciclos SET id_fase = 2, estado = ? WHERE id_ciclo = ?`, [hayActivo ? 'borrador' : 'activo', id]);
     await fechasDesdeFase(id, 2);
     console.log(`Se creó el «${PRACTICA}» en la fase 2.`);
   }
-  if (!(await db.uno('SELECT id FROM ciclos WHERE nombre = ?', [DEMOSTRACION]))) await cicloDemostracion(ids);
+  if (!(await db.uno('SELECT id_ciclo FROM ciclos WHERE nombre = ?', [DEMOSTRACION]))) await cicloDemostracion(ids);
 }
 
 module.exports = { asegurar, PRACTICA, DEMOSTRACION };

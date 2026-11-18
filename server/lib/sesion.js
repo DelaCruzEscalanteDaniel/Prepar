@@ -20,7 +20,7 @@ function leerCookie(req) {
 
 async function crear(res, usuarioId) {
   const token = crypto.randomBytes(32).toString('hex');
-  await db.q('INSERT INTO sesiones (usuario_id, token) VALUES (?, ?)', [usuarioId, sha256(token)]);
+  await db.q('INSERT INTO sesiones (id_usuario, token) VALUES (?, ?)', [usuarioId, sha256(token)]);
   res.cookie(COOKIE, token, { httpOnly: true, sameSite: 'lax', secure: config.cookieSegura, path: '/', maxAge: HORAS * 3600 * 1000 });
 }
 
@@ -31,13 +31,13 @@ async function cerrar(req, res) {
 }
 
 const SQL_USUARIO = `
-  SELECT u.id, u.rol, u.nombre, u.correo, u.telefono, u.debe_cambiar_password,
-         u.colonia_id, c.nombre AS colonia,
-         COALESCE(u.alcaldia_id, c.alcaldia_id) AS alcaldia_id, a.nombre AS alcaldia
+  SELECT u.id_usuario, u.rol, u.nombre, u.correo, u.telefono, u.debe_cambiar_password,
+         u.id_colonia, c.nombre AS colonia,
+         COALESCE(u.id_alcaldia, c.id_alcaldia) AS id_alcaldia, a.nombre AS alcaldia
   FROM sesiones s
-  JOIN usuarios u ON u.id = s.usuario_id
-  LEFT JOIN colonias c ON c.id = u.colonia_id
-  LEFT JOIN alcaldias a ON a.id = COALESCE(u.alcaldia_id, c.alcaldia_id)
+  JOIN usuarios u ON u.id_usuario = s.id_usuario
+  LEFT JOIN colonias c ON c.id_colonia = u.id_colonia
+  LEFT JOIN alcaldias a ON a.id_alcaldia = COALESCE(u.id_alcaldia, c.id_alcaldia)
   WHERE s.token = ? AND u.activo AND s.ultima_actividad > NOW() - INTERVAL ${HORAS} HOUR`;
 
 async function leer(req, res, next) {
