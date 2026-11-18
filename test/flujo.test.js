@@ -108,13 +108,18 @@ test('registro de proyectos con tope del presupuesto', async () => {
   const beto = await entrar('beto@correo.mx', 'Prepar2026');
   const dani = await entrar('dani@correo.mx', 'Prepar2026');
   const base = { descripcion: 'Descripción del proyecto', id_rubro: 1, calle: 'Calle 1', costo: 500000 };
-  ok(await ana.post('/proyectos', { ...base, titulo: 'Parque nuevo', foto: FOTO_PNG }));
+  ok(await ana.post('/proyectos', { ...base, titulo: 'Parque nuevo', foto: FOTO_PNG, latitud: 19.47, longitud: -99.19 }));
   ok(await beto.post('/proyectos', { ...base, titulo: 'Banquetas', id_rubro: 2 }));
   ok(await beto.post('/proyectos', { ...base, titulo: 'Bodega' }));
   ok(await dani.post('/proyectos', { ...base, titulo: 'Plaza de San Álvaro' }));
   falla(await ana.post('/proyectos', { ...base, titulo: 'Carísimo', costo: 999999999 }));
   falla(await ana.post('/proyectos', { ...base, titulo: 'Foto mala', foto: Buffer.from('GIF89a').toString('base64') }));
-  assert.strictEqual((await ana.get('/mis-proyectos')).datos.proyectos.length, 1);
+  falla(await ana.post('/proyectos', { ...base, titulo: 'Media ubicación', latitud: 19.47 }));
+  falla(await ana.post('/proyectos', { ...base, titulo: 'Fuera de la ciudad', latitud: 25.6, longitud: -100.3 }));
+  const mios = (await ana.get('/mis-proyectos')).datos.proyectos;
+  assert.strictEqual(mios.length, 1);
+  assert.ok(mios[0].con_ubicacion);
+  assert.ok(!(await beto.get('/mis-proyectos')).datos.proyectos[0].con_ubicacion);
 });
 
 test('dictamen, sorteo y votación', async () => {
@@ -126,7 +131,15 @@ test('dictamen, sorteo y votación', async () => {
   ok(await siguiente());
   ok(await func.post(`/func/proyectos/${id('Parque nuevo')}/dictamen`, { resultado: 'viable', justificacion: 'Cumple' }));
   ok(await func.post(`/func/proyectos/${id('Banquetas')}/dictamen`, { resultado: 'viable', justificacion: 'Cumple' }));
-  ok(await func.post(`/func/proyectos/${id('Bodega')}/dictamen`, { resultado: 'no_viable', justificacion: 'Es para la alcaldía' }));
+  falla(await func.post(`/func/proyectos/${id('Bodega')}/dictamen`, { resultado: 'no_viable', justificacion: 'Es para la alcaldía' }));
+  falla(await func.post(`/func/proyectos/${id('Bodega')}/dictamen`, { resultado: 'no_viable', motivo: 'inventado', justificacion: 'Es para la alcaldía' }));
+  ok(await func.post(`/func/proyectos/${id('Bodega')}/dictamen`, { resultado: 'no_viable', motivo: 'ubicacion', justificacion: 'No marcó dónde sería' }));
+  const revisados = (await func.get('/func/proyectos')).datos.proyectos;
+  assert.strictEqual(revisados.find((p) => p.titulo === 'Bodega').motivo, 'ubicacion');
+  assert.strictEqual(revisados.find((p) => p.titulo === 'Bodega').latitud, null);
+  assert.strictEqual(revisados.find((p) => p.titulo === 'Parque nuevo').motivo, null);
+  await assert.rejects(db.q("UPDATE dictamenes SET motivo = NULL WHERE resultado = 'no_viable'"), /check constraint/i);
+  await assert.rejects(db.q("UPDATE dictamenes SET motivo = 'costo' WHERE resultado = 'viable'"), /check constraint/i);
   ok(await func.post(`/func/proyectos/${id('Plaza de San Álvaro')}/dictamen`, { resultado: 'viable', justificacion: 'Cumple' }));
   falla(await func.post(`/func/proyectos/${id('Bodega')}/dictamen`, { resultado: 'viable', justificacion: 'Otra vez' }));
 

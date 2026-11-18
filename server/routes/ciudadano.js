@@ -83,7 +83,7 @@ r.get('/mis-proyectos', ciudadano, asincrono(async (req, res) => {
   const c = await ciclo.activo();
   if (!c) return res.json({ ciclo: null, proyectos: [] });
   const proyectos = await db.q(
-    `SELECT p.id_proyecto, p.titulo, p.costo, p.estatus, r.nombre AS rubro, d.justificacion
+    `SELECT p.id_proyecto, p.titulo, p.costo, p.estatus, p.latitud IS NOT NULL AS con_ubicacion, r.nombre AS rubro, d.motivo, d.justificacion
      FROM proyectos p JOIN rubros r ON r.id_rubro = p.id_rubro LEFT JOIN dictamenes d ON d.id_proyecto = p.id_proyecto
      WHERE p.id_ciclo = ? AND p.id_proponente = ? ORDER BY p.id_proyecto DESC`, [c.id_ciclo, req.usuario.id_usuario]);
   return res.json({ ciclo: c, proyectos });
@@ -92,6 +92,9 @@ r.get('/mis-proyectos', ciudadano, asincrono(async (req, res) => {
 r.post('/proyectos', ciudadano, asincrono(async (req, res) => {
   const c = await ciclo.exigirActivo(2);
   const b = req.body || {};
+  const latitud = v.coordenada(b.latitud, 18.9, 19.7);
+  const longitud = v.coordenada(b.longitud, -99.4, -98.9);
+  if ((latitud === null) !== (longitud === null)) throw invalido('La ubicación no es válida');
   const datos = [
     c.id_ciclo, req.usuario.id_colonia, req.usuario.id_usuario,
     v.entero(b.id_rubro, 'El rubro'),
@@ -100,8 +103,8 @@ r.post('/proyectos', ciudadano, asincrono(async (req, res) => {
     v.dinero(b.costo, 'El costo'),
     v.texto(b.calle, 'la calle', 100),
     v.texto(b.numero, 'el número', 10, false),
-    v.coordenada(b.latitud, 18.9, 19.7),
-    v.coordenada(b.longitud, -99.4, -98.9),
+    latitud,
+    longitud,
   ];
   const imagen = b.foto ? await imagenes.guardar(Buffer.from(String(b.foto), 'base64')) : null;
   await db.q(

@@ -12,6 +12,10 @@ const ESTATUS = {
   registrado: 'Registrado', viable: 'Viable', no_viable: 'No viable', ganador: 'Ganador',
   en_ejecucion: 'En ejecución', concluido: 'Concluido', inejecutable: 'Inejecutable',
 };
+const MOTIVOS = {
+  ubicacion: 'Ubicación faltante o incorrecta', costo: 'Costo fuera de lo razonable', competencia: 'No le corresponde a la alcaldía',
+  repetido: 'Proyecto repetido', beneficio: 'No beneficia a la colonia', otro: 'Otro motivo',
+};
 
 const P = {
   async api(ruta, metodo = 'GET', datos) {
@@ -39,6 +43,8 @@ const P = {
   fechaCorta: (f) => (f ? new Date(`${String(f).slice(0, 10)}T12:00`).toLocaleDateString('es-MX', { day: 'numeric', month: 'short' }) : ''),
   estatus: (e) => ESTATUS[e] || e,
   etiqueta: (e) => `<span class="etq ${e}">${ESTATUS[e] || e}</span>`,
+  motivos: MOTIVOS,
+  sinUbicacion: '<span class="etq alerta">Sin ubicación</span>',
   iniciales: (n) => String(n || '').split(' ').filter(Boolean).slice(0, 2).map((x) => x[0]).join('').toUpperCase(),
 
   tablaFases(fases, actual) {

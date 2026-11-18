@@ -23,8 +23,8 @@ En línea: https://prepar-u55c.onrender.com
 
 | Ciudadano | Funcionario | Administrador |
 |---|---|---|
-| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable o no viable) | Crear ciclos con sus fechas y alcaldías |
-| Registrar proyectos para su colonia | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
+| Publicar ideas, apoyarlas y comentarlas | Dictaminar proyectos (viable, o no viable con su motivo) | Crear ciclos con sus fechas y alcaldías |
+| Registrar proyectos para su colonia (la ubicación es opcional) | Hacer el sorteo de la boleta | Activar un ciclo y pasar de fase |
 | Votar una vez (voto secreto) | Registrar pasos y gastos de las obras | Ver la gráfica de votos por colonia |
 | Ver el mapa de proyectos y los resultados | Borrar ideas, comentarios y fotos | Registrar funcionarios |
 | Subir fotos de las obras (foto denuncia) | | Activar o desactivar cuentas |
@@ -58,7 +58,7 @@ Al arrancar, el servidor crea el **Ciclo de práctica** (activo, fase 2), el **C
 
 ## Actualizar una base que ya existe
 
-Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases, cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.) y quita el folio de `participaciones`. No borra datos y se puede correr varias veces.
+Si la base ya tiene datos, corre `npm run bd:actualizar`: agrega la tabla de fechas de las fases, cambia los nombres de las llaves (`id` → `id_proyecto`, `colonia_id` → `id_colonia`, etc.), quita el folio de `participaciones` y agrega el motivo a `dictamenes`. No borra datos y se puede correr varias veces.
 
 ## Pruebas automáticas
 

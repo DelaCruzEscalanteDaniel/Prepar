@@ -191,11 +191,14 @@ CREATE TABLE dictamenes (
   id_proyecto     INT          NOT NULL UNIQUE,
   id_funcionario  INT          NOT NULL,
   resultado       VARCHAR(9)   NOT NULL,
+  motivo          VARCHAR(20)  NULL,
   justificacion   VARCHAR(500) NOT NULL,
   fecha           DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (id_proyecto) REFERENCES proyectos(id_proyecto) ON DELETE CASCADE,
   FOREIGN KEY (id_funcionario) REFERENCES usuarios(id_usuario),
-  CHECK (resultado IN ('viable', 'no_viable'))
+  CHECK (resultado IN ('viable', 'no_viable')),
+  CHECK (motivo IN ('ubicacion', 'costo', 'competencia', 'repetido', 'beneficio', 'otro')),
+  CHECK ((resultado = 'viable' AND motivo IS NULL) OR (resultado = 'no_viable' AND motivo IS NOT NULL))
 );
 
 CREATE TABLE participaciones (

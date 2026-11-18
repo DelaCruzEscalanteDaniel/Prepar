@@ -73,6 +73,12 @@ async function actualizar() {
       await q('ALTER TABLE participaciones DROP COLUMN folio');
       cambiadas += 1;
     }
+    if (!(await existe('dictamenes', 'motivo'))) {
+      await q('ALTER TABLE dictamenes ADD COLUMN motivo VARCHAR(20) NULL AFTER resultado');
+      cambiadas += 1;
+    }
+    await q("UPDATE dictamenes SET motivo = 'otro' WHERE resultado = 'no_viable' AND motivo IS NULL");
+    await q("UPDATE dictamenes SET motivo = NULL WHERE resultado = 'viable'");
     await quitarRestricciones();
     for (const s of todas.filter((x) => x.startsWith('CREATE TABLE'))) {
       const tabla = /CREATE TABLE (\w+)/.exec(s)[1];

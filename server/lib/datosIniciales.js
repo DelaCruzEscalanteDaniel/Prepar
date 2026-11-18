@@ -145,8 +145,8 @@ async function cicloDemostracion(ids) {
 
   await fase(3);
   for (const [colonia, , , titulo, , , , resultado] of PROYECTOS) {
-    await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, justificacion) VALUES (?, ?, ?, ?)',
-      [proyectos[titulo], funcionarioDe(colonia), resultado,
+    await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, motivo, justificacion) VALUES (?, ?, ?, ?, ?)',
+      [proyectos[titulo], funcionarioDe(colonia), resultado, resultado === 'viable' ? null : 'beneficio',
         resultado === 'viable' ? 'Cumple con los requisitos técnicos y el costo está dentro del presupuesto.' : 'No beneficia a los vecinos: es para uso de la alcaldía.']);
   }
 

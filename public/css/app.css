@@ -88,6 +88,7 @@ td.num, th.num { text-align: right; white-space: nowrap; }
 .etq.ganador { background: #FEF3C7; color: #92400E; }
 .etq.en_ejecucion { background: var(--azul-claro); color: var(--azul-oscuro); }
 .etq.fase { background: var(--azul-claro); color: var(--azul-oscuro); }
+.etq.alerta { background: #FEF3C7; color: #92400E; }
 
 .dato-caja { padding: 18px 20px; }
 .dato-caja .tenue { margin: 0; }

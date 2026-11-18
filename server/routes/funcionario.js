@@ -9,6 +9,7 @@ const { ideasDelForo, detalleObra, proyectosDelMapa } = require('./ciudadano');
 
 const r = express.Router();
 const funcionario = sesion.requiere('funcionario');
+const MOTIVOS = ['ubicacion', 'costo', 'competencia', 'repetido', 'beneficio', 'otro'];
 
 r.get('/func/resumen', funcionario, asincrono(async (req, res) => {
   const c = await ciclo.activo();
@@ -23,9 +24,9 @@ r.get('/func/proyectos', funcionario, asincrono(async (req, res) => {
   const c = await ciclo.activo();
   if (!c) return res.json({ ciclo: null, proyectos: [] });
   const proyectos = await db.q(
-    `SELECT p.id_proyecto, p.titulo, p.descripcion, p.costo, p.calle, p.numero, p.estatus, p.id_imagen,
-            co.nombre AS colonia, cc.presupuesto, r.nombre AS rubro, u.nombre AS proponente,
-            d.resultado, d.justificacion
+    `SELECT p.id_proyecto, p.titulo, p.descripcion, p.costo, p.calle, p.numero, p.estatus, p.id_imagen, p.latitud, p.longitud,
+            co.nombre AS colonia, co.latitud AS colonia_latitud, co.longitud AS colonia_longitud, cc.presupuesto, r.nombre AS rubro,
+            u.nombre AS proponente, d.resultado, d.motivo, d.justificacion
      FROM proyectos p
      JOIN colonias co ON co.id_colonia = p.id_colonia
      JOIN ciclo_colonias cc ON cc.id_ciclo = p.id_ciclo AND cc.id_colonia = p.id_colonia
@@ -51,9 +52,11 @@ r.post('/func/proyectos/:id/dictamen', funcionario, asincrono(async (req, res) =
   if (p.estatus !== 'registrado') throw invalido('Este proyecto ya tiene dictamen');
   const resultado = req.body.resultado === 'viable' ? 'viable' : req.body.resultado === 'no_viable' ? 'no_viable' : null;
   if (!resultado) throw invalido('Elige si el proyecto es viable o no viable');
+  const motivo = resultado === 'no_viable' && MOTIVOS.includes(req.body.motivo) ? req.body.motivo : null;
+  if (resultado === 'no_viable' && !motivo) throw invalido('Elige el motivo por el que el proyecto no es viable');
   const justificacion = v.texto(req.body.justificacion, 'la justificación', 500);
-  await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, justificacion) VALUES (?, ?, ?, ?)',
-    [p.id_proyecto, req.usuario.id_usuario, resultado, justificacion]);
+  await db.q('INSERT INTO dictamenes (id_proyecto, id_funcionario, resultado, motivo, justificacion) VALUES (?, ?, ?, ?, ?)',
+    [p.id_proyecto, req.usuario.id_usuario, resultado, motivo, justificacion]);
   res.json({ ok: true });
 }));
 
